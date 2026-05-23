@@ -12,7 +12,7 @@ const megaMenuData = [
   { title: "Digital Marketing", count: "05", link: "#services", icon: "marketing", image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80" }
 ]
 
-export default function Navbar({ currentView, onViewChange, user, onLogout }) {
+export default function Navbar({ currentView, onViewChange, onStartProject }) {
   const [scrolled, setScrolled] = useState(false)
   const [megaMenuOpen, setMegaMenuOpen] = useState(false)
   const [hoveredCard, setHoveredCard] = useState(null)
@@ -126,9 +126,9 @@ export default function Navbar({ currentView, onViewChange, user, onLogout }) {
                   href="#dashboard" 
                   className={currentView === 'dashboard' ? 'active' : ''}
                   onMouseEnter={handleMouseLeaveMenu}
-                  onClick={(e) => handleLinkClick(e, 'dashboard')}
+                  onClick={(e) => { e.preventDefault(); onStartProject && onStartProject() }}
                 >
-                  Insights
+                  Vix AI
                 </a>
                 <a
                   href="#contact"
@@ -189,26 +189,8 @@ export default function Navbar({ currentView, onViewChange, user, onLogout }) {
             </div>
           </div>
 
-          {/* Right: Pixel Grid Icon Button + Auth */}
+          {/* Right: Contact Icon */}
           <div className="header-right">
-            {user ? (
-              <div className="header-user-info">
-                <span className="header-user-name">{user.name}</span>
-                <button className="btn-nav-logout" onClick={onLogout}>
-                  تسجيل خروج
-                </button>
-              </div>
-            ) : (
-              <button 
-                className="btn-nav-signin" 
-                onClick={() => {
-                  const ev = new Event('start-project')
-                  window.dispatchEvent(ev)
-                }}
-              >
-                تسجيل دخول
-              </button>
-            )}
             <button 
               className="btn-nav-pixel-icon" 
               onClick={() => setIsContactOpen(true)}

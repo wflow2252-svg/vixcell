@@ -1,0 +1,12 @@
+{
+  "name": "vixcell-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install": "cd frontend && npm install && cd ../backend && npm install",
+    "build": "cd frontend && npm run build",
+    "vercel-build": "npm run install && npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

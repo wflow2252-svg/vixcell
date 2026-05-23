@@ -12,8 +12,6 @@ import LiveChat from './components/LiveChat'
 import ContactFooter from './components/ContactFooter'
 import ClientDashboard from './components/ClientDashboard'
 import PortfolioPage from './pages/PortfolioPage'
-import GoogleSignInModal from './components/GoogleSignInModal'
-import AIProjectChat from './components/AIProjectChat'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -24,19 +22,6 @@ function App() {
     if (window.location.pathname === '/portfolio') return 'portfolio'
     return 'landing'
   })
-  const [showSignIn, setShowSignIn] = useState(false)
-  const [user, setUser] = useState(null)
-  const [showAIChat, setShowAIChat] = useState(false)
-
-  // Restore user session from localStorage
-  useEffect(() => {
-    const savedUser = localStorage.getItem('vix_user')
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser))
-      } catch {}
-    }
-  }, [])
 
   useEffect(() => {
     localStorage.setItem('vix_view', view)
@@ -73,71 +58,29 @@ function App() {
 
   // Listen for "Start a Project" trigger from Hero / Navbar
   useEffect(() => {
-    const handler = () => handleStartProject()
+    const handler = () => setView('dashboard')
     window.addEventListener('start-project', handler)
     return () => window.removeEventListener('start-project', handler)
-  }, [user])
-
-  function handleStartProject() {
-    if (user) {
-      // AI goes to dashboard
-      setView('dashboard')
-      setShowAIChat(false)
-    } else {
-      setShowSignIn(true)
-    }
-  }
-
-  function handleSignInSuccess(userData) {
-    setUser(userData)
-    // Save user session persistently
-    localStorage.setItem('vix_user', JSON.stringify(userData))
-    setShowSignIn(false)
-    // Go to dashboard with AI
-    setView('dashboard')
-  }
-
-  function handleLogout() {
-    localStorage.removeItem('vix_user')
-    setUser(null)
-    setView('landing')
-    setShowAIChat(false)
-  }
-
-  // Full-screen AI Chat (separate mode)
-  if (showAIChat) {
-    return (
-      <AIProjectChat
-        user={user}
-        onClose={() => setShowAIChat(false)}
-      />
-    )
-  }
+  }, [])
 
   // Portfolio full page
   if (view === 'portfolio') {
     return <PortfolioPage onViewChange={setView} />
   }
 
-  // Dashboard with integrated AI
+  // Dashboard = full AI page
   if (view === 'dashboard') {
-    return (
-      <ClientDashboard
-        onViewChange={setView}
-        user={user}
-        onLogout={handleLogout}
-      />
-    )
+    return <ClientDashboard onViewChange={setView} />
   }
 
   return (
     <div className="app-wrapper">
-      <Navbar currentView={view} onViewChange={setView} onStartProject={handleStartProject} user={user} onLogout={handleLogout} />
+      <Navbar currentView={view} onViewChange={setView} onStartProject={() => setView('dashboard')} />
 
       <main style={{ minHeight: '100vh' }}>
         {view === 'landing' ? (
           <>
-            <Hero onStartProject={handleStartProject} />
+            <Hero onStartProject={() => setView('dashboard')} />
             <Services />
             <Portfolio onViewChange={setView} />
             <AIDemo />
@@ -147,14 +90,6 @@ function App() {
 
       <ContactFooter />
       <LiveChat />
-
-      {/* Google Sign-In Modal */}
-      {showSignIn && (
-        <GoogleSignInModal
-          onSuccess={handleSignInSuccess}
-          onClose={() => setShowSignIn(false)}
-        />
-      )}
     </div>
   )
 }

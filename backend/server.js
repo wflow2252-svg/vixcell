@@ -42,7 +42,7 @@ initFirebase();
 // ─── CORS ──────────────────────────────────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : ['http://localhost:5173', 'http://localhost:3000'];
+  : ['http://localhost:5173', 'http://localhost:3000', 'https://vixcell.com', 'https://web-958esy8nx-hazemcoding-9684s-projects.vercel.app'];
 
 const corsOptions = {
   origin: (origin, callback) => {

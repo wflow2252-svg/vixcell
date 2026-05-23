@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vixcell — Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ─── Sidebar ──────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">V</div>
+      <div class="brand-text">
+        <span class="brand-name">Vixcell</span>
+        <span class="brand-role">Admin Panel</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">📁</span>
+        <span class="nav-label">Projects</span>
+        <span class="nav-badge">12</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">Messages</span>
+        <span class="nav-badge accent">4</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">📄</span>
+        <span class="nav-label">Invoices</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">⚙️</span>
+        <span class="nav-label">Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar">HA</div>
+        <div class="user-meta">
+          <span class="user-name">Hazem A.</span>
+          <span class="user-status">Super Admin</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── Main Wrapper ─────────────────────────────── -->
+  <div class="main-wrapper">
+
+    <!-- ─── Top Bar ────────────────────────────────── -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" aria-label="Toggle sidebar">☰</button>
+        <h1 class="page-title">Dashboard</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" aria-label="Notifications">🔔</button>
+        <button class="icon-btn" aria-label="Profile">👤</button>
+      </div>
+    </header>
+
+    <!-- ─── Content ────────────────────────────────── -->
+    <main class="content">
+
+      <!-- KPI Cards Row (3D Glassmorphism) -->
+      <section class="kpi-row">
+        <article class="kpi-card glass-3d">
+          <div class="kpi-front">
+            <div class="kpi-icon">🚀</div>
+            <div class="kpi-info">
+              <span class="kpi-value">24</span>
+              <span class="kpi-label">Active Projects</span>
+            </div>
+            <div class="kpi-trend up">+12%</div>
+          </div>
+        </article>
+
+        <article class="kpi-card glass-3d">
+          <div class="kpi-front">
+            <div class="kpi-icon">💰</div>
+            <div class="kpi-info">
+              <span class="kpi-value">$48.2k</span>
+              <span class="kpi-label">Revenue</span>
+            </div>
+            <div class="kpi-trend up">+8.3%</div>
+          </div>
+        </article>
+
+        <article class="kpi-card glass-3d">
+          <div class="kpi-front">
+            <div class="kpi-icon">👥</div>
+            <div class="kpi-info">
+              <span class="kpi-value">18</span>
+              <span class="kpi-label">Team Members</span>
+            </div>
+            <div class="kpi-trend neutral">Stable</div>
+          </div>
+        </article>
+
+        <article class="kpi-card glass-3d">
+          <div class="kpi-front">
+            <div class="kpi-icon">⏱️</div>
+            <div class="kpi-info">
+              <span class="kpi-value">94%</span>
+              <span class="kpi-label">Uptime</span>
+            </div>
+            <div class="kpi-trend up">+2.1%</div>
+          </div>
+        </article>
+      </section>
+
+      <!-- Excel-Style Data Grid -->
+      <section class="grid-section">
+        <div class="section-header">
+          <h2>Project Pipeline</h2>
+          <div class="section-actions">
+            <button class="btn-ghost-sm">📥 Export</button>
+            <button class="btn-primary-sm">+ New Project</button>
+          </div>
+        </div>
+
+        <div class="excel-grid">
+          <div class="excel-table">
+            <!-- Header Row -->
+            <div class="excel-row header">
+              <div class="excel-cell col-id">ID</div>
+              <div class="excel-cell col-name">Project Name</div>
+              <div class="excel-cell col-client">Client</div>
+              <div class="excel-cell col-status">Status</div>
+              <div class="excel-cell col-priority">Priority</div>
+              <div class="excel-cell col-deadline">Deadline</div>
+              <div class="excel-cell col-budget">Budget</div>
+              <div class="excel-cell col-actions">Actions</div>
+            </div>
+
+            <!-- Data Row 1 -->
+            <div class="excel-row">
+              <div class="excel-cell col-id">#P-1024</div>
+              <div class="excel-cell col-name">Vixcell Core Platform</div>
+              <div class="excel-cell col-client">Internal</div>
+              <div class="excel-cell col-status"><span class="status-pill dev">Development</span></div>
+              <div class="excel-cell col-priority"><span class="priority-pill high">High</span></div>
+              <div class="excel-cell col-deadline">Jun 15, 2026</div>
+              <div class="excel-cell col-budget">$24,000</div>
+              <div class="excel-cell col-actions">
+                <button class="row-action-btn" title="Edit">✏️</button>
+                <button class="row-action-btn" title="More">⋯</button>
+              </div>
+            </div>
+
+            <!-- Data Row 2 -->
+            <div class="excel-row">
+              <div class="excel-cell col-id">#P-1023</div>
+              <div class="excel-cell col-name">Mobile Client App</div>
+              <div class="excel-cell col-client">Internal</div>
+              <div class="excel-cell col-status"><span class="status-pill design">Design Review</span></div>
+              <div class="excel-cell col-priority"><span class="priority-pill medium">Medium</span></div>
+              <div class="excel-cell col-deadline">Jul 01, 2026</div>
+              <div class="excel-cell col-budget">$18,500</div>
+              <div class="excel-cell col-actions">
+                <button class="row-action-btn" title="Edit">✏️</button>
+                <button class="row-action-btn" title="More">⋯</button>
+              </div>
+            </div>
+
+            <!-- Data Row 3 -->
+            <div class="excel-row">
+              <div class="excel-cell col-id">#P-1022</div>
+              <div class="excel-cell col-name">NileMart E-Commerce</div>
+              <div class="excel-cell col-client">NileMart Inc.</div>
+              <div class="excel-cell col-status"><span class="status-pill done">Completed</span></div>
+              <div class="excel-cell col-priority"><span class="priority-pill low">Low</span></div>
+              <div class="excel-cell col-deadline">May 28, 2026</div>
+              <div class="excel-cell col-budget">$42,000</div>
+              <div class="excel-cell col-actions">
+                <button class="row-action-btn" title="Edit">✏️</button>
+                <button class="row-action-btn" title="More">⋯</button>
+              </div>
+            </div>
+
+            <!-- Data Row 4 -->
+            <div class="excel-row">
+              <div class="excel-cell col-id">#P-1021</div>
+              <div class="excel-cell col-name">GreenLeaf POS System</div>
+              <div class="excel-cell col-client">GreenLeaf Co.</div>
+              <div class="excel-cell col-status"><span class="status-pill dev">Development</span></div>
+              <div class="excel-cell col-priority"><span class="priority-pill high">High</span></div>
+              <div class="excel-cell col-deadline">Jun 30, 2026</div>
+              <div class="excel-cell col-budget">$35,000</div>
+              <div class="excel-cell col-actions">
+                <button class="row-action-btn" title="Edit">✏️</button>
+                <button class="row-action-btn" title="More">⋯</button>
+              </div>
+            </div>
+
+            <!-- Data Row 5 -->
+            <div class="excel-row">
+              <div class="excel-cell col-id">#P-1020</div>
+              <div class="excel-cell col-name">Portfolio Redesign</div>
+              <div class="excel-cell col-client">Sarah K.</div>
+              <div class="excel-cell col-status"><span class="status-pill done">Completed</span></div>
+              <div class="excel-cell col-priority"><span class="priority-pill low">Low</span></div>
+              <div class="excel-cell col-deadline">May 20, 2026</div>
+              <div class="excel-cell col-budget">$6,500</div>
+              <div class="excel-cell col-actions">
+                <button class="row-action-btn" title="Edit">✏️</button>
+                <button class="row-action-btn" title="More">⋯</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Message Input with Logo Preview -->
+      <section class="message-section">
+        <div class="section-header">
+          <h2>Team Messages</h2>
+        </div>
+
+        <div class="message-thread">
+          <div class="message-item received">
+            <div class="msg-avatar">OM</div>
+            <div class="msg-content">
+              <div class="msg-meta">
+                <span class="msg-author">Omar M.</span>
+                <span class="msg-time">10:24 AM</span>
+              </div>
+              <div class="msg-text">The Stripe integration is complete. Ready for QA review.</div>
+            </div>
+          </div>
+
+          <div class="message-item sent">
+            <div class="msg-avatar">HA</div>
+            <div class="msg-content">
+              <div class="msg-meta">
+                <span class="msg-author">You</span>
+                <span class="msg-time">10:28 AM</span>
+              </div>
+              <div class="msg-text">Great work! Let's schedule the review for tomorrow morning.</div>
+            </div>
+          </div>
+
+          <div class="message-item received">
+            <div class="msg-avatar">SL</div>
+            <div class="msg-content">
+              <div class="msg-meta">
+                <span class="msg-author">Sarah L.</span>
+                <span class="msg-time">10:32 AM</span>
+              </div>
+              <div class="msg-text">I've uploaded the new logo for the client approval. Check it out below 👇</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Container (thumbnail preview appears ABOVE textarea) -->
+        <div class="message-input-container" id="msgInputContainer">
+          <!-- Thumbnail Preview Zone — dynamically inserted here -->
+          <div class="upload-preview-zone" id="uploadPreviewZone"></div>
+
+          <div class="input-row">
+            <button class="upload-btn" id="uploadBtn" title="Upload Logo / Image">📎</button>
+            <textarea
+              class="msg-textarea"
+              id="msgTextarea"
+              placeholder="Type your message..."
+              rows="2"
+            ></textarea>
+            <button class="send-btn" id="sendBtn" title="Send Message">➤</button>
+          </div>
+
+          <!-- Hidden file input -->
+          <input type="file" id="fileInput" accept="image/*" hidden>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
