@@ -39,6 +39,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Only start the server if this script is run directly (not imported by Vercel serverless)
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;
