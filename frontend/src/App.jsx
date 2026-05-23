@@ -6,7 +6,6 @@ import Dashboard from './pages/Dashboard';
 import ProjectsList from './pages/ProjectsList';
 import ProjectDetail from './pages/ProjectDetail';
 import TasksList from './pages/TasksList';
-import './App.css';
 
 function App() {
   return (
