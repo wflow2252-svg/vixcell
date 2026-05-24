@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { getAIResponse } from '../services/vixAiClient'
 
 export default function ClientDashboard({ onViewChange }) {
   // ── STATE ──────────────────────────────────────────────────────
@@ -166,8 +167,18 @@ export default function ClientDashboard({ onViewChange }) {
         throw new Error(data.message || 'API error')
       }
     } catch (err) {
-      console.error('VIXCELL AI error:', err)
-      conv.messages.push({ role: 'assistant', content: '⚠️ Error: ' + err.message })
+      console.warn('[VIXCELL] Backend AI query failed, falling back to local client model:', err)
+      try {
+        const localRes = getAIResponse(activeId, finalMsg)
+        let reply = localRes.text || ''
+        if (localRes.html) {
+          reply = `===HTML_START===\n${localRes.html}\n===HTML_END===\n\n${reply}`
+        }
+        conv.messages.push({ role: 'assistant', content: reply })
+      } catch (localErr) {
+        console.error('Local fallback failed:', localErr)
+        conv.messages.push({ role: 'assistant', content: '⚠️ Error: ' + err.message })
+      }
     }
 
     setBusy(false)
