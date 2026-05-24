@@ -28,14 +28,14 @@ try {
   ];
   
   // Projects routes
-  app.get('/projects', (req, res) => {
+  app.get('/api/projects', (req, res) => {
     const { status } = req.query;
     let filtered = projects;
     if (status) filtered = projects.filter(p => p.status === status);
     res.json({ projects: filtered, total: filtered.length, page: 1, totalPages: 1 });
   });
   
-  app.get('/projects/stats', (req, res) => {
+  app.get('/api/projects/stats', (req, res) => {
     res.json({
       totalProjects: projects.length,
       activeProjects: projects.filter(p => p.status === 'active').length,
@@ -44,27 +44,27 @@ try {
     });
   });
   
-  app.get('/projects/:id', (req, res) => {
+  app.get('/api/projects/:id', (req, res) => {
     const project = projects.find(p => p.id === parseInt(req.params.id));
     if (!project) return res.status(404).json({ error: 'Project not found' });
     res.json({ ...project, tasks: tasks.filter(t => t.projectId === parseInt(req.params.id)) });
   });
   
-  app.post('/projects', (req, res) => {
+  app.post('/api/projects', (req, res) => {
     const project = { id: projects.length + 1, ...req.body, tasks: [] };
     projects.push(project);
     res.status(201).json(project);
   });
   
   // Tasks routes
-  app.get('/tasks', (req, res) => {
+  app.get('/api/tasks', (req, res) => {
     const { projectId } = req.query;
     let filtered = tasks;
     if (projectId) filtered = tasks.filter(t => t.projectId === parseInt(projectId));
     res.json({ tasks: filtered, total: filtered.length, page: 1, totalPages: 1 });
   });
   
-  app.get('/tasks/stats', (req, res) => {
+  app.get('/api/tasks/stats', (req, res) => {
     res.json({
       totalTasks: tasks.length,
       todoTasks: tasks.filter(t => t.status === 'todo').length,
@@ -74,20 +74,20 @@ try {
     });
   });
   
-  app.get('/tasks/:id', (req, res) => {
+  app.get('/api/tasks/:id', (req, res) => {
     const task = tasks.find(t => t.id === parseInt(req.params.id));
     if (!task) return res.status(404).json({ error: 'Task not found' });
     res.json(task);
   });
   
-  app.post('/tasks', (req, res) => {
+  app.post('/api/tasks', (req, res) => {
     const task = { id: tasks.length + 1, ...req.body };
     tasks.push(task);
     res.status(201).json(task);
   });
   
   // Health check
-  app.get('/', (req, res) => {
+  app.get('/api/', (req, res) => {
     res.json({ message: 'Vixcell API is running (mock mode)' });
   });
 }
