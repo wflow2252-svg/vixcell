@@ -60,7 +60,7 @@ export function respond(sessionId, message) {
   // Logo upload (special signal) — context now has any extracted info
   if (message.includes('[LOGO_UPLOADED]')) {
     addTurn(sessionId, 'user', messageWithoutMarker || '[logo uploaded]', 'logo_upload')
-    const response = handleLogoUpload(sessionId, lang)
+    const response = handleLogoUpload(sessionId, lang, messageWithoutMarker)
     addTurn(sessionId, 'assistant', response.text || '', 'logo_upload')
     return response
   }
@@ -83,7 +83,7 @@ export function respond(sessionId, message) {
   // If we have enough info to build (name + any build hint), do it immediately
   const ctx2 = getSession(sessionId).context
   if (ctx2.projectName && (extracted.type || hasBuildKeyword(message))) {
-    const response = buildSite(sessionId, lang)
+    const response = buildSite(sessionId, lang, false, messageWithoutMarker)
     addTurn(sessionId, 'assistant', response.text || '', 'build')
     return response
   }
@@ -149,12 +149,12 @@ function route(primary, all, sessionId, message, lang) {
     if (typeMap[primary] && !ctx.businessType) {
       updateContext(sessionId, { businessType: typeMap[primary] })
     }
-    return buildSite(sessionId, lang)
+    return buildSite(sessionId, lang, false, message)
   }
 
   // — Site Modifications —
   if (primary === INTENT.MODIFY_COLOR && session.generatedFiles) {
-    return modifyColor(sessionId, lang)
+    return modifyColor(sessionId, lang, message)
   }
   if ((primary === INTENT.ADD_SECTION || primary === INTENT.REMOVE_SECTION || primary === INTENT.MODIFY_CONTENT) && session.generatedFiles) {
     return { text: modifyNoticeMsg(lang), html: null }
@@ -203,13 +203,13 @@ function route(primary, all, sessionId, message, lang) {
 }
 
 // ─── Handlers ──────────────────────────────────────────────────────
-function handleLogoUpload(sessionId, lang) {
+function handleLogoUpload(sessionId, lang, requestText = '') {
   updateContext(sessionId, { logo: true })
   setStage(sessionId, 'building')
-  return buildSite(sessionId, lang, /*fromLogo*/ true)
+  return buildSite(sessionId, lang, /*fromLogo*/ true, requestText)
 }
 
-function buildSite(sessionId, lang, fromLogo = false) {
+function buildSite(sessionId, lang, fromLogo = false, requestText = '') {
   const session = getSession(sessionId)
   const ctx = session.context
 
@@ -219,30 +219,55 @@ function buildSite(sessionId, lang, fromLogo = false) {
     return { text: needMoreInfo(true, !ctx.businessType, lang), html: null }
   }
   if (!ctx.businessType) {
-    // Default to business if name exists but no type
     updateContext(sessionId, { businessType: 'business' })
   }
 
   const updatedCtx = getSession(sessionId).context
-  const builder = new SiteBuilder(updatedCtx)
+  const builder = new SiteBuilder(updatedCtx, requestText)
   const files = builder.generateAll()
   setGeneratedFiles(sessionId, files)
   const preview = builder.generatePreview()
+  const meta = builder.generateMeta()
 
   const typeDisplay = updatedCtx.businessType.charAt(0).toUpperCase() + updatedCtx.businessType.slice(1)
-  const text = fromLogo
-    ? (lang === 'ar'
-      ? `✅ استلمت اللوجو! بأبني **${updatedCtx.projectName}** الآن... 🚀\n\nشوف الـ Preview tab! 👀`
-      : `✅ Logo received! Building **${updatedCtx.projectName}** now... 🚀\n\nCheck the Preview tab! 👀`)
-    : buildProgress(updatedCtx.projectName, typeDisplay, lang)
+
+  // Build a custom message that reflects what was actually chosen
+  let text
+  if (lang === 'ar') {
+    text = fromLogo
+      ? `✅ استلمت اللوجو وبنيت **${updatedCtx.projectName}** بالاختيارات دي:\n\n`
+      : `✅ بنيت **${updatedCtx.projectName}** (${typeDisplay}) ✨\n\n`
+    text += `🎨 **الـ palette:** \`${meta.palette}\`\n`
+    text += `🔤 **الـ font:** ${meta.font}\n`
+    text += `📐 **عدد الـ sections:** ${meta.sectionCount}\n`
+    text += `💬 **العنوان الرئيسي:** "${meta.headline}"\n\n`
+    text += `الكود في الـ **Code tab**، والمعاينة في الـ **Preview**.\n\n`
+    text += `**تحب تعدل حاجة؟** قولي:\n`
+    text += `> "غير الـ palette لـ aurora"\n`
+    text += `> "ضيف pricing section"\n`
+    text += `> "ابني تاني" (لتنوع مختلف بنفس الاسم)`
+  } else {
+    text = fromLogo
+      ? `✅ Logo received. Built **${updatedCtx.projectName}** with these picks:\n\n`
+      : `✅ Built **${updatedCtx.projectName}** (${typeDisplay}) ✨\n\n`
+    text += `🎨 **Palette:** \`${meta.palette}\`\n`
+    text += `🔤 **Font:** ${meta.font}\n`
+    text += `📐 **Sections:** ${meta.sectionCount}\n`
+    text += `💬 **Headline:** "${meta.headline}"\n\n`
+    text += `Code is in the **Code tab**, preview in **Preview**.\n\n`
+    text += `**Want to tweak?** Try:\n`
+    text += `> "Change palette to aurora"\n`
+    text += `> "Add a pricing section"\n`
+    text += `> "Build again" (for a new variation with the same name)`
+  }
 
   return { text, html: preview, files }
 }
 
-function modifyColor(sessionId, lang) {
+function modifyColor(sessionId, lang, requestText = '') {
   const session = getSession(sessionId)
   const ctx = session.context
-  const builder = new SiteBuilder(ctx)
+  const builder = new SiteBuilder(ctx, requestText)
   const files = builder.generateAll()
   setGeneratedFiles(sessionId, files)
   const preview = builder.generatePreview()

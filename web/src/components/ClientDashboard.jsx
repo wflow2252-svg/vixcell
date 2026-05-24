@@ -53,8 +53,13 @@ function parseMd(text) {
 }
 
 function extractHTML(content) {
-  const match = content.match(/===HTML_START===\s*([\s\S]*?)\s*===HTML_END===/)
-  return match ? match[1].trim() : null
+  // Complete HTML — preferred path
+  const full = content.match(/===HTML_START===\s*([\s\S]*?)\s*===HTML_END===/)
+  if (full) return { html: full[1].trim(), streaming: false }
+  // Partial HTML — still being streamed in
+  const partial = content.match(/===HTML_START===\s*([\s\S]*)/)
+  if (partial && partial[1].trim().length > 10) return { html: partial[1].trim(), streaming: true }
+  return null
 }
 
 function uid() {
@@ -126,18 +131,20 @@ export default function ClientDashboard({ onViewChange }) {
     [convs]
   )
 
-  const latestHTML = useMemo(() => {
+  const latestArtifact = useMemo(() => {
     if (!activeConv?.messages) return null
     for (let i = activeConv.messages.length - 1; i >= 0; i--) {
       const m = activeConv.messages[i]
       if (m.role === 'assistant') {
-        const html = extractHTML(m.content)
-        if (html) return html
+        const result = extractHTML(m.content)
+        if (result) return result
       }
     }
     return null
   }, [activeConv])
 
+  const latestHTML = latestArtifact?.html || null
+  const isStreaming = latestArtifact?.streaming || false
   const showArtifact = !!latestHTML
   const showChatPane = !showArtifact || isDesktop || mobileView === 'chat'
   const showArtifactPane = showArtifact && (isDesktop || mobileView === 'preview')
@@ -222,27 +229,77 @@ export default function ClientDashboard({ onViewChange }) {
     setBusy(true)
 
     try {
-      // Direct local call — no waiting on a backend that may not exist
-      await new Promise(r => setTimeout(r, 220))  // brief "thinking" pause
+      await new Promise(r => setTimeout(r, 220))
       const res = getAIResponse(activeId, aiMessage)
-      let reply = res.text || ''
-      if (res.html) {
-        reply = `===HTML_START===\n${res.html}\n===HTML_END===\n\n${reply}`
-      }
+      const fullText = res.text || ''
+      const fullHtml = res.html || ''
+
+      // Insert empty assistant placeholder, then stream into it
       setConvs(prev => {
         const conv = { ...prev[activeId] }
-        conv.messages = [...conv.messages, { role: 'assistant', content: reply }]
+        conv.messages = [...conv.messages, { role: 'assistant', content: '' }]
         return { ...prev, [activeId]: conv }
       })
+
+      // Stream the text reply char-by-char (chunked for performance)
+      await streamInto(activeId, (partial) => {
+        setConvs(prev => {
+          const conv = { ...prev[activeId] }
+          const msgs = [...conv.messages]
+          msgs[msgs.length - 1] = { role: 'assistant', content: partial }
+          conv.messages = msgs
+          return { ...prev, [activeId]: conv }
+        })
+      }, fullText, { chunkSize: 4, intervalMs: 12 })
+
+      // If there's HTML, stream that too (so the Code tab shows the file being written)
+      if (fullHtml) {
+        const finalText = fullText
+        await streamInto(activeId, (partialHtml) => {
+          setConvs(prev => {
+            const conv = { ...prev[activeId] }
+            const msgs = [...conv.messages]
+            msgs[msgs.length - 1] = {
+              role: 'assistant',
+              content: `===HTML_START===\n${partialHtml}\n===HTML_END===\n\n${finalText}`,
+            }
+            conv.messages = msgs
+            return { ...prev, [activeId]: conv }
+          })
+        }, fullHtml, { chunkSize: 80, intervalMs: 12 })
+      }
     } catch (err) {
       setConvs(prev => {
         const conv = { ...prev[activeId] }
-        conv.messages = [...conv.messages, { role: 'assistant', content: '⚠️ Error: ' + (err.message || 'unknown') }]
+        const msgs = [...conv.messages]
+        if (msgs.length && msgs[msgs.length - 1].role === 'assistant' && msgs[msgs.length - 1].content === '') {
+          msgs.pop()
+        }
+        msgs.push({ role: 'assistant', content: '⚠️ Error: ' + (err.message || 'unknown') })
+        conv.messages = msgs
         return { ...prev, [activeId]: conv }
       })
     } finally {
       setBusy(false)
     }
+  }
+
+  // Streams a full string into a callback in chunks.
+  // Resolves when complete. Uses requestAnimationFrame for smoothness.
+  function streamInto(_unused, onUpdate, full, { chunkSize = 3, intervalMs = 12 } = {}) {
+    return new Promise(resolve => {
+      let i = 0
+      const tick = () => {
+        i = Math.min(full.length, i + chunkSize)
+        onUpdate(full.slice(0, i))
+        if (i < full.length) {
+          setTimeout(tick, intervalMs)
+        } else {
+          resolve()
+        }
+      }
+      tick()
+    })
   }
 
   function onImagePick(e) {
@@ -440,6 +497,7 @@ export default function ClientDashboard({ onViewChange }) {
               onTab={setArtifactTab}
               onDownload={downloadHTML}
               onCopy={copyHTML}
+              streaming={isStreaming}
             />
           )}
         </div>
@@ -602,23 +660,40 @@ function Composer({ input, onChange, onKeyDown, onSend, busy, stagedFiles, onRem
 }
 
 // ─── ArtifactPane ──────────────────────────────────────────────────
-function ArtifactPane({ html, tab, onTab, onDownload, onCopy }) {
+function ArtifactPane({ html, tab, onTab, onDownload, onCopy, streaming }) {
   const [copied, setCopied] = useState(false)
+  const codeRef = useRef(null)
+
+  // Auto-switch to Code tab while streaming so the user sees the code being written
+  useEffect(() => {
+    if (streaming) onTab('code')
+  }, [streaming, onTab])
+
+  // Auto-scroll code view to the bottom as it grows
+  useEffect(() => {
+    if (streaming && codeRef.current) {
+      codeRef.current.scrollTop = codeRef.current.scrollHeight
+    }
+  }, [html, streaming])
+
   async function handleCopy() {
     await onCopy()
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
+
   return (
     <div style={styles.artifactPane}>
       <div style={styles.artifactHeader}>
         <div style={styles.artifactTabs}>
           <button
             onClick={() => onTab('preview')}
+            disabled={streaming}
             style={{
               ...styles.artifactTab,
               background: tab === 'preview' ? T.bg3 : 'transparent',
               color: tab === 'preview' ? T.text : T.text2,
+              opacity: streaming ? 0.5 : 1,
             }}
           >
             <Icon name="eye" size={14} />
@@ -634,9 +709,16 @@ function ArtifactPane({ html, tab, onTab, onDownload, onCopy }) {
           >
             <Icon name="code" size={14} />
             <span>Code</span>
+            {streaming && <span style={styles.streamingDot} />}
           </button>
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {streaming && (
+            <span style={styles.writingLabel}>
+              <span style={styles.streamingDot} />
+              writing…
+            </span>
+          )}
           <button onClick={handleCopy} className="vx-art-action" style={styles.artifactAction}>
             {copied ? '✓ Copied' : 'Copy'}
           </button>
@@ -654,8 +736,9 @@ function ArtifactPane({ html, tab, onTab, onDownload, onCopy }) {
             style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
           />
         ) : (
-          <pre style={styles.codeView}>
+          <pre ref={codeRef} style={styles.codeView}>
             <code>{html}</code>
+            {streaming && <span style={styles.codeCaret} />}
           </pre>
         )}
       </div>
@@ -750,6 +833,9 @@ const styles = {
   artifactAction: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', background: T.bg3, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontSize: 11, fontWeight: 500, cursor: 'pointer', transition: 'all .15s' },
   artifactBody: { flex: 1, overflow: 'hidden', position: 'relative' },
   codeView: { margin: 0, padding: 16, fontSize: 12, lineHeight: 1.5, fontFamily: 'ui-monospace, "SF Mono", Monaco, Consolas, monospace', color: '#9ece6a', background: '#0a0a0d', height: '100%', overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+  codeCaret: { display: 'inline-block', width: 8, height: 14, background: T.accent, marginLeft: 1, verticalAlign: 'middle', animation: 'vxBlink 0.9s steps(1) infinite' },
+  streamingDot: { display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: T.accent, marginLeft: 6, animation: 'vxBlink 1s ease-in-out infinite' },
+  writingLabel: { display: 'inline-flex', alignItems: 'center', fontSize: 11, color: T.text2, marginRight: 4, fontWeight: 500 },
 }
 
 // ─── Embedded CSS (global tweaks via injected <style>) ─────────────
@@ -759,6 +845,10 @@ function StyleTag() {
 @keyframes vxTyping {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
   30% { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes vxBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.2; }
 }
 .vx-md { color: ${T.aiText}; font-size: 14.5px; line-height: 1.7; }
 .vx-md p { margin: 0 0 12px; }
