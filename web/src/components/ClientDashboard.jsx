@@ -23,6 +23,17 @@ export default function ClientDashboard({ onViewChange }) {
   const [stagedCodeName, setStagedCodeName] = useState('')
   const [logoUrl, setLogoUrl] = useState(null)
 
+  // Claude-style layout states
+  const [artifactTab, setArtifactTab] = useState('preview')
+  const [mobileView, setMobileView] = useState('chat') // 'chat' | 'preview'
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024)
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
   const codeFileInputRef = useRef(null)
@@ -264,6 +275,20 @@ export default function ClientDashboard({ onViewChange }) {
   const activeConv = cur ? convs[cur] : null
   const sortedConvIds = Object.keys(convs).sort((a, b) => convs[b].ts - convs[a].ts)
 
+  function getLatestHTML() {
+    if (!activeConv || !activeConv.messages) return null
+    for (let i = activeConv.messages.length - 1; i >= 0; i--) {
+      const msg = activeConv.messages[i]
+      if (msg.role === 'assistant' && msg.content.includes('===HTML_START===')) {
+        const match = msg.content.match(/===HTML_START===\s*([\s\S]*?)\s*===HTML_END===/)
+        if (match) return match[1].trim()
+      }
+    }
+    return null
+  }
+
+  const latestHTML = getLatestHTML()
+
   return (
     <div style={{ height: '100vh', width: '100vw', background: 'var(--bg)', overflow: 'hidden', position: 'relative' }}>
       
@@ -372,172 +397,350 @@ export default function ClientDashboard({ onViewChange }) {
       </div>
 
       {/* ═══ CHAT SCREEN ═══ */}
-      <div id="screen-chat" className={screen === 'chat' ? 'active' : ''}>
-        <div id="chat-header">
-          <div id="back-btn" onClick={goHome} title="العودة">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </div>
-          <div id="chat-title-wrap">
-            <div id="chat-title">{activeConv ? activeConv.title : 'VIXCELL'}</div>
-            <div id="chat-sub">
-              <div className="online-dot"></div>
-              Full-Stack AI · جاهز
-            </div>
-          </div>
-          <div 
-            onClick={() => onViewChange('landing')} 
-            title="العودة للموقع الرئيسي" 
-            style={{ 
-              width: '36px', 
-              height: '36px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              color: 'var(--gold)', 
-              cursor: 'pointer', 
-              borderRadius: '8px', 
-              transition: 'background .15s',
-              flexShrink: 0
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg3)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-            className="chat-home-btn"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-        </div>
-
-        <div id="messages">
-          {activeConv && activeConv.messages.map((m, idx) => (
-            <div key={idx} className="msg-group">
-              <div className={`msg-row ${m.role === 'user' ? 'user' : 'ai'}`}>
-                <div className={`avatar-sm ${m.role === 'user' ? 'user' : 'ai'}`}>
-                  {m.role === 'ai' ? (
-                    <img src="/logo.png" alt="VIXCELL" />
-                  ) : 'U'}
-                </div>
-                <div className={`bubble ${m.role === 'user' ? 'user' : 'ai'}`}>
-                  {m.role === 'ai' ? (
-                    <div dangerouslySetInnerHTML={{ __html: parseMd(m.content) }} />
-                  ) : (
-                    <p style={{ whiteSpace: 'pre-wrap' }}>{m.content}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Thinking bubble animated */}
-          {busy && (
-            <div className="msg-group" id="thinking">
-              <div className="msg-row">
-                <div className="avatar-sm ai">
-                  <img src="/logo.png" alt="VIXCELL" />
-                </div>
-                <div className="thinking-bubble">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* INPUT BAR WITH INTEGRATED QUEUED UPLOADS */}
-        <div id="input-bar">
-          
-          {/* Staged uploads cards list row */}
-          {(stagedLogoUrl || stagedCodeName) && (
-            <div className="vix-mob-staged-row">
-              {stagedLogoUrl && (
-                <div className="vix-staged-card">
-                  <img src={stagedLogoUrl} alt="logo review" className="vix-staged-thumb" />
-                  <span className="truncate max-w-[100px]">{stagedLogoName}</span>
-                  <button 
-                    className="vix-staged-remove-btn" 
-                    onClick={() => {
-                      setStagedLogoUrl(null)
-                      setStagedLogoName('')
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-
-              {stagedCodeName && (
-                <div className="vix-staged-card">
-                  <span>📄</span>
-                  <span className="truncate max-w-[100px]">{stagedCodeName}</span>
-                  <button 
-                    className="vix-staged-remove-btn" 
-                    onClick={() => {
-                      setStagedCodeContent(null)
-                      setStagedCodeName('')
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div id="input-row">
-            {/* Stage attachments upload actions on Left Inside Input Box */}
-            <div style={{ display: 'flex', gap: '0.45rem', marginRight: '6px', alignSelf: 'center' }}>
-              <button 
-                onClick={() => fileInputRef.current?.click()} 
-                style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: '18px' }}
-                title="أضف لوجو"
-              >
-                📎
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
-
-              <button 
-                onClick={() => codeFileInputRef.current?.click()} 
-                style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: '16px' }}
-                title="أضف ملف كود"
-              >
-                📄
-              </button>
-              <input ref={codeFileInputRef} type="file" accept=".html,.css,.js,.jsx,.ts,.tsx,.txt" style={{ display: 'none' }} onChange={handleCodeFileUpload} />
-            </div>
-
-            <textarea 
-              ref={textareaRef}
-              id="txt" 
-              rows={1} 
-              value={input}
-              onChange={e => {
-                setInput(e.target.value)
-                resizeTextarea(e.target)
-              }}
-              onKeyDown={onKey}
-              placeholder="اسأل VIXCELL أي حاجة…" 
-              disabled={busy}
-            />
-            
+      <div id="screen-chat" className={screen === 'chat' ? 'active' : ''} style={{ display: screen === 'chat' ? 'flex' : 'none', flexDirection: 'column', height: '100%', width: '100%' }}>
+        
+        {/* Mobile View Toggle Bar */}
+        {!isDesktop && latestHTML && (
+          <div style={{ 
+            display: 'flex', 
+            background: 'var(--bg2)', 
+            borderBottom: '1px solid var(--border)',
+            padding: '8px',
+            gap: '8px',
+            flexShrink: 0
+          }}>
             <button 
-              id="send" 
-              onClick={handleSend}
-              disabled={busy || (!input.trim() && !stagedLogoUrl && !stagedCodeName)}
+              onClick={() => setMobileView('chat')}
+              style={{
+                flex: 1,
+                padding: '8px',
+                border: 'none',
+                borderRadius: '6px',
+                background: mobileView === 'chat' ? 'var(--gold)' : 'transparent',
+                color: mobileView === 'chat' ? '#000' : 'var(--text2)',
+                fontWeight: '600',
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" stroke-width="2.5">
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
+              💬 المحادثة (Chat)
+            </button>
+            <button 
+              onClick={() => setMobileView('preview')}
+              style={{
+                flex: 1,
+                padding: '8px',
+                border: 'none',
+                borderRadius: '6px',
+                background: mobileView === 'preview' ? 'var(--gold)' : 'transparent',
+                color: mobileView === 'preview' ? '#000' : 'var(--text2)',
+                fontWeight: '600',
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              💻 المعاينة والكود (Preview)
             </button>
           </div>
-        </div>
+        )}
 
+        <div style={{ display: 'flex', flex: 1, width: '100%', overflow: 'hidden' }}>
+          
+          {/* Chat Pane */}
+          <div 
+            style={{ 
+              flex: isDesktop && latestHTML ? '0 0 45%' : '1', 
+              borderRight: isDesktop && latestHTML ? '1px solid var(--border)' : 'none',
+              display: (!isDesktop && latestHTML && mobileView !== 'chat') ? 'none' : 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              overflow: 'hidden'
+            }}
+          >
+            <div id="chat-header">
+              <div id="back-btn" onClick={goHome} title="العودة">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </div>
+              <div id="chat-title-wrap">
+                <div id="chat-title">{activeConv ? activeConv.title : 'VIXCELL'}</div>
+                <div id="chat-sub">
+                  <div className="online-dot"></div>
+                  Full-Stack AI · جاهز
+                </div>
+              </div>
+              <div 
+                onClick={() => onViewChange('landing')} 
+                title="العودة للموقع الرئيسي" 
+                style={{ 
+                  width: '36px', 
+                  height: '36px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: 'var(--gold)', 
+                  cursor: 'pointer', 
+                  borderRadius: '8px', 
+                  transition: 'background .15s',
+                  flexShrink: 0
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg3)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                className="chat-home-btn"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+            </div>
+
+            <div id="messages">
+              {activeConv && activeConv.messages.map((m, idx) => (
+                <div key={idx} className="msg-group">
+                  <div className={`msg-row ${m.role === 'user' ? 'user' : 'ai'}`}>
+                    <div className={`avatar-sm ${m.role === 'user' ? 'user' : 'ai'}`}>
+                      {m.role === 'ai' ? (
+                        <img src="/logo.png" alt="VIXCELL" />
+                      ) : 'U'}
+                    </div>
+                    <div className={`bubble ${m.role === 'user' ? 'user' : 'ai'}`}>
+                      {m.role === 'ai' ? (
+                        <div dangerouslySetInnerHTML={{ __html: parseMd(m.content) }} />
+                      ) : (
+                        <p style={{ whiteSpace: 'pre-wrap' }}>{m.content}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Thinking bubble animated */}
+              {busy && (
+                <div className="msg-group" id="thinking">
+                  <div className="msg-row">
+                    <div className="avatar-sm ai">
+                      <img src="/logo.png" alt="VIXCELL" />
+                    </div>
+                    <div className="thinking-bubble">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* INPUT BAR WITH INTEGRATED QUEUED UPLOADS */}
+            <div id="input-bar">
+              
+              {/* Staged uploads cards list row */}
+              {(stagedLogoUrl || stagedCodeName) && (
+                <div className="vix-mob-staged-row">
+                  {stagedLogoUrl && (
+                    <div className="vix-staged-card">
+                      <img src={stagedLogoUrl} alt="logo review" className="vix-staged-thumb" />
+                      <span className="truncate max-w-[100px]">{stagedLogoName}</span>
+                      <button 
+                        className="vix-staged-remove-btn" 
+                        onClick={() => {
+                          setStagedLogoUrl(null)
+                          setStagedLogoName('')
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+
+                  {stagedCodeName && (
+                    <div className="vix-staged-card">
+                      <span>📄</span>
+                      <span className="truncate max-w-[100px]">{stagedCodeName}</span>
+                      <button 
+                        className="vix-staged-remove-btn" 
+                        onClick={() => {
+                          setStagedCodeContent(null)
+                          setStagedCodeName('')
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div id="input-row">
+                <div style={{ display: 'flex', gap: '0.45rem', marginRight: '6px', alignSelf: 'center' }}>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()} 
+                    style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: '18px' }}
+                    title="أضف لوجو"
+                  >
+                    📎
+                  </button>
+                  <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
+
+                  <button 
+                    onClick={() => codeFileInputRef.current?.click()} 
+                    style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', fontSize: '16px' }}
+                    title="أضف ملف كود"
+                  >
+                    📄
+                  </button>
+                  <input ref={codeFileInputRef} type="file" accept=".html,.css,.js,.jsx,.ts,.tsx,.txt" style={{ display: 'none' }} onChange={handleCodeFileUpload} />
+                </div>
+
+                <textarea 
+                  ref={textareaRef}
+                  id="txt" 
+                  rows={1} 
+                  value={input}
+                  onChange={e => {
+                    setInput(e.target.value)
+                    resizeTextarea(e.target)
+                  }}
+                  onKeyDown={onKey}
+                  placeholder="اسأل VIXCELL أي حاجة…" 
+                  disabled={busy}
+                />
+                
+                <button 
+                  id="send" 
+                  onClick={handleSend}
+                  disabled={busy || (!input.trim() && !stagedLogoUrl && !stagedCodeName)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#0f0f0f" strokeWidth="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Artifacts/Preview Pane */}
+          {latestHTML && (isDesktop || mobileView === 'preview') && (
+            <div style={{ 
+              flex: '1', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              height: '100%', 
+              background: '#0a0b10',
+              overflow: 'hidden'
+            }}>
+              {/* Pane Tabs Header */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                padding: '12px 16px', 
+                borderBottom: '1px solid var(--border)',
+                background: '#08090d',
+                flexShrink: 0
+              }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    onClick={() => setArtifactTab('preview')}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: artifactTab === 'preview' ? 'var(--gold)' : 'transparent',
+                      color: artifactTab === 'preview' ? '#000' : 'var(--text2)',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    👁️ المعاينة (Preview)
+                  </button>
+                  <button 
+                    onClick={() => setArtifactTab('code')}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: artifactTab === 'code' ? 'var(--gold)' : 'transparent',
+                      color: artifactTab === 'code' ? '#000' : 'var(--text2)',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    📄 الكود (Code)
+                  </button>
+                </div>
+                
+                {/* Actions */}
+                <button 
+                  onClick={() => {
+                    const blob = new Blob([latestHTML], { type: 'text/html' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'index.html'
+                    a.click()
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border2)',
+                    background: 'var(--bg3)',
+                    color: 'var(--gold)',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: '600'
+                  }}
+                >
+                  ⬇ تحميل (Download)
+                </button>
+              </div>
+
+              {/* Pane Content */}
+              <div style={{ flex: '1', overflow: 'hidden', position: 'relative' }}>
+                {artifactTab === 'preview' ? (
+                  <iframe
+                    srcDoc={latestHTML}
+                    title="Vixcell AI Live Preview"
+                    sandbox="allow-scripts allow-same-origin"
+                    style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '16px', position: 'relative', background: '#0e101a' }}>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(latestHTML)
+                        alert('تم نسخ الكود بنجاح!')
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '16px',
+                        right: '16px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: 'var(--gold)',
+                        color: '#000',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        zIndex: 10
+                      }}
+                    >
+                      نسخ الكود (Copy)
+                    </button>
+                    <pre style={{ margin: 0, padding: 0 }}><code style={{ color: '#00ffcc', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.5' }}>{latestHTML}</code></pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
       </div>
 
     </div>
