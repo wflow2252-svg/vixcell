@@ -531,7 +531,7 @@ function analyzeCode(code) {
     const hasLoop = /for\s*\(|while\s*\(|do\s*\{|\.forEach|\.map\(|\.filter\(|\.reduce\(|for\s+\w+\s+in|for\s*\(\s*(?:let|const|var)\s+\w+\s+/.test(code)
     const hasCond = /if\s*\(|else\s+if|else\s*\{|switch\s*\(|\?\s*:/.test(code)
     const hasAsync = /async\s+function|await|\.then\(|\.catch\(|Promise\s+\(|async\s+\(/i.test(code)
-    const hasError = /\b(err|error|exception|throw|try\s*\{|catch\s*\(|finally\s*\{\s*\}/i.test(code)
+    const hasError = /\b(err|error|exception|throw|try\s*\{|catch\s*\(|finally\s*\{\s*\})/i.test(code)
     const hasComment = /\/\/|\/\*|\*\/\|#\s|--\s|<!--|-->/.test(code)
     
     // Advanced metrics
@@ -621,7 +621,7 @@ function analyzeCode(code) {
     }
     
     if (hasStringConcat) {
-        analysis += `- 🔗 Use template literals (\`text ${variable} more text\`) instead of string concatenation\n`
+        analysis += `- 🔗 Use template literals (\`text {variable} more text\`) instead of string concatenation\n`
     }
     
     if (hasUseEffectWithoutDeps) {
@@ -771,7 +771,18 @@ export function getAIResponse(sessionId, message) {
   if (intent === INTENTS.GREETING) {
     session.stage = 'collecting'
     return {
-      text: `Hello! 👋 I'm **Vix** — your Elite Full-Stack Developer & UI/UX Expert.\n\n**I can help you with:**\n🌐 Build complete websites (HTML + CSS + JS — separate files)\n📊 Analyze code & debug\n🎨 Modern UI with Glassmorphism, Grid & Flexbox\n🖼️ File upload with thumbnail preview\n\n**Just tell me:**\n> "Build a website for my company **TechCorp**"\n> "Create an **e-commerce store** called **FreshShop**"\n> "Analyze this code for me"`,
+      text: `أهلاً بك. أنا **VIXCELL** — المساعد الذكي الخبير في التطوير المتكامل وتصميم الـ UI/UX وتجهيز البنى التحتية. 🚀
+
+يمكنني مساعدتك في:
+🌐 **بناء مواقع ويب كاملة ومتكاملة** (ملفات منفصلة: HTML + CSS + JS) بتصميم عصري فخم.
+📊 **تحليل وهندسة الأكواد البرمجية** واكتشاف الأخطاء بدقة.
+🎨 **تصميم واجهات احترافية وممتازة** تعتمد على Glassmorphism و CSS Grid/Flexbox.
+🖼️ **معاينة ورفع الشعار والصور** لربطها فوراً بمشروعك.
+
+**كل ما عليك هو إخباري بطلبك مباشرة، مثل:**
+> "ابني موقعاً لشركة التقنية الذكية باسم **TechCorp**"
+> "أنشئ متجراً إلكترونياً للعطور باسم **Scents**"
+> "حلل هذا الكود البرمجي واقترح تحسينات"`,
       html: null,
     }
   }
@@ -779,7 +790,21 @@ export function getAIResponse(sessionId, message) {
   // Help
   if (intent === INTENTS.HELP) {
     return {
-      text: `🎯 **Vix AI — Capabilities**\n\n🌐 **Build Websites**\nI generate **separate files**: \`index.html\`, \`style.css\`, \`script.js\`\nModern tech: Semantic HTML5, CSS Grid/Flexbox, Glassmorphism, ES6+\n\n📄 **Analyze Code**\nUpload any file or paste code — I detect language, structure, errors, and suggest improvements\n\n🎨 **Modify**\nChange colors, layout, or content after generation\n\n**Example prompts:**\n> "Build a landing page for **StartupX**"\n> "Create a **restaurant** site called **TasteLab**"\n> "Make it **blue**" (after site is built)`,
+      text: `🎯 **VIXCELL — دليل القدرات والتشغيل**
+
+🌐 **بناء المواقع وتصميم الواجهات**
+أقوم بتوليد ملفات منفصلة ونظيفة (\`index.html\`, \`style.css\`, \`script.js\`) مجهزة بأعلى معايير الـ SEO والأداء المتجاوب.
+
+📄 **تحليل الأكواد والتدقيق البرمجي**
+ارفع أي ملف كود أو اكتبه بين \`\`\` وسأقوم بفحصه وتحليله والكشف عن الثغرات الأمنية والأخطاء فوراً.
+
+🎨 **التطوير المستمر والتعديل**
+يمكنك أن تطلب مني تغيير الألوان، أو إضافة أقسام جديدة، أو تعديل المحتوى والنصوص بعد البناء.
+
+**أمثلة للأوامر السريعة:**
+> "أنشئ صفحة هبوط لشركة **StartupX**"
+> "ابني موقع مطعم برجر باسم **FlameBurger**"
+> "اجعل اللون الأساسي **أزرق داكن**" (بعد بناء الموقع)`,
       html: null,
     }
   }
@@ -788,10 +813,14 @@ export function getAIResponse(sessionId, message) {
   if (intent === INTENTS.BUILD) {
     if (!ctx.projectName || !ctx.businessType) {
       session.stage = 'collecting'
-      let q = `🎯 **Let me analyze your requirements.**\n\nI need two things to start building:\n\n`
-      if (!ctx.projectName) q += `1️⃣ **Project/Business name** — What's it called?\n`
-      if (!ctx.businessType) q += `2️⃣ **Type** — Is it a Business, E-Commerce, Restaurant, Blog, Portfolio, or Clinic?\n`
-      q += `\n> Example: "Build a restaurant site called **TasteLab**"\n\nOnce I have these, I'll generate separate \`index.html\`, \`style.css\`, and \`script.js\` with a modern Glassmorphism design! 🚀`
+      let q = `🎯 **دعني أحلل متطلبات مشروعك.**
+
+للبدء في البناء، أحتاج إلى معرفة التفاصيل التالية:
+
+`
+      if (!ctx.projectName) q += `1️⃣ **اسم المشروع أو الشركة** — ماذا تريد أن تسميه؟\n`
+      if (!ctx.businessType) q += `2️⃣ **فئة النشاط** — متجر إلكتروني، بورتفوليو، مطعم، شركة، عيادة؟\n`
+      q += `\n> مثال: "ابني موقع مطعم باسم **TasteLab**"\n\nبمجرد تزويدي بهذه البيانات، سأبدأ فوراً في توليد كود نظيف ومتكامل بأسلوب Glassmorphism الأنيق! 🚀`
       return { text: q, html: null }
     }
 

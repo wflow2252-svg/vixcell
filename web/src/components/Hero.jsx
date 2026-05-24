@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import gsap from 'gsap'
 import ThreeDLogo from './ThreeDLogo'
 import DotPixelIcon from './DotPixelIcon'
+import ErrorBoundary from './ErrorBoundary'
 
 export default function Hero({ onStartProject }) {
   const heroRef = useRef(null)
@@ -27,7 +28,9 @@ export default function Hero({ onStartProject }) {
     <section className="hero" ref={heroRef}>
       {/* 3D V Logo — fullscreen background */}
       <div className="logo-3d-wrapper">
-        <ThreeDLogo />
+        <ErrorBoundary>
+          <ThreeDLogo />
+        </ErrorBoundary>
       </div>
 
       {/* Bottom row: text left, CTA right */}

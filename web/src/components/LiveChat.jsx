@@ -19,28 +19,41 @@ export default function LiveChat() {
     }
     setVisitorId(vid)
 
-    const newSocket = io('https://api.vixcell.com')
-    setSocket(newSocket)
+    try {
+      const newSocket = io('https://api.vixcell.com', {
+        timeout: 5000,
+        reconnectionAttempts: 3,
+        transports: ['websocket', 'polling'],
+      })
+      setSocket(newSocket)
 
-    newSocket.on('connect', () => {
-      setStatus('Online')
-      newSocket.emit('visitor:join', { visitorId: vid, visitorName: 'Website Visitor' })
-    })
+      newSocket.on('connect', () => {
+        setStatus('Online')
+        newSocket.emit('visitor:join', { visitorId: vid, visitorName: 'Website Visitor' })
+      })
 
-    newSocket.on('disconnect', () => {
-      setStatus('Connecting...')
-    })
+      newSocket.on('disconnect', () => {
+        setStatus('Offline')
+      })
 
-    newSocket.on('visitor:message', (msg) => {
-      setMessages(prev => [...prev, { ...msg, sender: 'visitor' }])
-    })
+      newSocket.on('connect_error', () => {
+        setStatus('Offline')
+      })
 
-    newSocket.on('admin:message', (msg) => {
-      setMessages(prev => [...prev, { ...msg, sender: 'admin' }])
-      setIsOpen(true)
-    })
+      newSocket.on('visitor:message', (msg) => {
+        setMessages(prev => [...prev, { ...msg, sender: 'visitor' }])
+      })
 
-    return () => newSocket.close()
+      newSocket.on('admin:message', (msg) => {
+        setMessages(prev => [...prev, { ...msg, sender: 'admin' }])
+        setIsOpen(true)
+      })
+
+      return () => newSocket.close()
+    } catch (err) {
+      console.error('[LiveChat] Socket connection error:', err)
+      setStatus('Offline')
+    }
   }, [])
 
   useEffect(() => {

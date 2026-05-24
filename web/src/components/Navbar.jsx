@@ -128,7 +128,7 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
                   onMouseEnter={handleMouseLeaveMenu}
                   onClick={(e) => { e.preventDefault(); onStartProject && onStartProject() }}
                 >
-                  Vix AI
+                  VIXCELL AI
                 </a>
                 <a
                   href="#contact"

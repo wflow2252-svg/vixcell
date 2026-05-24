@@ -10,6 +10,9 @@ try {
   
   app.use(express.json());
   
+  const vixAiRoutes = require('../backend/src/routes/vixAi.routes');
+  app.use('/api/vix-ai', vixAiRoutes);
+  
   // Mock projects data
   const projects = [
     { id: 1, name: 'Website Redesign', clientName: 'ABC Corp', status: 'active', startDate: '2026-05-01', endDate: '2026-06-30', budget: 15000, description: 'Complete redesign of corporate website' },

@@ -17,14 +17,21 @@ gsap.registerPlugin(ScrollTrigger)
 
 function App() {
   const [view, setView] = useState(() => {
-    const saved = localStorage.getItem('vix_view')
-    if (saved === 'dashboard') return 'dashboard'
-    if (window.location.pathname === '/portfolio') return 'portfolio'
+    try {
+      if (window.location.pathname === '/dashboard') return 'dashboard'
+      if (window.location.pathname === '/portfolio') return 'portfolio'
+      
+      const saved = localStorage.getItem('vix_view')
+      if (saved === 'dashboard') return 'dashboard'
+      if (saved === 'portfolio') return 'portfolio'
+    } catch (e) {
+      console.warn('[Vixcell] localStorage not available:', e)
+    }
     return 'landing'
   })
 
   useEffect(() => {
-    localStorage.setItem('vix_view', view)
+    try { localStorage.setItem('vix_view', view) } catch (e) { /* ignore */ }
     if (view === 'portfolio') {
       window.history.pushState({}, '', '/portfolio')
     } else if (view === 'landing') {

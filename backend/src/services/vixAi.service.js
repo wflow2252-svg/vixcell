@@ -1,7 +1,30 @@
-const WebsiteGenerator = require('./websiteGenerator.service');
+const SYSTEM_PROMPT = `You are VIXCELL, an elite AI assistant built by the VIXCELL team. You are a world-class Full-Stack Developer, AI Engineer, Data Analyst, UI/UX Designer, and Multi-domain Expert — all in one.
+
+YOUR IDENTITY & PERSONA:
+- Your personality mirrors the style of Claude (by Anthropic): warm, intelligent, precise, honest, deeply helpful, and capable of complex reasoning.
+- You think step-by-step, ask clarifying questions only when truly needed, and always deliver complete, production-ready results.
+- Speak fluently in whatever language the user writes in (especially Arabic or English). Always respond in the same language the user uses.
+- If the user writes in Arabic, respond in natural, fluent Arabic while keeping all technical terms, code blocks, and schemas in clean, industry-standard English.
+
+CORE CAPABILITIES & TECHNICAL DEFAULTS:
+1. Full-Stack Web Development: Expert in HTML5, CSS3, Tailwind CSS, JavaScript (ES6+), React, Node.js, Express, databases (PostgreSQL, SQLite, Prisma ORM, MongoDB), and deployments (Vercel, Railway).
+2. UI/UX Design: Beautiful by default — never produce ugly, bare-bones interfaces. Apply proper visual hierarchy, mobile responsiveness, dark mode by default, and smooth CSS transitions/GSAP.
+3. Code Quality: Always provide COMPLETE, working, copy-paste-ready code. Never truncate code or use placeholders like "TODO".
+
+HOW YOU RESPOND FOR WEBSITE BUILDING:
+- Chat naturally and consultatively.
+- Build the single-file website immediately when you have enough info (business name + industry/type of business).
+- When generating HTML, wrap the code EXACTLY like this:
+===HTML_START===
+<!DOCTYPE html>
+... complete beautifully designed website with Tailwind CSS or custom CSS, real content, sections (Hero, Services, About, Contact), interactive elements, and responsive layout ...
+===HTML_END===
+
+- After the HTML block, add a warm, professional, Claude-style message in the user's language confirming it is ready and suggesting next iterations.
+- If a logo is uploaded [LOGO_UPLOADED] or active, include <img src="CLIENT_LOGO" alt="logo"> in the header/logo areas.`;
 
 const sessions = new Map();
-const MAX_HISTORY = 50;
+const MAX_HISTORY = 40;
 const SESSION_TTL = 1000 * 60 * 60 * 24; // 24 hours
 
 // Clean old sessions periodically
@@ -18,648 +41,249 @@ function getSession(sessionId) {
   if (!sessions.has(sessionId)) {
     sessions.set(sessionId, {
       history: [],
-      context: {
-        stage: 'greeting',
-        projectName: '',
-        businessType: '',
-        description: '',
-        colors: { primary: '#ff6b35', bg: '#0a0a0a', text: '#ffffff' },
-        logo: null,
-        features: [],
-        language: 'ar',
-        generatedCode: null,
-        lastIntent: '',
-      },
       lastActivity: Date.now(),
     });
   }
-  return sessions.get(sessionId);
-}
-
-function touchSession(sessionId) {
-  const session = getSession(sessionId);
+  const session = sessions.get(sessionId);
   session.lastActivity = Date.now();
+  return session;
 }
 
-function addToHistory(sessionId, role, text) {
-  const session = getSession(sessionId);
-  session.history.push({ role, text, timestamp: Date.now() });
-  if (session.history.length > MAX_HISTORY) {
-    session.history.splice(0, session.history.length - MAX_HISTORY);
-  }
+function extractHTML(response) {
+  const match = response.match(/===HTML_START===\s*([\s\S]*?)\s*===HTML_END===/);
+  return match ? match[1].trim() : null;
 }
-
-const INTENTS = {
-  GREETING: 'greeting',
-  BUILD_WEBSITE: 'build_website',
-  MODIFY_WEBSITE: 'modify_website',
-  ADD_FEATURE: 'add_feature',
-  CHANGE_COLOR: 'change_color',
-  ADD_LOGO: 'add_logo',
-  EXPLAIN_CODE: 'explain_code',
-  HELP: 'help',
-  UNKNOWN: 'unknown',
-};
-
-function detectIntent(text) {
-  const t = text.toLowerCase().trim();
-
-  // Greeting
-  if (/^(مرحبا|السلام|أهلا|hello|hi|hey|اهلا)/i.test(t)) {
-    return INTENTS.GREETING;
-  }
-
-  // Help
-  if (/(مساعدة|مساعد|help|what can you|what do you|ماذا|تقدر|powered)/i.test(t)) {
-    return INTENTS.HELP;
-  }
-
-  // Build website
-  if (/(ابني|اعمل|create|build|make|new|موقع|website|site|landing|ebni|aamil|page|صفحة|متجر|store|ecommerce|shop|شركة|company|business)/i.test(t)) {
-    return INTENTS.BUILD_WEBSITE;
-  }
-
-  // Modify website
-  if (/(تعديل|عدل|غير|modify|edit|change|update|ضيف|زود|نقص|بدل|replace|حو|حول)/i.test(t)) {
-    return INTENTS.MODIFY_WEBSITE;
-  }
-
-  // Add feature
-  if (/(ضيف|زود|add|feature|إضافة|section|قسم|جزء|part|component)/i.test(t)) {
-    return INTENTS.ADD_FEATURE;
-  }
-
-  // Change color
-  if (/(لون|color|الوان|theme|dark|light|da2k)/i.test(t)) {
-    return INTENTS.CHANGE_COLOR;
-  }
-
-  // Logo
-  if (/(logo|لوجو|شعار)/i.test(t)) {
-    return INTENTS.ADD_LOGO;
-  }
-
-  // Explain code
-  if (/(شرح|explain|analyze|تحليل|understand|فهم|code|كود|function)/i.test(t)) {
-    return INTENTS.EXPLAIN_CODE;
-  }
-
-  return INTENTS.UNKNOWN;
-}
-
-function extractInfo(text, session) {
-  const ctx = session.context;
-
-  // Extract project name (words after "اسمي" or "اسم" or "شركة" or "project")
-  const nameMatch = text.match(/(?:اسمي|اسم الشركة|اسم المشروع|شركة|project name|company)\s*[:\s]\s*(.+)/i);
-  if (nameMatch) ctx.projectName = nameMatch[1].trim();
-
-  // Extract business type
-  const typeMatch = text.match(/(?:متجر|store|ecommerce|shop|مطعم|restaurant|شركة|company|عيادة|clinic|school|مدرسة|blog|مدونة|personal|شخصي|portfolio|أعمال)\b/i);
-  if (typeMatch) {
-    const types = {
-      'متجر': 'ecommerce', 'store': 'ecommerce', 'ecommerce': 'ecommerce', 'shop': 'ecommerce',
-      'مطعم': 'restaurant', 'restaurant': 'restaurant',
-      'شركة': 'business', 'company': 'business',
-      'عيادة': 'clinic', 'clinic': 'clinic',
-      'مدرسة': 'school', 'school': 'school',
-      'blog': 'blog', 'مدونة': 'blog',
-      'personal': 'personal', 'شخصي': 'personal',
-      'portfolio': 'portfolio', 'أعمال': 'portfolio',
-    };
-    ctx.businessType = types[typeMatch[0].toLowerCase()] || 'business';
-  }
-
-  // Extract color
-  const colorMatch = text.match(/(?:#)?([0-9a-fA-F]{6})\b/);
-  if (colorMatch) {
-    ctx.colors.primary = '#' + colorMatch[1];
-  }
-  if (/\bأسود|dark|black\b/i.test(text)) ctx.colors.bg = '#0a0a0a';
-  if (/\bأبيض|light|white\b/i.test(text)) ctx.colors.bg = '#ffffff';
-
-  return ctx;
-}
-
-// Greeting responses
-const greetings = [
-  'مرحباً! 👋 أنا Vix — مساعدك البرمجي الذكي.\n\nأقدر أبني لك موقع متكامل، Landing page، متجر إلكتروني، أو أي حاجة تخص الويب.\n\n📌 **قولي عايز إيه بالظبط:**\n- اسم المشروع أو الشركة\n- النوع (موقع شركة، متجر، مطعم، portfolio، الخ)\n- أي تفاصيل زيادة عن التصميم\n\nوابدأ أشتغل فوراً 💪',
-  'أهلاً بيك في Vixcell! 🤖\n\nأنا هنا عشان أساعدك تبني موقعك. مجرد ما تقول:\n- إيه نوع الموقع؟\n- اسم المشروع؟\n- الألوان اللي تحبها؟\n\nوهبدأ أشتغل 🚀',
-];
-
-const helpResponse = `🎯 **أنا أقدر أساعدك في:**
-
-🌐 **بناء مواقع** — موقع شركة، متجر، مطعم، مدونة، portfolio، landing page
-✏️ **تعديل وتحديث** — أغير الألوان، النصوص، الأقسام، أي حاجة في الموقع
-🎨 **تصميم مخصص** — أضيف ميزات، أقسام، animations، تأثيرات
-📱 **متجاوب** — الموقع يشتغل على الجوال والتابلت والكمبيوتر
-💻 **كود نظيف** — HTML/CSS/JS professional
-
-**طريقة الشغل:**
-1. قولي عايز إيه (نوع الموقع + اسم المشروع)
-2. هبنيهولك فوراً
-3. قولي عايز أغير حاجة وهعدلها
-
-**جرب تقول:** "ابني موقع لشركة Vixcell" 🚀`;
-
-const unknownResponses = [
-  'تمام! 😊 عشان أساعدك:\n- عايز **تبني موقع** جديد؟\n- ولا عايز **تعدل** على موقع موجود؟\n- ولا عندك **استفسار** معين؟\n\nقولي تفاصيل أكتر 🎯',
-  'فهمت! خليني أوضح:\n\nأنا متخصص في برمجة المواقع. أقدر:\n✅ أبني موقع كامل من الصفر\n✅ أعدل على أي موقع موجود\n✅ أضيف أقسام وميزات جديدة\n\nعايز إيه بالظبط؟ 🚀',
-];
 
 exports.chat = async (sessionId, message, logoDataUrl = null) => {
   const session = getSession(sessionId);
-  touchSession(sessionId);
+  const apiKey = process.env.GEMINI_API_KEY || '';
 
+  // 1. Prepare user parts
+  let userParts = [{ text: message || 'مرحباً' }];
+
+  // Securely handle uploaded logo image multimodally
   if (logoDataUrl) {
-    session.context.logo = logoDataUrl;
-    addToHistory(sessionId, 'user', message);
-    const html = exports.generateSite(session.context);
-    session.context.generatedCode = html;
-    session.context.stage = 'modify';
-    const cleanMsg = message.replace('[LOGO_UPLOADED]', '').trim();
-    const responseText = cleanMsg
-      ? `تمام! استلمت اللوجو ✅\n\n${cleanMsg}\n\nهبدأ أشتغل ع طول 💪`
-      : 'تم استلام اللوجو ✅ هبدأ أشتغل عليه فوراً 💪';
-    addToHistory(sessionId, 'ai', responseText + '\n\n' + html);
-    return { text: responseText, html };
-  }
-
-  addToHistory(sessionId, 'user', message);
-  const intent = detectIntent(message);
-  const ctx = session.context;
-  extractInfo(message, session);
-
-  let response;
-
-  switch (intent) {
-    case INTENTS.GREETING:
-      response = greetings[Math.floor(Math.random() * greetings.length)];
-      ctx.stage = 'collecting_info';
-      break;
-
-    case INTENTS.HELP:
-      response = helpResponse;
-      break;
-
-    case INTENTS.BUILD_WEBSITE: {
-      const name = ctx.projectName || extractNameOrDefault(message);
-      const type = ctx.businessType || extractTypeOrDefault(message);
-      ctx.projectName = name;
-      ctx.businessType = type;
-
-      if (needsMoreInfo(ctx)) {
-        response = buildInfoQuestions(ctx);
-        ctx.stage = 'collecting_info';
-      } else {
-        const html = exports.generateSite(ctx);
-        ctx.generatedCode = html;
-        ctx.stage = 'modify';
-        response = `تمام! خلصت الموقع بتاع **${name}** 🎉
-
-هو موقع ${getTypeName(type)} احترافي ومتجاوب. تقدر:
-- تغير الألوان أو النصوص
-- تضيف أقسام زيادة
-- ترفع لوجو
-- تظبط أي حاجة عايزها
-
-🚀 الموقع:`;
-        addToHistory(sessionId, 'ai', response);
-        return { text: response, html };
-      }
-      break;
-    }
-
-    case INTENTS.MODIFY_WEBSITE: {
-      if (!ctx.generatedCode) {
-        response = 'معنديش موقع عشان أعدله! 😅 قولي عايز تبني إيه وهبدأ 🚀';
-      } else {
-        const modified = handleModification(message, ctx);
-        ctx.generatedCode = modified;
-        response = 'تم! عدلت حسب طلبك 🎉\n\nالموقع بعد التعديل:';
-        addToHistory(sessionId, 'ai', response);
-        return { text: response, html: modified };
-      }
-      break;
-    }
-
-    case INTENTS.CHANGE_COLOR: {
-      if (!ctx.generatedCode) {
-        response = 'معنديش موقع عشان أغير ألوانه! ابني واحد الأول 😊';
-      } else {
-        parseColorChange(message, ctx);
-        const modified = modifyColors(ctx.generatedCode, ctx.colors);
-        ctx.generatedCode = modified;
-        response = 'تم تغيير الألوان! 🎨\n\nالموقع بعد الألوان الجديدة:';
-        addToHistory(sessionId, 'ai', response);
-        return { text: response, html: modified };
-      }
-      break;
-    }
-
-    case INTENTS.ADD_FEATURE: {
-      if (!ctx.generatedCode) {
-        response = 'ابني موقع الأول وبعدين نضيف عليه 💪';
-      } else {
-        const feature = extractFeatureRequest(message);
-        const modified = addFeatureToSite(ctx.generatedCode, feature, ctx);
-        ctx.generatedCode = modified;
-        response = `تمام! ضفت ${feature} للموقع 🎉\n\nالموقع بعد الإضافة:`;
-        addToHistory(sessionId, 'ai', response);
-        return { text: response, html: modified };
-      }
-      break;
-    }
-
-    case INTENTS.EXPLAIN_CODE: {
-      if (ctx.generatedCode) {
-        response = `🎯 **تحليل الكود:**
-
-الموقع الحالي عبارة عن **${getTypeName(ctx.businessType)}**.
-
-**الأقسام:**
-1. **Navbar** — شريط التنقل العلوي مثبت (fixed)
-2. **Hero** — القسم الرئيسي بتصميم جذاب وأنيميشن
-3. **Services/Products** — عرض الخدمات أو المنتجات
-4. **About** — معلومات عن الشركة/المشروع
-5. **Contact** — معلومات التواصل
-6. **Footer** — التذييل
-7. **WhatsApp Float** — زر واتساب عائم
-
-**التقنيات:**
-- HTML5 Semantic
-- CSS3 (Grid, Flexbox, Animations, Custom Properties)
-- Google Fonts
-- Fully Responsive
-- RTL Support
-
-**عايز أشرح جزء معين؟** قولي الكود أو السطر 👨‍💻`;
-      } else {
-        response = 'مفيش كود حالياً عشان أشرحه! ابني موقع الأول وهشرحهولك line by line 🧠';
-      }
-      break;
-    }
-
-    default: {
-      // Check if we're in info collection mode
-      if (ctx.stage === 'collecting_info') {
-        const info = extractAllInfo(message, ctx);
-        if (info.complete) {
-          const html = exports.generateSite(ctx);
-          ctx.generatedCode = html;
-          ctx.stage = 'modify';
-          response = `تمام! خلصت موقع **${ctx.projectName}** 🎉
-
-`;
-          addToHistory(sessionId, 'ai', response);
-          return { text: response, html };
-        } else {
-          response = buildInfoQuestions(ctx);
+    const match = logoDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      const mimeType = match[1];
+      const base64Data = match[2];
+      userParts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
         }
-      } else if (ctx.stage === 'modify' && ctx.generatedCode) {
-        // Try to understand what they want to modify
-        response = `تمام! عايز أعدل إيه بالظبط؟ 😊
-- الألوان؟
-- محتوى معين (نصوص/صور)؟
-- إضافة قسم جديد؟
-- تغيير التنسيق؟`;
-      } else {
-        response = unknownResponses[Math.floor(Math.random() * unknownResponses.length)];
-      }
-      break;
+      });
+      // Append tag so system prompt triggers logo behavior
+      userParts[0].text += '\n[LOGO_UPLOADED]';
     }
   }
 
-  addToHistory(sessionId, 'ai', response);
-  return { text: response, html: null };
-};
-
-function extractNameOrDefault(message) {
-  // Try to extract name from patterns
-  const patterns = [
-    /(?:اسمي|اسم|الاسم)[^a-zA-Z]*([\w\s]+)/i,
-    /(?:شركة|company|business|project)[^a-zA-Z]*([\w\s]+)/i,
-    /لـ\s+([\w\s]+)/,
-    /for\s+([\w\s]+)/i,
-    /site\s+(?:for|of|called|named)\s+([\w\s]+)/i,
-    /موقع\s+([\w\s.]+)/,
-  ];
-  for (const p of patterns) {
-    const m = message.match(p);
-    if (m && m[1] && m[1].trim().length > 0) return m[1].trim().split(/\s+/).slice(0, 3).join(' ');
+  // 2. Fallback to mock response if no API key is configured
+  if (!apiKey) {
+    console.warn('[VIXCELL AI] No backend GEMINI_API_KEY found. Falling back to mock.');
+    const mockRes = getMockResponse(message, logoDataUrl);
+    const html = extractHTML(mockRes);
+    const cleanText = mockRes.replace(/===HTML_START===[\s\S]*?===HTML_END===/g, '').trim();
+    
+    // Add to local history for completeness
+    session.history.push({ role: 'user', parts: [{ text: message }] });
+    session.history.push({ role: 'model', parts: [{ text: mockRes }] });
+    
+    return {
+      text: cleanText || 'تم البناء بنجاح! يمكنك معاينته في لوحة المعاينة.',
+      html: html
+    };
   }
-  return 'مشروعي';
-}
 
-function extractTypeOrDefault(message) {
-  const t = message.toLowerCase();
-  if (/\b(متجر|store|ecommerce|shop|eshop)\b/i.test(t)) return 'ecommerce';
-  if (/\b(مطعم|restaurant|cafe|كافيه)\b/i.test(t)) return 'restaurant';
-  if (/\b(blog|مدونة)\b/i.test(t)) return 'blog';
-  if (/\b(portfolio|أعمال|معرض)\b/i.test(t)) return 'portfolio';
-  if (/\b(عيادة|clinic|doctor|طبيب)\b/i.test(t)) return 'clinic';
-  if (/\b(مدرسة|school|academy|أكاديمية)\b/i.test(t)) return 'school';
-  if (/\b(personal|شخصي)\b/i.test(t)) return 'personal';
-  return 'business';
-}
+  try {
+    // Add user turn to session history
+    session.history.push({ role: 'user', parts: userParts });
 
-function getTypeName(type) {
-  const names = {
-    ecommerce: 'متجر إلكتروني',
-    restaurant: 'مطعم',
-    blog: 'مدونة',
-    portfolio: 'معرض أعمال',
-    clinic: 'عيادة',
-    school: 'مدرسة',
-    personal: 'شخصي',
-    business: 'شركة',
-  };
-  return names[type] || 'موقع';
-}
+    // Format history for Gemini API
+    const contents = session.history.map(item => ({
+      role: item.role,
+      parts: item.parts
+    }));
 
-function needsMoreInfo(ctx) {
-  if (!ctx.projectName || ctx.projectName === 'مشروعي') return true;
-  if (!ctx.businessType) return true;
-  return false;
-}
+    // Call official Gemini REST API (no npm dependencies needed)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: contents,
+        systemInstruction: {
+          parts: [{ text: SYSTEM_PROMPT }]
+        },
+        generationConfig: {
+          maxOutputTokens: 8192,
+          temperature: 0.7,
+        }
+      })
+    });
 
-function buildInfoQuestions(ctx) {
-  let q = '🎯 **عشان أبدأ، محتاج أعرف:**\n\n';
-  if (!ctx.projectName || ctx.projectName === 'مشروعي') {
-    q += '1️⃣ **اسم المشروع أو الشركة** إيه؟\n';
-  }
-  if (!ctx.businessType) {
-    q += '2️⃣ **نوع الموقع** إيه؟ (شركة، متجر، مطعم، مدونة، portfolio، عيادة، الخ)\n';
-  }
-  if (ctx.projectName && ctx.projectName !== 'مشروعي' && ctx.businessType) {
-    q += '3️⃣ أي **تفاصيل زيادة** عن التصميم أو الألوان؟\n';
-  }
-  q += '\nوهبدأ فوراً 💪';
-  return q;
-}
-
-function extractAllInfo(message, ctx) {
-  const namePatterns = [
-    /اسمه\s+([\w\s]+)/i, /اسمها\s+([\w\s]+)/i,
-    /اسمي\s+([\w\s]+)/i,
-    /اسم\s+المشروع\s+([\w\s]+)/i,
-    /project\s+(?:name|is|called)\s+([\w\s]+)/i,
-    /شركة\s+([\w\s]{2,})/i,
-    /company\s+([\w\s]{2,})/i,
-    /([\w\s]{2,})\s+(?:website|site|موقع)/i,
-  ];
-
-  for (const p of namePatterns) {
-    const m = message.match(p);
-    if (m && m[1].trim().length > 2) {
-      ctx.projectName = m[1].trim().split(/\s+/).slice(0, 3).join(' ');
-      break;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API returned status ${response.status}: ${errorText}`);
     }
+
+    const resData = await response.json();
+    if (!resData.candidates || resData.candidates.length === 0) {
+      throw new Error('Gemini API did not return any candidates.');
+    }
+
+    const aiResponseText = resData.candidates[0].content.parts[0].text;
+
+    // Save model response to history
+    session.history.push({ role: 'model', parts: [{ text: aiResponseText }] });
+
+    // Enforce history size limit
+    if (session.history.length > MAX_HISTORY) {
+      session.history.splice(0, session.history.length - MAX_HISTORY);
+    }
+
+    const html = extractHTML(aiResponseText);
+    const cleanText = aiResponseText.replace(/===HTML_START===[\s\S]*?===HTML_END===/g, '').trim();
+
+    return {
+      text: cleanText || 'تم البناء بنجاح! يمكنك معاينته في لوحة المعاينة.',
+      html: html
+    };
+
+  } catch (err) {
+    console.error('[VIXCELL AI] Error in backend Gemini Chat:', err);
+    // Remove failed user turn
+    session.history.pop();
+    
+    // Graceful fallback
+    const mockRes = getMockResponse(message, logoDataUrl);
+    const html = extractHTML(mockRes);
+    const cleanText = mockRes.replace(/===HTML_START===[\s\S]*?===HTML_END===/g, '').trim();
+    return {
+      text: `(تنبيه: حدث خطأ أثناء الاتصال بالذكاء الاصطناعي، تم استخدام الاستجابة التلقائية المدمجة)\n\n${cleanText}`,
+      html: html
+    };
   }
-
-  const type = extractTypeOrDefault(message);
-  if (type) ctx.businessType = type;
-
-  // Color
-  if (/\bأزرق|blue\b/i.test(message)) ctx.colors.primary = '#3b82f6';
-  if (/\bأخضر|green\b/i.test(message)) ctx.colors.primary = '#22c55e';
-  if (/\bأحمر|red\b/i.test(message)) ctx.colors.primary = '#ef4444';
-  if (/\bبنفسجي|purple\b/i.test(message)) ctx.colors.primary = '#8b5cf6';
-  if (/\bأسود|dark\b/i.test(message)) { ctx.colors.bg = '#0a0a0a'; ctx.colors.text = '#ffffff'; }
-  if (/\bأبيض|light|white\b/i.test(message)) { ctx.colors.bg = '#ffffff'; ctx.colors.text = '#1a1a1a'; }
-
-  return {
-    complete: ctx.projectName && ctx.projectName !== 'مشروعي' && ctx.businessType,
-  };
-}
-
-function parseColorChange(message, ctx) {
-  const t = message.toLowerCase();
-  if (/\bأزرق|blue\b/i.test(t)) ctx.colors.primary = '#3b82f6';
-  else if (/\bأخضر|green\b/i.test(t)) ctx.colors.primary = '#22c55e';
-  else if (/\bأحمر|red\b/i.test(t)) ctx.colors.primary = '#ef4444';
-  else if (/\bبنفسجي|purple\b/i.test(t)) ctx.colors.primary = '#8b5cf6';
-  else if (/\bأسود|dark\b/i.test(t)) { ctx.colors.bg = '#0a0a0a'; ctx.colors.text = '#ffffff'; }
-  else if (/\bأبيض|light|white\b/i.test(t)) { ctx.colors.bg = '#ffffff'; ctx.colors.text = '#1a1a1a'; }
-  else if (/\bبرتقالي|orange\b/i.test(t)) ctx.colors.primary = '#f97316';
-  else if (/\bوردي|pink\b/i.test(t)) ctx.colors.primary = '#ec4899';
-  else if (/\bذهبي|gold|yellow|أصفر\b/i.test(t)) ctx.colors.primary = '#eab308';
-}
-
-function handleModification(message, ctx) {
-  let html = ctx.generatedCode;
-  const t = message.toLowerCase();
-
-  // Change specific colors
-  parseColorChange(message, ctx);
-  html = modifyColors(html, ctx.colors);
-
-  // Change text
-  const textChanges = message.match(/غير\s+([\w\s]+)\s+إلى\s+([\w\s]+)/i);
-  if (textChanges) {
-    html = html.replace(new RegExp(textChanges[1].trim(), 'gi'), textChanges[2].trim());
-  }
-
-  // Add section
-  if (/\b(ضيف|زود|add)\b.*\b(section|قسم)\b/i.test(t)) {
-    html = addFeatureToSite(html, extractFeatureRequest(message), ctx);
-  }
-
-  return html;
-}
-
-function extractFeatureRequest(message) {
-  const t = message.toLowerCase();
-  if (/\b(gallery|معرض|صور|images)\b/i.test(t)) return 'gallery';
-  if (/\b(team|فريق|اعضاء)\b/i.test(t)) return 'team';
-  if (/\b(pricing|أسعار|خطط|plans)\b/i.test(t)) return 'pricing';
-  if (/\b(contact|اتصال|تواصل)\b/i.test(t)) return 'contact';
-  if (/\b(blog|مدونة|مقالات|posts)\b/i.test(t)) return 'blog';
-  if (/\b(faq|أسئلة|questions|شائعة)\b/i.test(t)) return 'faq';
-  if (/\b(services|خدمات)\b/i.test(t)) return 'services';
-  if (/\b(slider|carousel|عرض|slideshow)\b/i.test(t)) return 'slider';
-  if (/\b(menu|قائمة|منيو)\b/i.test(t)) return 'menu';
-  if (/\b(map|خريطة|location|موقع)\b/i.test(t)) return 'map';
-  if (/\b(reviews|تقييمات|مراجعات|testimonials)\b/i.test(t)) return 'testimonials';
-  return 'section';
-}
-
-function modifyColors(html, colors) {
-  // Replace CSS color variables or inline colors
-  let result = html;
-  if (colors.primary) {
-    result = result.replace(/#ff6b35|#ff4500|#e85d2c|#f97316|orange/g, colors.primary);
-    // Also replace gradient with new color
-    result = result.replace(
-      /linear-gradient\(135deg,\s*#[0-9a-fA-F]+\s*,\s*#[0-9a-fA-F]+\)/g,
-      `linear-gradient(135deg, ${colors.primary}, ${adjustColor(colors.primary, -30)})`
-    );
-  }
-  if (colors.bg) {
-    const bgRegex = /background[^;]*#0a0a0a[^;]*;/g;
-    result = result.replace(bgRegex, (match) => match.replace(/#0a0a0a/g, colors.bg));
-    result = result.replace(/#0d0d0d/g, colors.bg === '#ffffff' ? '#f5f5f5' : '#0d0d0d');
-    result = result.replace(/#060606/g, colors.bg === '#ffffff' ? '#e5e5e5' : '#060606');
-    result = result.replace(/#141414/g, colors.bg === '#ffffff' ? '#ffffff' : '#141414');
-  }
-  return result;
-}
-
-function adjustColor(hex, amount) {
-  const num = parseInt(hex.replace('#', ''), 16);
-  const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + amount));
-  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + amount));
-  const b = Math.min(255, Math.max(0, (num & 0xff) + amount));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-}
-
-function addFeatureToSite(html, feature, ctx) {
-  const featureHTML = getFeatureHTML(feature, ctx);
-  // Insert before footer
-  const footerIndex = html.lastIndexOf('<footer');
-  if (footerIndex > -1) {
-    return html.slice(0, footerIndex) + featureHTML + '\n' + html.slice(footerIndex);
-  }
-  // Insert before </body>
-  const bodyEndIndex = html.lastIndexOf('</body>');
-  if (bodyEndIndex > -1) {
-    return html.slice(0, bodyEndIndex) + featureHTML + '\n' + html.slice(bodyEndIndex);
-  }
-  return html + '\n' + featureHTML;
-}
-
-function getFeatureHTML(feature, ctx) {
-  const isDark = ctx.colors.bg !== '#ffffff';
-  const cardBg = isDark ? '#141414' : '#f8f8f8';
-  const borderColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-  const textColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
-  const bg = ctx.colors.bg;
-  const sectionBg = isDark ? '#0d0d0d' : '#f5f5f5';
-  const headingColor = isDark ? '#fff' : '#1a1a1a';
-
-  const sections = {
-    gallery: `<section class="gallery" style="padding:6rem 5%;background:${sectionBg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">معرض الصور</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">لحظات من أعمالنا</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;max-width:1100px;margin:0 auto">
-    <div style="background:${cardBg};border-radius:16px;padding:5rem 2rem;text-align:center;border:1px solid ${borderColor};font-size:3rem">🖼️</div>
-    <div style="background:${cardBg};border-radius:16px;padding:5rem 2rem;text-align:center;border:1px solid ${borderColor};font-size:3rem">🎨</div>
-    <div style="background:${cardBg};border-radius:16px;padding:5rem 2rem;text-align:center;border:1px solid ${borderColor};font-size:3rem">📸</div>
-  </div>
-</section>`,
-
-    team: `<section class="team" style="padding:6rem 5%;background:${bg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">فريق العمل</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">نخبة من المحترفين</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2rem;max-width:900px;margin:0 auto">
-    <div style="text-align:center;background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:4rem;margin-bottom:0.8rem">👨‍💻</div><h3 style="color:${headingColor};margin-bottom:0.3rem">أحمد</h3><p style="color:${textColor};font-size:0.9rem">Full Stack Developer</p></div>
-    <div style="text-align:center;background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:4rem;margin-bottom:0.8rem">🎨</div><h3 style="color:${headingColor};margin-bottom:0.3rem">سارة</h3><p style="color:${textColor};font-size:0.9rem">UI/UX Designer</p></div>
-    <div style="text-align:center;background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:4rem;margin-bottom:0.8rem">🚀</div><h3 style="color:${headingColor};margin-bottom:0.3rem">محمد</h3><p style="color:${textColor};font-size:0.9rem">Project Manager</p></div>
-  </div>
-</section>`,
-
-    pricing: `<section class="pricing" style="padding:6rem 5%;background:${sectionBg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">الخطط والأسعار</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">اختر الخطة المناسبة لك</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;max-width:1000px;margin:0 auto">
-    <div style="background:${cardBg};padding:2.5rem 2rem;border-radius:20px;border:1px solid ${borderColor};text-align:center"><h3 style="color:${headingColor};margin-bottom:1rem">Basic</h3><div style="font-size:2.5rem;font-weight:900;color:${ctx.colors.primary};margin-bottom:1.5rem">$499</div><p style="color:${textColor};margin-bottom:1.5rem">موقع بسيط متكامل</p><a href="#" style="display:inline-block;background:${ctx.colors.primary};color:#fff;padding:0.8rem 2rem;border-radius:50px;text-decoration:none;font-weight:700">ابدأ</a></div>
-    <div style="background:${cardBg};padding:2.5rem 2rem;border-radius:20px;border:2px solid ${ctx.colors.primary};text-align:center;transform:scale(1.05)"><div style="font-size:0.8rem;background:${ctx.colors.primary};color:#fff;display:inline-block;padding:0.2rem 1rem;border-radius:50px;margin-bottom:0.8rem">الأكثر طلباً</div><h3 style="color:${headingColor};margin-bottom:1rem">Pro</h3><div style="font-size:2.5rem;font-weight:900;color:${ctx.colors.primary};margin-bottom:1.5rem">$1,299</div><p style="color:${textColor};margin-bottom:1.5rem">متجر إلكتروني متكامل</p><a href="#" style="display:inline-block;background:${ctx.colors.primary};color:#fff;padding:0.8rem 2rem;border-radius:50px;text-decoration:none;font-weight:700">ابدأ</a></div>
-    <div style="background:${cardBg};padding:2.5rem 2rem;border-radius:20px;border:1px solid ${borderColor};text-align:center"><h3 style="color:${headingColor};margin-bottom:1rem">Enterprise</h3><div style="font-size:2.5rem;font-weight:900;color:${ctx.colors.primary};margin-bottom:1.5rem">$2,999</div><p style="color:${textColor};margin-bottom:1.5rem">حل متكامل مخصص</p><a href="#" style="display:inline-block;background:${ctx.colors.primary};color:#fff;padding:0.8rem 2rem;border-radius:50px;text-decoration:none;font-weight:700">اتصل بنا</a></div>
-  </div>
-</section>`,
-
-    testimonials: `<section class="testimonials" style="padding:6rem 5%;background:${bg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">ماذا قالوا عنا</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">آراء عملائنا</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:1000px;margin:0 auto">
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:1.5rem;color:${ctx.colors.primary};margin-bottom:0.8rem">⭐⭐⭐⭐⭐</div><p style="color:${textColor};line-height:1.8">"تجربة رائعة! فريق محترف جداً وسريع في التنفيذ"</p><div style="margin-top:1rem;color:${headingColor};font-weight:700">- عميل سعيد</div></div>
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:1.5rem;color:${ctx.colors.primary};margin-bottom:0.8rem">⭐⭐⭐⭐⭐</div><p style="color:${textColor};line-height:1.8">"موقعي بقى أفضل بكتير من الأول، شكراً Vixcell!"</p><div style="margin-top:1rem;color:${headingColor};font-weight:700">- عميل مميز</div></div>
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:1.5rem;color:${ctx.colors.primary};margin-bottom:0.8rem">⭐⭐⭐⭐⭐</div><p style="color:${textColor};line-height:1.8">"أنصح أي حد يشتغل معاهم، احترافية وتزام"</p><div style="margin-top:1rem;color:${headingColor};font-weight:700">- شريك نجاح</div></div>
-  </div>
-</section>`,
-
-    faq: `<section class="faq" style="padding:6rem 5%;background:${sectionBg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">الأسئلة الشائعة</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">إجابات لأسئلتكم</p>
-  <div style="max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:0.8rem">
-    <div style="background:${cardBg};padding:1.2rem 1.5rem;border-radius:12px;border:1px solid ${borderColor}"><div style="font-weight:700;color:${headingColor};margin-bottom:0.3rem">كم يستغرق بناء الموقع؟</div><p style="color:${textColor};font-size:0.92rem">حسب حجم المشروع، ولكن في الغالب من 3 إلى 7 أيام عمل</p></div>
-    <div style="background:${cardBg};padding:1.2rem 1.5rem;border-radius:12px;border:1px solid ${borderColor}"><div style="font-weight:700;color:${headingColor};margin-bottom:0.3rem">هل تقدمون دعماً بعد التسليم؟</div><p style="color:${textColor};font-size:0.92rem">نعم، نوفر شهر دعم مجاني بعد التسليم</p></div>
-    <div style="background:${cardBg};padding:1.2rem 1.5rem;border-radius:12px;border:1px solid ${borderColor}"><div style="font-weight:700;color:${headingColor};margin-bottom:0.3rem">هل الموقع سيكون متجاوب مع الجوال؟</div><p style="color:${textColor};font-size:0.92rem">طبعاً! كل مواقعنا بتشتغل على جميع الأجهزة</p></div>
-  </div>
-</section>`,
-
-    services: `<section class="services-custom" style="padding:6rem 5%;background:${bg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">خدماتنا</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">نقدم حلولاً متكاملة</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem;max-width:1100px;margin:0 auto">
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:2.5rem;margin-bottom:1rem">🌐</div><h3 style="color:${headingColor};margin-bottom:0.5rem">تصميم مواقع</h3><p style="color:${textColor};font-size:0.92rem;line-height:1.8">مواقع احترافية بأحدث التقنيات</p></div>
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:2.5rem;margin-bottom:1rem">📱</div><h3 style="color:${headingColor};margin-bottom:0.5rem">تطبيقات جوال</h3><p style="color:${textColor};font-size:0.92rem;line-height:1.8">تطبيقات native متكاملة</p></div>
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:2.5rem;margin-bottom:1rem">🤖</div><h3 style="color:${headingColor};margin-bottom:0.5rem">حلول AI</h3><p style="color:${textColor};font-size:0.92rem;line-height:1.8">ذكاء اصطناعي مخصص لأعمالك</p></div>
-  </div>
-</section>`,
-
-    slider: `<section class="slider" style="padding:6rem 5%;background:${sectionBg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:2rem">أعمالنا</h2>
-  <div style="display:flex;gap:1rem;overflow-x:auto;padding:1rem 0;max-width:1100px;margin:0 auto">
-    <div style="min-width:300px;height:200px;background:${cardBg};border-radius:16px;border:1px solid ${borderColor};display:flex;align-items:center;justify-content:center;font-size:3rem">🖥️</div>
-    <div style="min-width:300px;height:200px;background:${cardBg};border-radius:16px;border:1px solid ${borderColor};display:flex;align-items:center;justify-content:center;font-size:3rem">📊</div>
-    <div style="min-width:300px;height:200px;background:${cardBg};border-radius:16px;border:1px solid ${borderColor};display:flex;align-items:center;justify-content:center;font-size:3rem">🎯</div>
-  </div>
-</section>`,
-
-    menu: `<section class="menu" style="padding:6rem 5%;background:${bg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">قائمة الطعام</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">أشهى الأطباق</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem;max-width:900px;margin:0 auto">
-    <div style="background:${cardBg};padding:1.5rem;border-radius:16px;border:1px solid ${borderColor}"><h3 style="color:${headingColor}">طبق 1</h3><p style="color:${textColor};font-size:0.9rem">وصف الطبق</p><div style="color:${ctx.colors.primary};font-weight:700;margin-top:0.5rem">$15</div></div>
-    <div style="background:${cardBg};padding:1.5rem;border-radius:16px;border:1px solid ${borderColor}"><h3 style="color:${headingColor}">طبق 2</h3><p style="color:${textColor};font-size:0.9rem">وصف الطبق</p><div style="color:${ctx.colors.primary};font-weight:700;margin-top:0.5rem">$22</div></div>
-    <div style="background:${cardBg};padding:1.5rem;border-radius:16px;border:1px solid ${borderColor}"><h3 style="color:${headingColor}">طبق 3</h3><p style="color:${textColor};font-size:0.9rem">وصف الطبق</p><div style="color:${ctx.colors.primary};font-weight:700;margin-top:0.5rem">$18</div></div>
-    <div style="background:${cardBg};padding:1.5rem;border-radius:16px;border:1px solid ${borderColor}"><h3 style="color:${headingColor}">طبق 4</h3><p style="color:${textColor};font-size:0.9rem">وصف الطبق</p><div style="color:${ctx.colors.primary};font-weight:700;margin-top:0.5rem">$25</div></div>
-  </div>
-</section>`,
-
-    map: `<section class="map" style="padding:6rem 5%;background:${sectionBg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">موقعنا</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:2rem">تفضل بزيارتنا</p>
-  <div style="max-width:800px;margin:0 auto;background:${cardBg};padding:4rem 2rem;border-radius:20px;border:1px solid ${borderColor};text-align:center"><div style="font-size:3rem;margin-bottom:1rem">📍</div><p style="color:${textColor}">مصر — القاهرة\nطريق النصر</p></div>
-</section>`,
-
-    blog: `<section class="blog" style="padding:6rem 5%;background:${bg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">المدونة</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">آخر المقالات</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:1000px;margin:0 auto">
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:2rem;margin-bottom:1rem">📝</div><h3 style="color:${headingColor};font-size:1.1rem;margin-bottom:0.5rem">عنوان المقال</h3><p style="color:${textColor};font-size:0.9rem">ملخص سريع للمقال...</p></div>
-    <div style="background:${cardBg};padding:2rem;border-radius:20px;border:1px solid ${borderColor}"><div style="font-size:2rem;margin-bottom:1rem">💡</div><h3 style="color:${headingColor};font-size:1.1rem;margin-bottom:0.5rem">نصائح تقنية</h3><p style="color:${textColor};font-size:0.9rem">أحدث النصائح والتقنيات...</p></div>
-  </div>
-</section>`,
-
-    contact: `<section class="contact-custom" style="padding:6rem 5%;background:${sectionBg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:0.8rem">اتصل بنا</h2>
-  <p style="text-align:center;color:${textColor};margin-bottom:3rem">نحن هنا لمساعدتك</p>
-  <div style="display:flex;justify-content:center;gap:2rem;flex-wrap:wrap;max-width:800px;margin:0 auto">
-    <div style="background:${cardBg};padding:1.5rem 2rem;border-radius:16px;border:1px solid ${borderColor};min-width:180px;text-align:center"><div style="color:${ctx.colors.primary};font-weight:700">📧 info@vixcell.com</div></div>
-    <div style="background:${cardBg};padding:1.5rem 2rem;border-radius:16px;border:1px solid ${borderColor};min-width:180px;text-align:center"><div style="color:${ctx.colors.primary};font-weight:700">📞 +20 100 000 0000</div></div>
-  </div>
-</section>`,
-
-    section: `<section class="new-section" style="padding:6rem 5%;background:${bg}">
-  <h2 style="text-align:center;font-size:2.2rem;font-weight:800;color:${headingColor};margin-bottom:1rem">قسم جديد</h2>
-  <p style="text-align:center;color:${textColor};max-width:600px;margin:0 auto;line-height:1.8">محتوى القسم الجديد هنا — تقدر تضيف أي محتوى عايزه</p>
-</section>`,
-  };
-
-  return sections[feature] || sections.section;
-}
-
-exports.generateSite = (context) => {
-  const generator = new WebsiteGenerator(context);
-  return generator.generate();
 };
 
 exports.resetSession = (sessionId) => {
   sessions.delete(sessionId);
 };
 
-exports.getSession = getSession;
+// Hardcoded premium mock site for elegant fallbacks
+function getMockResponse(message, hasLogo) {
+  const lowerMsg = (message || '').toLowerCase();
+  
+  if (hasLogo || lowerMsg.includes('لوجو') || lowerMsg.includes('شعار')) {
+    return `تمام، شايف اللوجو 👌 بناءً على الشعار والهوية البصرية، هبنيلك موقع متكامل وجذاب!
 
-exports.WebsiteGenerator = WebsiteGenerator;
+===HTML_START===
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIXCELL Client Site</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Cairo', sans-serif; background: #060814; color: #fff; line-height: 1.6; }
+nav { position: fixed; top: 0; width: 100%; padding: 1.2rem 4rem; display: flex; justify-content: space-between; align-items: center; background: rgba(6, 8, 20, 0.9); backdrop-filter: blur(20px); z-index: 100; border-bottom: 1px solid rgba(255,107,53,0.15); }
+.logo img { height: 45px; object-fit: contain; }
+.nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; margin-right: 2rem; font-size: 0.95rem; transition: color 0.3s; }
+.nav-links a:hover { color: #ff6b35; }
+.hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at top, #1e1b4b 0%, #060814 60%); padding: 6rem 2rem; }
+.hero-content { max-width: 800px; }
+.hero img { width: 100px; height: 100px; object-fit: contain; margin-bottom: 2rem; filter: drop-shadow(0 0 20px rgba(255,107,53,0.4)); }
+h1 { font-size: clamp(2rem, 5vw, 4rem); font-weight: 900; margin-bottom: 1.2rem; background: linear-gradient(135deg, #fff 45%, #ff6b35); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero p { font-size: 1.15rem; opacity: 0.7; margin-bottom: 2.5rem; }
+.btn { background: linear-gradient(135deg, #ff6b35, #ff4500); color: white; padding: 0.9rem 2.2rem; border-radius: 50px; text-decoration: none; font-weight: 700; display: inline-block; transition: all 0.3s; box-shadow: 0 8px 30px rgba(255,107,53,0.3); }
+.btn:hover { transform: translateY(-4px); box-shadow: 0 15px 40px rgba(255,107,53,0.5); }
+</style>
+</head>
+<body>
+<nav>
+  <div class="logo"><img src="CLIENT_LOGO" alt="logo"></div>
+  <div class="nav-links">
+    <a href="#about">من نحن</a>
+    <a href="#services">الخدمات</a>
+  </div>
+</nav>
+<section class="hero">
+  <div class="hero-content">
+    <img src="CLIENT_LOGO" alt="logo">
+    <h1>أهلاً بك في موقعك الجديد</h1>
+    <p>تم بناء هذا الموقع وتنسيقه مع اللوجو المرفوع بشكل احترافي وجذاب.</p>
+    <a href="#contact" class="btn">اكتشف المزيد</a>
+  </div>
+</section>
+</body>
+</html>
+===HTML_END===
+
+هيا! موقعك جاهز مع الشعار المرفوع 🎉 قولي لو حابب نعدل الألوان، نضيف أقسام تانية، أو نغير النصوص!`;
+  }
+
+  return `أهلاً بك! 👋 أنا **VIXCELL AI** مساعدك الذكي.
+
+لقد قمت بتحليل طلبك، وهيا بنا نبني لك موقعاً رائعاً يليق بتطلعاتك!
+
+===HTML_START===
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIXCELL Premium Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Cairo', sans-serif; background: #080b16; color: #fff; line-height: 1.6; }
+nav { position: fixed; top: 0; width: 100%; padding: 1.2rem 4rem; display: flex; justify-content: space-between; align-items: center; background: rgba(8, 11, 22, 0.9); backdrop-filter: blur(20px); z-index: 100; border-bottom: 1px solid rgba(255,107,53,0.15); }
+.logo { font-size: 1.6rem; font-weight: 900; background: linear-gradient(135deg, #fff, #ff6b35); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; margin-right: 2rem; font-size: 0.95rem; transition: color 0.3s; }
+.nav-links a:hover { color: #ff6b35; }
+.hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at top, #1e1b4b 0%, #080b16 65%); padding: 6rem 2rem; }
+.hero-content { max-width: 800px; }
+h1 { font-size: clamp(2.2rem, 6vw, 4.5rem); font-weight: 900; margin-bottom: 1.5rem; background: linear-gradient(135deg, #fff 40%, #ff6b35); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero p { font-size: 1.2rem; opacity: 0.75; margin-bottom: 2.5rem; max-width: 600px; margin-right: auto; margin-left: auto; }
+.btn { background: linear-gradient(135deg, #ff6b35, #ff4500); color: white; padding: 1rem 2.5rem; border-radius: 50px; text-decoration: none; font-weight: 700; display: inline-block; transition: all 0.3s; box-shadow: 0 8px 30px rgba(255,107,53,0.3); }
+.btn:hover { transform: translateY(-4px); box-shadow: 0 15px 40px rgba(255,107,53,0.5); }
+.services { padding: 8rem 4rem; background: #0f1222; }
+.services-title { text-align: center; font-size: 2.5rem; font-weight: 800; margin-bottom: 3.5rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; max-width: 1100px; margin: 0 auto; }
+.card { background: #161a32; padding: 2.5rem; border-radius: 24px; border: 1px solid rgba(255,255,255,0.06); transition: all 0.35s; }
+.card:hover { transform: translateY(-8px); border-color: rgba(255,107,53,0.3); }
+.card-icon { font-size: 3rem; margin-bottom: 1rem; }
+.card h3 { font-size: 1.3rem; margin-bottom: 0.8rem; }
+.card p { opacity: 0.6; font-size: 0.95rem; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="logo">VIXCELL</div>
+  <div class="nav-links">
+    <a href="#services">الخدمات</a>
+    <a href="#contact">تواصل معنا</a>
+  </div>
+</nav>
+<section class="hero">
+  <div class="hero-content">
+    <h1>مستقبل أعمالك الرقمي يبدأ اليوم</h1>
+    <p>نصمم ونطور حلول الويب الفاخرة للشركات والناشئين بأعلى معايير الإتقان والتكنولوجيا الحديثة.</p>
+    <a href="#services" class="btn">استكشف خدماتنا 🚀</a>
+  </div>
+</section>
+<section class="services" id="services">
+  <h2 class="services-title">ماذا نقدم لك؟</h2>
+  <div class="cards">
+    <div class="card"><div class="card-icon">🚀</div><h3>تطوير الويب الفاخر</h3><p>مواقع فائقة السرعة والتجاوب مع تجربة مستخدم لا تُنسى.</p></div>
+    <div class="card"><div class="card-icon">⚡</div><h3>حلول السحاب والـ ERP</h3><p>أتمتة كاملة لإدارتك وتخزين آمن وموثوق لبيانات شركتك.</p></div>
+    <div class="card"><div class="card-icon">🧠</div><h3>ذكاء اصطناعي مدمج</h3><p>دمج وكلاء ومساعدين أذكياء في أنظمة العمل لزيادة المبيعات والسرعة.</p></div>
+  </div>
+</section>
+</body>
+</html>
+===HTML_END===
+
+لقد قمت بإنشاء نسخة معاينة أولية فاخرة تناسب تطلعاتك! هل ترغب في تغيير الألوان أو الأقسام؟ أخبرني فحسب!`;
+}

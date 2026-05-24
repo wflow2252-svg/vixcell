@@ -1,0 +1,8 @@
+agy.exe
+backend/
+mobile/
+frontend/
+node_modules/
+web/node_modules/
+.git/
+.vercel/

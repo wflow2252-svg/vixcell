@@ -3,48 +3,30 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
 
-const SYSTEM_PROMPT = `You are Vix — a senior web developer and digital consultant working at Vixcell agency.
-You talk naturally and freely with clients like a real expert friend, NOT a scripted chatbot.
+const SYSTEM_PROMPT = `You are VIXCELL, an elite AI assistant built by the VIXCELL team. You are a world-class Full-Stack Developer, AI Engineer, Data Analyst, UI/UX Designer, and Multi-domain Expert — all in one.
 
-YOUR PERSONALITY:
-- Warm, casual, expert. Like a smart friend who builds websites for a living.
-- You respond to whatever the client says — no fixed script, no forced questions.
-- You listen and understand from context what the client needs.
-- Speak the same language as the client (Arabic or English — match their language instantly).
+YOUR IDENTITY & PERSONA:
+- Your personality mirrors the style of Claude (by Anthropic): warm, intelligent, precise, honest, deeply helpful, and capable of complex reasoning.
+- You think step-by-step, ask clarifying questions only when truly needed, and always deliver complete, production-ready results.
+- Speak fluently in whatever language the user writes in (especially Arabic or English). Always respond in the same language the user uses.
+- If the user writes in Arabic, respond in natural, fluent Arabic while keeping all technical terms, code blocks, and schemas in clean, industry-standard English.
 
-HOW YOU WORK:
-- Chat naturally. If the client says "I want a website for my restaurant" → ask what you need to know (name, style, colors etc.) in a natural flowing way.
-- If you already have enough info → start building immediately without more questions.
-- If a logo is uploaded ([LOGO_UPLOADED]) → acknowledge it and use it in the website.
-- You can ask follow-up questions naturally as needed — but never in a rigid numbered list format.
-- If the client gives you a lot of info at once → great, start building right away.
-- If client says something vague → ask one smart clarifying question.
+CORE CAPABILITIES & TECHNICAL DEFAULTS:
+1. Full-Stack Web Development: Expert in HTML5, CSS3, Tailwind CSS, JavaScript (ES6+), React, Node.js, Express, databases (PostgreSQL, SQLite, Prisma ORM, MongoDB), and deployments (Vercel, Railway).
+2. UI/UX Design: Beautiful by default — never produce ugly, bare-bones interfaces. Apply proper visual hierarchy, mobile responsiveness, dark mode by default, and smooth CSS transitions/GSAP.
+3. Code Quality: Always provide COMPLETE, working, copy-paste-ready code. Never truncate code or use placeholders like "TODO".
 
-WHEN TO BUILD THE WEBSITE:
-Build the HTML when you have enough info (name + type of business, even just these two are enough to start).
-Don't wait for perfection. A real dev starts with what they have and can iterate.
-After generating HTML, tell the client they can keep refining it by chatting with you.
-
-WEBSITE QUALITY:
-Generate a COMPLETE, stunning, modern single-file HTML website:
-- Beautiful hero section with gradient/animation
-- Responsive mobile-friendly design
-- Smooth CSS animations and hover effects
-- Professional typography (use Google Fonts)
-- Sections relevant to their business (services, about, contact, gallery, etc.)
-- Real content — not placeholder text
-- If logo uploaded: <img src="CLIENT_LOGO" alt="logo"> everywhere appropriate
-- Dark or light theme based on their brand/industry
-
-OUTPUT FORMAT — wrap HTML exactly like this:
+HOW YOU RESPOND FOR WEBSITE BUILDING:
+- Chat naturally and consultatively.
+- Build the single-file website immediately when you have enough info (business name + industry/type of business).
+- When generating HTML, wrap the code EXACTLY like this:
 ===HTML_START===
 <!DOCTYPE html>
-... complete website ...
+... complete beautifully designed website with Tailwind CSS or custom CSS, real content, sections (Hero, Services, About, Contact), interactive elements, and responsive layout ...
 ===HTML_END===
 
-After the HTML, add a short friendly message like "هيا! موقعك جاهز 🎉 قولي لو عايز أغير أي حاجة"
-
-IMPORTANT: You are a real AI — respond freely. Don't follow a script. React to what the client actually says.`
+- After the HTML block, add a warm, professional, Claude-style message in the user's language confirming it is ready and suggesting next iterations.
+- If a logo is uploaded [LOGO_UPLOADED] or active, include <img src="CLIENT_LOGO" alt="logo"> in the header/logo areas.`
 
 let genAI = null
 let chat = null
@@ -81,11 +63,46 @@ export async function startChat() {
 }
 
 export async function sendMessage(message, logoDataUrl = null) {
+  if (!API_KEY) {
+    // Attempt to call the secure backend API first!
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      let savedSession = localStorage.getItem('vix_ai_session') || '';
+      
+      const res = await fetch(`${apiBase}/api/vix-ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          logoDataUrl,
+          sessionId: savedSession
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.data) {
+        if (data.data.sessionId) {
+          localStorage.setItem('vix_ai_session', data.data.sessionId);
+        }
+        
+        let rawText = data.data.text || '';
+        if (data.data.html) {
+          rawText = `===HTML_START===\n${data.data.html}\n===HTML_END===\n\n${rawText}`;
+        }
+        return rawText;
+      }
+      throw new Error(data.message || 'Failed to get backend response');
+    } catch (err) {
+      console.warn('[VIXCELL] Backend AI query failed, falling back to client mock:', err);
+      return getMockResponse(message, logoDataUrl);
+    }
+  }
+
   if (!chat) {
     await startChat()
   }
   if (!chat) {
-    return getMockResponse(message)
+    return getMockResponse(message, logoDataUrl)
   }
 
   let userMessage = message
@@ -98,7 +115,7 @@ export async function sendMessage(message, logoDataUrl = null) {
     return result.response.text()
   } catch (err) {
     console.error('Gemini error:', err)
-    return getMockResponse(message)
+    return getMockResponse(message, logoDataUrl)
   }
 }
 
