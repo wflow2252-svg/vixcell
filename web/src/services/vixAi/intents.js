@@ -127,7 +127,7 @@ const PATTERNS = [
   ]},
   { intent: INTENT.BUILD_LANDING, weight: 10, patterns: [
     /\b(landing\s*page|lp|squeeze\s*page|sales\s*page)\b/i,
-    /(صفحة\s*هبوط|لاندينج|صفحة\s*وحيدة)/,
+    /(صفحة\s*هبوط|صفحه\s*هبوط|لاندينج|لاندنج|landing\s*بيج|landing\s*page)/i,
   ]},
   { intent: INTENT.BUILD_DASHBOARD, weight: 10, patterns: [
     /\b(dashboard|admin\s*panel|control\s*panel|analytics)\b.*\b(site|website|build|create|make)\b/i,
@@ -141,7 +141,8 @@ const PATTERNS = [
   { intent: INTENT.BUILD_SITE, weight: 8, patterns: [
     /\b(build|create|make|develop|design|generate)\s+(a\s+|an\s+|the\s+)?(site|website|web\s*site|webpage|page|web)\b/i,
     /\bi\s*(want|need|wanna)\s*.*\b(site|website|page)\b/i,
-    /(اعمل|ابني|انشئ|اصنع|صمم|عايز|محتاج|عاوز)\s*(موقع|صفحة|صفحه|ويب)/,
+    /(اعمل|ابني|انشئ|اصنع|صمم|عايز|محتاج|عاوز|تعمل|تعملي|تعمللي|تعمليلي)\s*(\S+\s+){0,4}(موقع|صفحة|صفحه|ويب|لاندينج|لاندنج|landing)/,
+    /(موقع|صفحة|صفحه|ويب|لاندينج|لاندنج|landing)\s*(\S+\s+){0,4}(لشرك[هة]|شرك[هة]|لمشروع|لمتجر|لمطعم|لعياده|لعيادة)/,
   ]},
 
   // — Code Generation —
@@ -356,7 +357,11 @@ const STOP_WORDS = new Set([
 export function extractProjectType(text) {
   const norm = normalize(text)
   for (const [type, hints] of Object.entries(PROJECT_TYPE_HINTS)) {
-    if (hints.some(h => new RegExp(h, 'i').test(norm))) return type
+    for (const h of hints) {
+      // Normalize the hint too so ة/ه and other variants both match
+      const hNorm = normalize(h)
+      if (new RegExp(hNorm, 'i').test(norm)) return type
+    }
   }
   return ''
 }
@@ -370,10 +375,12 @@ export function extractColor(text) {
 }
 
 export function extractProjectName(text) {
+  // Try high-confidence "name is X" patterns first
   const patterns = [
     /(?:called|named|titled|under\s+the\s+name)\s+["']?([\w؀-ۿ][\w؀-ۿ\s-]{1,28})["']?/i,
     /(?:اسمها|اسمه|اسمي|اسم|باسم|بإسم)\s+["']?([\w؀-ۿ][\w؀-ۿ\s-]{1,28})["']?/i,
-    /(?:for|عشان|ل)\s+(?:my\s+|the\s+)?(?:company|brand|project|business|store)\s+["']?([\w؀-ۿ][\w؀-ۿ\s-]{1,28})["']?/i,
+    /(?:for|عشان)\s+(?:my\s+|the\s+)?(?:company|brand|project|business|store)\s+["']?([\w؀-ۿ][\w؀-ۿ\s-]{1,28})["']?/i,
+    /\bل?شرك[هة]\s+(?:اسمها\s+|باسم\s+)?["']?([\w؀-ۿ][\w؀-ۿ\s-]{1,28})["']?/i,
     /["']([\w؀-ۿ][\w؀-ۿ\s-]{1,28})["']/,
     /\*\*([\w؀-ۿ][\w؀-ۿ\s-]{1,28})\*\*/,
   ]
@@ -389,16 +396,29 @@ export function extractProjectName(text) {
     }
   }
 
-  // Fallback: capitalized standalone words (likely brand names)
-  const words = text.split(/\s+/)
-  for (const w of words) {
-    const clean = w.replace(/[^\w؀-ۿ]/g, '')
-    if (/^[A-Z][a-zA-Z]{2,14}$/.test(clean) && !STOP_WORDS.has(clean.toLowerCase())) {
-      return clean
-    }
+  // Fallback 1: any standalone Latin word that looks like a brand
+  // (3-20 chars, no common English/Arabic words, allows lowercase brands like "vixcell")
+  const latinWordRe = /\b([a-zA-Z][a-zA-Z0-9]{2,19})\b/g
+  let m
+  while ((m = latinWordRe.exec(text)) !== null) {
+    const word = m[1]
+    if (STOP_WORDS.has(word.toLowerCase())) continue
+    if (TECH_WORDS.has(word.toLowerCase())) continue
+    return word
   }
+
   return ''
 }
+
+// Common tech terms that should never be treated as project names
+const TECH_WORDS = new Set([
+  'html', 'css', 'js', 'jsx', 'ts', 'tsx', 'react', 'vue', 'node', 'nodejs',
+  'python', 'php', 'java', 'sql', 'api', 'rest', 'json', 'http', 'https',
+  'landing', 'page', 'site', 'website', 'webpage', 'app', 'web', 'mobile',
+  'frontend', 'backend', 'fullstack', 'database', 'auth', 'jwt',
+  'tailwind', 'bootstrap', 'sass', 'scss', 'webpack', 'vite', 'nextjs',
+  'company', 'business', 'brand', 'project', 'store', 'shop',
+])
 
 export function extractAll(text) {
   return {

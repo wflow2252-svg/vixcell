@@ -47,9 +47,22 @@ export function respond(sessionId, message) {
   const lang = detectLanguage(message) || ctx.userLanguage || 'en'
   if (lang) updateContext(sessionId, { userLanguage: lang })
 
-  // Logo upload (special signal)
+  // ─── ALWAYS extract entities first (works even with [LOGO_UPLOADED]) ──
+  // Strip the logo marker so it doesn't interfere with name extraction
+  const messageWithoutMarker = message.replace('[LOGO_UPLOADED]', '').trim()
+  const extracted = extractAll(messageWithoutMarker)
+  const patch = {}
+  if (extracted.name) patch.projectName = extracted.name
+  if (extracted.type) patch.businessType = extracted.type
+  if (extracted.color) patch.primary = extracted.color
+  if (Object.keys(patch).length) updateContext(sessionId, patch)
+
+  // Logo upload (special signal) — context now has any extracted info
   if (message.includes('[LOGO_UPLOADED]')) {
-    return handleLogoUpload(sessionId, lang)
+    addTurn(sessionId, 'user', messageWithoutMarker || '[logo uploaded]', 'logo_upload')
+    const response = handleLogoUpload(sessionId, lang)
+    addTurn(sessionId, 'assistant', response.text || '', 'logo_upload')
+    return response
   }
 
   // Code block in message? Always treat as analyze/explain first
@@ -67,19 +80,25 @@ export function respond(sessionId, message) {
   const { primary, all, confidence } = classify(message)
   addTurn(sessionId, 'user', message, primary)
 
-  // Update context from message
-  const extracted = extractAll(message)
-  const patch = {}
-  if (extracted.name) patch.projectName = extracted.name
-  if (extracted.type) patch.businessType = extracted.type
-  if (extracted.color) patch.primary = extracted.color
-  if (Object.keys(patch).length) updateContext(sessionId, patch)
+  // If we have enough info to build (name + any build hint), do it immediately
+  const ctx2 = getSession(sessionId).context
+  if (ctx2.projectName && (extracted.type || hasBuildKeyword(message))) {
+    const response = buildSite(sessionId, lang)
+    addTurn(sessionId, 'assistant', response.text || '', 'build')
+    return response
+  }
 
   // Route to handler
   const response = route(primary, all, sessionId, message, lang)
 
   addTurn(sessionId, 'assistant', response.text || '', primary)
   return response
+}
+
+// Helper: detect any build-related verb/noun in the message
+function hasBuildKeyword(text) {
+  return /\b(build|create|make|design|generate|landing|page|site|website|app)\b/i.test(text)
+      || /(اعمل|ابني|انشئ|اصنع|صمم|عايز|محتاج|عاوز|تعمل|تعملي|تعمللي|موقع|صفحة|صفحه|ويب|لاندينج|لاندنج)/.test(text)
 }
 
 // ─── Intent Router ─────────────────────────────────────────────────
