@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html, body {
+    background: #0c0c0e;
+    color: #e8e8ed;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: rgba(200, 163, 92, 0.3);
+    color: #fff;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+}
+
+/* ─── Markdown rendering inside AI bubbles ─── */
+.vx-md { color: #e8e8ed; font-size: 14.5px; line-height: 1.7; }
+.vx-md p { margin: 0 0 12px; }
+.vx-md p:last-child { margin-bottom: 0; }
+.vx-md h1, .vx-md h2, .vx-md h3 { color: #e8e8ed; margin: 18px 0 10px; line-height: 1.3; }
+.vx-md h1 { font-size: 22px; font-weight: 700; }
+.vx-md h2 { font-size: 18px; font-weight: 700; }
+.vx-md h3 { font-size: 15px; font-weight: 600; }
+.vx-md ul { padding-left: 22px; margin: 8px 0 14px; }
+.vx-md li { margin: 4px 0; color: #a8a8b3; }
+.vx-md strong { color: #e8e8ed; font-weight: 600; }
+.vx-md em { color: #a8a8b3; }
+.vx-md blockquote {
+  border-left: 3px solid #c8a35c; padding: 4px 12px; margin: 12px 0;
+  color: #a8a8b3; background: rgba(200,163,92,0.12); border-radius: 0 6px 6px 0;
+}
+.vx-md code.vx-inline {
+  background: rgba(200,163,92,0.12); color: #c8a35c;
+  padding: 2px 6px; border-radius: 4px; font-size: 0.88em;
+  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+}
+
+/* ─── Fenced code block ─── */
+.vx-code {
+  background: #0a0a0d; border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; margin: 12px 0; overflow: hidden;
+}
+.vx-code-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px; background: #1a1a1f; border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.vx-code-lang { font-size: 11px; color: #6b6b75; text-transform: lowercase; font-weight: 500; }
+.vx-copy-btn {
+  background: transparent; border: 1px solid rgba(255,255,255,0.08);
+  color: #a8a8b3; padding: 3px 10px; border-radius: 5px;
+  font-size: 11px; cursor: pointer; transition: all .15s;
+}
+.vx-copy-btn:hover { background: #131316; color: #e8e8ed; border-color: rgba(255,255,255,0.16); }
+.vx-code pre { margin: 0; padding: 14px 16px; overflow-x: auto;
+  font-family: ui-monospace, "SF Mono", Monaco, Consolas, monospace;
+  font-size: 12.5px; line-height: 1.6; }
+.vx-code code { color: #c9d1d9; background: transparent; padding: 0; }
