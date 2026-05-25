@@ -21,27 +21,32 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ─── Auth helpers ──────────────────────────────────────────────────
 
 /**
- * Sign in with Google. Redirects to Google's consent screen, then back
- * to /admin with the session attached.
+ * Sign in with a magic link. Sends an email containing a link that, when
+ * clicked, signs the user in and redirects to /admin.
  *
- * Setup once in Supabase Dashboard:
- *   Authentication → Providers → Google → Enable
- *   Authentication → URL Configuration → add the site domain to Redirect URLs
+ * Only the emails in services/submissions.js ADMIN_EMAILS will be granted
+ * admin access — non-admin emails can still sign in (Supabase allows it)
+ * but the AdminDashboard short-circuits them.
  */
-export async function signInWithGoogle() {
+export async function signInWithMagicLink(email) {
   const redirectTo = typeof window !== 'undefined'
     ? `${window.location.origin}/admin`
     : undefined
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email: (email || '').trim().toLowerCase(),
     options: {
-      redirectTo,
-      queryParams: { prompt: 'select_account' },
+      emailRedirectTo: redirectTo,
+      shouldCreateUser: true,
     },
   })
   if (error) throw error
   return data
+}
+
+// Deprecated alias — kept so older imports don't break during transition.
+export const signInWithGoogle = () => {
+  throw new Error('Google OAuth has been replaced with email magic link. Use signInWithMagicLink(email) instead.')
 }
 
 export async function signOut() {

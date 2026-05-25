@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { signInWithGoogle, signOut, onAuthChange } from '../services/supabase'
+import { signInWithMagicLink, signOut, onAuthChange } from '../services/supabase'
 import { listAll, markRead, remove, isAdmin, ADMIN_EMAILS } from '../services/submissions'
 import DotPixelIcon from './DotPixelIcon'
 import SocialAgent from './SocialAgent'
@@ -69,65 +69,97 @@ export default function AdminDashboard({ onViewChange }) {
   return <AdminView user={user} onBack={() => onViewChange('landing')} />
 }
 
-// ─── Sign-in screen (Google OAuth) ────────────────────────────────
+// ─── Sign-in screen (Magic Link) ──────────────────────────────────
 function SignInGate({ onBack }) {
+  const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [sent, setSent] = useState(false)
 
-  async function handleGoogle() {
+  async function handleSubmit(e) {
+    e.preventDefault()
     setError('')
+    const cleaned = email.trim().toLowerCase()
+    if (!cleaned || !cleaned.includes('@')) {
+      setError('من فضلك ادخل إيميل صح')
+      return
+    }
+    if (!isAdmin(cleaned)) {
+      setError(`الإيميل ده مش من الـ admins. الحسابات المسموحة: ${ADMIN_EMAILS.join(' · ')}`)
+      return
+    }
     setBusy(true)
     try {
-      await signInWithGoogle()
-      // Page will redirect to Google then back to /admin — no need to setBusy(false)
+      await signInWithMagicLink(cleaned)
+      setSent(true)
     } catch (err) {
       console.error(err)
-      setError(err?.message || 'فشل تسجيل الدخول. تأكد إن Google enabled في Supabase.')
+      setError(err?.message || 'فشل إرسال الرابط. حاول تاني.')
+    } finally {
       setBusy(false)
     }
   }
 
+  if (sent) {
+    return (
+      <Shell onBack={onBack}>
+        <div style={styles.centerCard}>
+          <img src="/logo.png" alt="VIXCELL" style={styles.bigLogo} />
+          <div style={{ fontSize: 56, marginBottom: 16 }}>📬</div>
+          <h1 style={styles.h1}>بصّ في إيميلك</h1>
+          <p style={styles.muted}>
+            بعتنالك رابط دخول على <strong style={{ color: T.text }}>{email}</strong>.
+            <br />
+            اضغط عليه يفتحلك الداش بورد على طول.
+          </p>
+          <button
+            onClick={() => { setSent(false); setEmail(''); }}
+            style={{ ...styles.btnGhost, marginTop: 20 }}
+          >
+            إيميل تاني
+          </button>
+        </div>
+      </Shell>
+    )
+  }
+
   return (
     <Shell onBack={onBack}>
-      <div style={styles.centerCard}>
+      <form onSubmit={handleSubmit} style={styles.centerCard}>
         <img src="/logo.png" alt="VIXCELL" style={styles.bigLogo} />
         <h1 style={styles.h1}>لوحة التحكم</h1>
-        <p style={styles.muted}>سجل دخولك بحساب Google.</p>
+        <p style={styles.muted}>ادخل إيميلك الـ admin، هنبعتلك رابط دخول.</p>
 
         {error && <div style={{ ...styles.errorBanner, marginTop: 16 }}>⚠️ {error}</div>}
 
-        <button onClick={handleGoogle} disabled={busy} style={{ ...styles.googleBtn, marginTop: 24 }}>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="admin@example.com"
+          disabled={busy}
+          autoFocus
+          required
+          style={{ ...styles.emailInput, marginTop: 20 }}
+          dir="ltr"
+        />
+
+        <button type="submit" disabled={busy || !email} style={{ ...styles.primaryBtn, marginTop: 12, width: '100%' }}>
           {busy ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ ...styles.spinner, width: 14, height: 14, borderWidth: 2, borderColor: 'rgba(0,0,0,0.2)', borderTopColor: '#000' }} />
-              جاري التحويل…
+              <span style={{ ...styles.spinner, width: 14, height: 14, borderWidth: 2 }} />
+              جاري الإرسال…
             </span>
-          ) : (
-            <>
-              <GoogleSvg />
-              <span>Continue with Google</span>
-            </>
-          )}
+          ) : 'ابعتلي رابط الدخول'}
         </button>
 
-        <p style={{ ...styles.muted, fontSize: 12, marginTop: 18, color: T.text3 }}>
-          مسموح بس للحسابات:
+        <p style={{ ...styles.muted, fontSize: 11, marginTop: 18, color: T.text3 }}>
+          الحسابات المسموحة فقط:
           <br />
           <code style={styles.code}>{ADMIN_EMAILS.join(' · ')}</code>
         </p>
-      </div>
+      </form>
     </Shell>
-  )
-}
-
-function GoogleSvg() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-    </svg>
   )
 }
 
@@ -580,6 +612,18 @@ const styles = {
     padding: '10px 18px', fontSize: 13.5, fontWeight: 700,
     cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  primaryBtn: {
+    background: T.gold, color: '#000', border: 'none', borderRadius: 10,
+    padding: '12px 18px', fontSize: 14, fontWeight: 700,
+    cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  emailInput: {
+    width: '100%', boxSizing: 'border-box', padding: '12px 14px',
+    background: T.bg3, color: T.text, border: `1px solid ${T.border}`,
+    borderRadius: 10, fontSize: 14, fontFamily: 'inherit', outline: 'none',
+    transition: 'border-color .15s',
   },
   btnGhost: {
     background: 'transparent', color: T.text, border: `1px solid ${T.border}`,
