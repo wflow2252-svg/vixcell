@@ -1,0 +1,33 @@
+# docker-compose.yml — for running on a VPS (Hostinger, etc.)
+#
+# Usage on the server:
+#   git clone https://github.com/wflow2252-svg/vixcell.git
+#   cd vixcell/social-agent
+#   cp .env.example .env && nano .env   # fill in AGENT_TOKEN + Supabase keys
+#   docker compose up -d
+#
+# Then update the dashboard env to point at your VPS:
+#   VITE_SOCIAL_AGENT_URL=https://agent.vixcell.com  (or the IP:3001)
+#   VITE_SOCIAL_AGENT_TOKEN=<same as AGENT_TOKEN in .env>
+
+services:
+  agent:
+    build: .
+    container_name: vixcell-social-agent
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3001:3001"
+    volumes:
+      - browser-profile:/data/browser-profile
+    # Larger shared memory so Chrome doesn't crash on heavy pages
+    shm_size: 2gb
+    # Tighter health check via the /health endpoint
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  browser-profile:
