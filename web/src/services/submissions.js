@@ -4,7 +4,7 @@
 // DELETE are admin-only — so even with the publishable key exposed,
 // nobody but the whitelisted admins can read leads.
 
-import { supabase } from './supabase'
+import { supabase, sendClientVerification } from './supabase'
 
 const TABLE = 'submissions'
 const LOCAL_KEY = 'vixcell_submissions_v2'
@@ -81,7 +81,21 @@ export async function submit(type, payload) {
         : r
     )
     writeLocal(updated)
-    return { id: data.id, reference: data.reference, savedToCloud: true }
+
+    // Fire-and-forget email verification — if the client gave an email, send
+    // them a magic link from vixcell.eg@gmail.com confirming they own it.
+    // Doesn't block the submission flow; failures are logged silently.
+    let verificationSent = false
+    if (record.email) {
+      try {
+        await sendClientVerification(record.email, data.reference)
+        verificationSent = true
+      } catch (verifyErr) {
+        console.warn('[Submissions] verification email failed:', verifyErr?.message || verifyErr)
+      }
+    }
+
+    return { id: data.id, reference: data.reference, savedToCloud: true, verificationSent }
   } catch (err) {
     console.warn('[Submissions] Supabase insert failed, kept local copy:', err?.message || err)
     // Generate a local reference so the user still gets one
@@ -90,7 +104,7 @@ export async function submit(type, payload) {
       r.id === localRecord.id ? { ...r, reference: localRef } : r
     )
     writeLocal(updated)
-    return { id: localRecord.id, reference: localRef, savedToCloud: false }
+    return { id: localRecord.id, reference: localRef, savedToCloud: false, verificationSent: false }
   }
 }
 

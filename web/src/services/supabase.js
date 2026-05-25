@@ -21,16 +21,49 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ─── Auth helpers ──────────────────────────────────────────────────
 
 /**
- * Sign in with a magic link. Sends an email containing a link that, when
- * clicked, signs the user in and redirects to /admin.
+ * Sign in with Google. Redirects to Google's consent screen, then back to /admin.
  *
- * Only the emails in services/submissions.js ADMIN_EMAILS will be granted
- * admin access — non-admin emails can still sign in (Supabase allows it)
- * but the AdminDashboard short-circuits them.
+ * Setup (one-time, in Supabase Dashboard):
+ *   Authentication → Providers → Google → Enable
+ *   Client ID:     5348700581-6bq9f3lmvnru013qf4ipljedt7u839bm.apps.googleusercontent.com
+ *   Client Secret: (from client_secret JSON file at project root)
+ *
+ * Also add to the Google OAuth client's Authorized redirect URIs:
+ *   https://ilrxkhgdsirqppgqavjs.supabase.co/auth/v1/callback
  */
-export async function signInWithMagicLink(email) {
+export async function signInWithGoogle() {
   const redirectTo = typeof window !== 'undefined'
     ? `${window.location.origin}/admin`
+    : undefined
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+      queryParams: { prompt: 'select_account' },
+    },
+  })
+  if (error) throw error
+  return data
+}
+
+/**
+ * Send a verification magic link to a client who just submitted the contact form.
+ * Used to confirm they actually own the email address they entered. The link
+ * arrives from vixcell.eg@gmail.com (configured as Supabase SMTP sender) and
+ * redirects them back to the site so they get visual confirmation.
+ *
+ * Configure SMTP in Supabase Dashboard → Auth → SMTP Settings:
+ *   Host:     smtp.gmail.com
+ *   Port:     587
+ *   Username: vixcell.eg@gmail.com
+ *   Password: (Gmail App Password — generate in Google Account → Security)
+ *   Sender:   vixcell.eg@gmail.com
+ *   Name:     VIXCELL
+ */
+export async function sendClientVerification(email, reference) {
+  const redirectTo = typeof window !== 'undefined'
+    ? `${window.location.origin}/?verified=${encodeURIComponent(reference || 'ok')}`
     : undefined
 
   const { data, error } = await supabase.auth.signInWithOtp({
@@ -38,16 +71,15 @@ export async function signInWithMagicLink(email) {
     options: {
       emailRedirectTo: redirectTo,
       shouldCreateUser: true,
+      data: { reference, source: 'client_intake' },
     },
   })
   if (error) throw error
   return data
 }
 
-// Deprecated alias — kept so older imports don't break during transition.
-export const signInWithGoogle = () => {
-  throw new Error('Google OAuth has been replaced with email magic link. Use signInWithMagicLink(email) instead.')
-}
+// Kept as a deprecated alias for backwards compatibility with older imports.
+export const signInWithMagicLink = sendClientVerification
 
 export async function signOut() {
   await supabase.auth.signOut()
