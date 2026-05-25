@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { signInWithGoogle, signOut, onAuthChange } from '../services/supabase'
 import { listAll, markRead, remove, isAdmin, ADMIN_EMAILS } from '../services/submissions'
 import DotPixelIcon from './DotPixelIcon'
+import SocialAgent from './SocialAgent'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
@@ -132,6 +133,7 @@ function GoogleSvg() {
 
 // ─── Admin Dashboard view ─────────────────────────────────────────
 function AdminView({ user, onBack }) {
+  const [activeTab, setActiveTab]     = useState('submissions')
   const [submissions, setSubmissions] = useState([])
   const [loading, setLoading]         = useState(true)
   const [filter, setFilter]           = useState('all')
@@ -183,6 +185,24 @@ function AdminView({ user, onBack }) {
 
   return (
     <Shell onBack={onBack} user={user}>
+      <div style={styles.tabBar}>
+        <button
+          onClick={() => setActiveTab('submissions')}
+          style={{ ...styles.tab, ...(activeTab === 'submissions' ? styles.tabActive : {}) }}
+        >
+          📥 الطلبات {unreadCount > 0 && <span style={styles.tabBadge}>{unreadCount}</span>}
+        </button>
+        <button
+          onClick={() => setActiveTab('social')}
+          style={{ ...styles.tab, ...(activeTab === 'social' ? styles.tabActive : {}) }}
+        >
+          🤖 Social Agent
+        </button>
+      </div>
+
+      {activeTab === 'social' ? (
+        <SocialAgent />
+      ) : (
       <div style={styles.adminWrap}>
         <div style={styles.adminHeader}>
           <div>
@@ -252,6 +272,7 @@ function AdminView({ user, onBack }) {
           </div>
         )}
       </div>
+      )}
     </Shell>
   )
 }
@@ -421,6 +442,23 @@ function formatTime(ts) {
 
 // ─── Styles ────────────────────────────────────────────────────────
 const styles = {
+  tabBar: {
+    display: 'flex', gap: 4, padding: '12px 20px 0', borderBottom: `1px solid ${T.border}`,
+    maxWidth: 1400, margin: '0 auto', width: '100%', boxSizing: 'border-box',
+  },
+  tab: {
+    background: 'transparent', border: 'none', borderBottom: '2px solid transparent',
+    color: T.text2, padding: '12px 16px', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', borderRadius: '6px 6px 0 0', display: 'inline-flex',
+    alignItems: 'center', gap: 6, fontFamily: 'inherit', transition: 'all 0.15s',
+  },
+  tabActive: {
+    color: T.gold, borderBottomColor: T.gold, background: T.goldDim,
+  },
+  tabBadge: {
+    background: T.gold, color: '#000', fontSize: 11, fontWeight: 700,
+    padding: '2px 6px', borderRadius: 10, marginInlineStart: 4,
+  },
   root: { minHeight: '100vh', background: T.bg, color: T.text, fontFamily: 'Inter, system-ui, sans-serif', direction: 'rtl' },
   topBar: {
     position: 'sticky', top: 0, zIndex: 50,
