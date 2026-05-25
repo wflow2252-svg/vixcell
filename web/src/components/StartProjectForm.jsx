@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { submit } from '../services/submissions'
+import DotPixelIcon from './DotPixelIcon'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
@@ -19,6 +20,7 @@ export default function StartProjectForm({ onViewChange }) {
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [reference, setReference] = useState(null)
   const nameRef = useRef(null)
 
   useEffect(() => { nameRef.current?.focus() }, [])
@@ -48,7 +50,7 @@ export default function StartProjectForm({ onViewChange }) {
         email: email.trim() || null,
         brief: brief.trim(),
       })
-      console.log('[Vixcell] Submission saved:', result)
+      setReference(result.reference)
       setSuccess(true)
     } catch (err) {
       setErrors({ submit: 'حصل خطأ. حاول تاني.' })
@@ -59,8 +61,13 @@ export default function StartProjectForm({ onViewChange }) {
 
   function reset() {
     setName(''); setWhatsapp(''); setEmail(''); setBrief('')
-    setErrors({}); setSuccess(false)
+    setErrors({}); setSuccess(false); setReference(null)
     setTimeout(() => nameRef.current?.focus(), 50)
+  }
+
+  async function copyRef() {
+    if (!reference) return
+    try { await navigator.clipboard.writeText(reference) } catch {}
   }
 
   // ─── Success view ────────────────────────────────────────────
@@ -70,15 +77,32 @@ export default function StartProjectForm({ onViewChange }) {
         <TopBar onBack={() => onViewChange('landing')} />
         <main style={styles.main}>
           <div style={styles.successCard}>
-            <div style={styles.checkmark}>✓</div>
-            <h1 style={styles.successTitle}>تم استلام طلبك! 🎉</h1>
+            <img src="/logo.png" alt="VIXCELL" style={styles.successLogo} />
+
+            <h1 style={styles.successTitle}>تم استلام طلبك بنجاح</h1>
             <p style={styles.successText}>
               شكراً ليك يا <strong style={{ color: T.text }}>{name}</strong>. هنتواصل معاك على واتساب
               <strong style={{ color: T.gold, direction: 'ltr', display: 'inline-block' }}> {whatsapp} </strong>
               في أقرب وقت.
             </p>
-            <p style={{ ...styles.successText, fontSize: 13, color: T.text3 }}>
-              ⚡ فريق Vixcell بيرد عادةً في خلال 24 ساعة
+
+            {reference && (
+              <div style={styles.refBox}>
+                <div style={styles.refLabel}>رقم تأكيد طلبك</div>
+                <button
+                  type="button"
+                  onClick={copyRef}
+                  style={styles.refValue}
+                  title="انقر للنسخ"
+                >
+                  {reference}
+                </button>
+                <p style={styles.refHint}>احتفظ بالرقم ده — هتحتاجه لو سألت عن مشروعك</p>
+              </div>
+            )}
+
+            <p style={{ ...styles.successText, fontSize: 13, color: T.text3, marginTop: 20 }}>
+              ⚡ فريق Vixcell بيرد عادةً خلال 24 ساعة
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 28, flexWrap: 'wrap' }}>
               <button onClick={reset} style={styles.btnGhost}>إرسال طلب تاني</button>
@@ -189,16 +213,11 @@ function TopBar({ onBack }) {
   return (
     <header style={styles.topBar}>
       <button onClick={onBack} style={styles.backBtn} title="الرجوع للموقع">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-             strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
+        <DotPixelIcon name="arrowLeft" size={18} color={T.text2} />
         <span>الرجوع</span>
       </button>
-      <div style={styles.topBrand}>
-        <img src="/logo.png" alt="VIXCELL" style={{ width: 24, height: 24, borderRadius: 6 }} />
-        <span style={{ fontWeight: 800, letterSpacing: '0.04em', fontSize: 14 }}>VIXCELL</span>
-      </div>
+      <img src="/logo.png" alt="VIXCELL" style={styles.topLogo} />
+      <div style={{ width: 60 }} />
     </header>
   )
 }
@@ -259,7 +278,7 @@ const styles = {
     cursor: 'pointer', padding: '6px 10px', borderRadius: 8,
     fontFamily: 'inherit',
   },
-  topBrand: { display: 'flex', alignItems: 'center', gap: 8 },
+  topLogo: { height: 32, width: 'auto', objectFit: 'contain' },
 
   main: {
     maxWidth: 640, margin: '0 auto',
@@ -331,14 +350,11 @@ const styles = {
     borderRadius: 20, padding: 'clamp(32px, 6vw, 48px) 24px',
     textAlign: 'center',
   },
-  checkmark: {
-    width: 72, height: 72, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #22c55e, #10b981)',
-    color: '#fff', fontSize: 42, fontWeight: 800,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  successLogo: {
+    height: 64, width: 'auto', objectFit: 'contain',
     margin: '0 auto 24px',
-    boxShadow: '0 8px 30px rgba(34,197,94,0.35)',
     animation: 'vxPop 0.5s cubic-bezier(0.16,1,0.3,1)',
+    display: 'block',
   },
   successTitle: {
     fontSize: 'clamp(22px, 4vw, 28px)',
@@ -347,6 +363,32 @@ const styles = {
   successText: {
     color: T.text2, fontSize: 15, lineHeight: 1.8,
     maxWidth: 460, margin: '0 auto 8px',
+  },
+  refBox: {
+    margin: '24px auto 0', maxWidth: 360,
+    padding: '20px',
+    background: 'linear-gradient(135deg, rgba(200,163,92,0.10), rgba(200,163,92,0.04))',
+    border: `1px solid rgba(200,163,92,0.30)`,
+    borderRadius: 14,
+  },
+  refLabel: {
+    fontSize: 11, fontWeight: 700,
+    color: T.gold, textTransform: 'uppercase',
+    letterSpacing: '0.08em', marginBottom: 8,
+  },
+  refValue: {
+    display: 'block', width: '100%',
+    background: 'transparent', border: 'none',
+    fontSize: 'clamp(20px, 4vw, 26px)',
+    fontWeight: 800, color: T.text,
+    fontFamily: 'ui-monospace, "SF Mono", Monaco, Consolas, monospace',
+    letterSpacing: '0.08em', direction: 'ltr',
+    cursor: 'pointer', textAlign: 'center',
+    padding: '4px 0',
+  },
+  refHint: {
+    fontSize: 11, color: T.text3,
+    margin: '8px 0 0', lineHeight: 1.5,
   },
 
   spinner: {

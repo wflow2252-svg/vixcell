@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { submit } from '../services/submissions'
+import DotPixelIcon from './DotPixelIcon'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
@@ -25,6 +26,7 @@ export default function FeedbackForm({ onViewChange }) {
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [reference, setReference] = useState(null)
   const nameRef = useRef(null)
 
   useEffect(() => { nameRef.current?.focus() }, [])
@@ -46,12 +48,13 @@ export default function FeedbackForm({ onViewChange }) {
 
     setSubmitting(true)
     try {
-      await submit('feedback', {
+      const result = await submit('feedback', {
         name: name.trim(),
         email: email.trim() || null,
         rating,
         message: message.trim(),
       })
+      setReference(result.reference)
       setSuccess(true)
     } catch (err) {
       setErrors({ submit: 'حصل خطأ. حاول تاني.' })
@@ -60,17 +63,33 @@ export default function FeedbackForm({ onViewChange }) {
     }
   }
 
+  async function copyRef() {
+    if (!reference) return
+    try { await navigator.clipboard.writeText(reference) } catch {}
+  }
+
   if (success) {
     return (
       <div style={styles.root}>
         <TopBar onBack={() => onViewChange('landing')} />
         <main style={styles.main}>
           <div style={styles.successCard}>
-            <div style={styles.checkmark}>♥</div>
-            <h1 style={styles.successTitle}>شكراً ليك! 🙏</h1>
+            <img src="/logo.png" alt="VIXCELL" style={styles.successLogo} />
+
+            <h1 style={styles.successTitle}>شكراً ليك على رأيك</h1>
             <p style={styles.successText}>
               رأيك وصلنا يا <strong style={{ color: T.text }}>{name}</strong>. كل feedback بيساعدنا نطور خدماتنا.
             </p>
+
+            {reference && (
+              <div style={styles.refBox}>
+                <div style={styles.refLabel}>رقم التأكيد</div>
+                <button type="button" onClick={copyRef} style={styles.refValue} title="انقر للنسخ">
+                  {reference}
+                </button>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 28, flexWrap: 'wrap' }}>
               <button onClick={() => onViewChange('landing')} style={styles.btnPrimary}>الرجوع للموقع</button>
             </div>
@@ -191,16 +210,11 @@ function TopBar({ onBack }) {
   return (
     <header style={styles.topBar}>
       <button onClick={onBack} style={styles.backBtn}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-             strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
+        <DotPixelIcon name="arrowLeft" size={18} color={T.text2} />
         الرجوع
       </button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <img src="/logo.png" alt="VIXCELL" style={{ width: 24, height: 24, borderRadius: 6 }} />
-        <span style={{ fontWeight: 800, letterSpacing: '0.04em', fontSize: 14 }}>VIXCELL</span>
-      </div>
+      <img src="/logo.png" alt="VIXCELL" style={styles.topLogo} />
+      <div style={{ width: 60 }} />
     </header>
   )
 }
@@ -265,19 +279,46 @@ const styles = {
     background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 20,
     padding: 'clamp(32px, 6vw, 48px) 24px', textAlign: 'center',
   },
-  checkmark: {
-    width: 72, height: 72, borderRadius: '50%',
-    background: 'linear-gradient(135deg, #ec4899, #f97316)',
-    color: '#fff', fontSize: 36, fontWeight: 800,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  successLogo: {
+    height: 64, width: 'auto', objectFit: 'contain',
     margin: '0 auto 24px',
-    boxShadow: '0 8px 30px rgba(236,72,153,0.35)',
+    animation: 'vxPop 0.5s cubic-bezier(0.16,1,0.3,1)',
+    display: 'block',
   },
   successTitle: { fontSize: 'clamp(22px, 4vw, 28px)', fontWeight: 800, marginBottom: 14 },
   successText: { color: T.text2, fontSize: 15, lineHeight: 1.8, maxWidth: 460, margin: '0 auto' },
+  refBox: {
+    margin: '24px auto 0', maxWidth: 320, padding: '18px',
+    background: 'linear-gradient(135deg, rgba(200,163,92,0.10), rgba(200,163,92,0.04))',
+    border: `1px solid rgba(200,163,92,0.30)`, borderRadius: 14,
+  },
+  refLabel: {
+    fontSize: 11, fontWeight: 700, color: T.gold,
+    textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8,
+  },
+  refValue: {
+    display: 'block', width: '100%',
+    background: 'transparent', border: 'none',
+    fontSize: 'clamp(20px, 4vw, 24px)', fontWeight: 800, color: T.text,
+    fontFamily: 'ui-monospace, "SF Mono", Monaco, Consolas, monospace',
+    letterSpacing: '0.08em', direction: 'ltr',
+    cursor: 'pointer', textAlign: 'center',
+  },
   spinner: {
     display: 'inline-block', width: 14, height: 14,
     border: '2px solid rgba(0,0,0,0.2)', borderTopColor: '#000',
     borderRadius: '50%', animation: 'vxSpin 0.8s linear infinite',
   },
+  topLogo: { height: 32, width: 'auto', objectFit: 'contain' },
+}
+
+// Ensure shared keyframes are present even if StartProjectForm hasn't loaded
+if (typeof document !== 'undefined' && !document.getElementById('vx-form-keyframes')) {
+  const style = document.createElement('style')
+  style.id = 'vx-form-keyframes'
+  style.textContent = `
+@keyframes vxSpin { to { transform: rotate(360deg) } }
+@keyframes vxPop  { from { transform: scale(0.5); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+`
+  document.head.appendChild(style)
 }

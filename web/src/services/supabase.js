@@ -21,19 +21,23 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ─── Auth helpers ──────────────────────────────────────────────────
 
 /**
- * Send a magic-link email to sign in. Supabase will email the user a
- * one-click link that brings them back signed in. No password needed.
+ * Sign in with Google. Redirects to Google's consent screen, then back
+ * to /admin with the session attached.
+ *
+ * Setup once in Supabase Dashboard:
+ *   Authentication → Providers → Google → Enable
+ *   Authentication → URL Configuration → add the site domain to Redirect URLs
  */
-export async function sendMagicLink(email) {
+export async function signInWithGoogle() {
   const redirectTo = typeof window !== 'undefined'
     ? `${window.location.origin}/admin`
     : undefined
 
-  const { data, error } = await supabase.auth.signInWithOtp({
-    email: email.trim().toLowerCase(),
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
     options: {
-      emailRedirectTo: redirectTo,
-      shouldCreateUser: true,
+      redirectTo,
+      queryParams: { prompt: 'select_account' },
     },
   })
   if (error) throw error

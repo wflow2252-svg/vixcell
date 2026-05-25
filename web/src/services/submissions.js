@@ -69,21 +69,37 @@ export async function submit(type, payload) {
     const { data, error } = await supabase
       .from(TABLE)
       .insert(record)
-      .select('id, created_at')
+      .select('id, reference, created_at')
       .single()
 
     if (error) throw error
 
     // Mark the local copy as synced so we don't show duplicates
     const updated = readLocal().map(r =>
-      r.id === localRecord.id ? { ...r, syncedToCloud: true, cloudId: data.id } : r
+      r.id === localRecord.id
+        ? { ...r, syncedToCloud: true, cloudId: data.id, reference: data.reference }
+        : r
     )
     writeLocal(updated)
-    return { id: data.id, savedToCloud: true }
+    return { id: data.id, reference: data.reference, savedToCloud: true }
   } catch (err) {
     console.warn('[Submissions] Supabase insert failed, kept local copy:', err?.message || err)
-    return { id: localRecord.id, savedToCloud: false }
+    // Generate a local reference so the user still gets one
+    const localRef = makeLocalReference()
+    const updated = readLocal().map(r =>
+      r.id === localRecord.id ? { ...r, reference: localRef } : r
+    )
+    writeLocal(updated)
+    return { id: localRecord.id, reference: localRef, savedToCloud: false }
   }
+}
+
+// Local fallback reference generator (matches the DB function's alphabet)
+function makeLocalReference() {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+  let out = 'VX-'
+  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)]
+  return out
 }
 
 /**
@@ -120,6 +136,7 @@ export async function listAll() {
 function normalizeRow(r) {
   return {
     id:          r.id,
+    reference:   r.reference || null,
     type:        r.type,
     name:        r.name,
     whatsapp:    r.whatsapp,
