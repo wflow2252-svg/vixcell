@@ -1,10 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import {
-  signInWithGoogle, signOutUser, onAuthChange, isFirebaseReady, initFirebase,
-} from '../services/firebase'
-import {
-  listAll, markRead, remove, isAdmin, ADMIN_EMAILS,
-} from '../services/submissions'
+import { sendMagicLink, signOut, onAuthChange } from '../services/supabase'
+import { listAll, markRead, remove, isAdmin, ADMIN_EMAILS } from '../services/submissions'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
@@ -15,17 +11,16 @@ const T = {
 }
 
 const TYPE_LABELS = {
-  project_intake: { label: 'طلب مشروع',  emoji: '🚀', color: T.gold },
+  project_intake: { label: 'طلب مشروع', emoji: '🚀', color: T.gold },
   feedback:       { label: 'رأي/تقييم', emoji: '💬', color: '#ec4899' },
+  contact:        { label: 'تواصل',     emoji: '✉️', color: '#22d3ee' },
 }
 
 export default function AdminDashboard({ onViewChange }) {
   const [user, setUser]               = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [signInError, setSignInError] = useState('')
 
   useEffect(() => {
-    initFirebase()
     const unsub = onAuthChange((u) => {
       setUser(u)
       setAuthLoading(false)
@@ -33,49 +28,21 @@ export default function AdminDashboard({ onViewChange }) {
     return () => unsub && unsub()
   }, [])
 
-  // ─── Loading splash ────────────────────────────────────────────
   if (authLoading) {
     return (
       <Shell onBack={() => onViewChange('landing')}>
         <div style={styles.centerCard}>
           <span style={styles.spinner} />
-          <p style={{ color: T.text2, marginTop: 16 }}>جاري التحقق...</p>
+          <p style={{ color: T.text2, marginTop: 16 }}>جاري التحقق…</p>
         </div>
       </Shell>
     )
   }
 
-  // ─── Login required ────────────────────────────────────────────
   if (!user) {
-    return (
-      <Shell onBack={() => onViewChange('landing')}>
-        <div style={styles.centerCard}>
-          <div style={styles.lockIcon}>🔒</div>
-          <h1 style={styles.h1}>لوحة التحكم</h1>
-          <p style={styles.muted}>سجل دخول بحسابك الإداري للوصول.</p>
-
-          {!isFirebaseReady() && (
-            <div style={styles.warning}>
-              ⚠️ <strong>Firebase مش متظبط لسه.</strong><br/>
-              ضيف الـ <code style={styles.code}>VITE_FIREBASE_*</code> env vars في Vercel وعمل redeploy.
-            </div>
-          )}
-
-          {signInError && <div style={styles.errorBanner}>⚠️ {signInError}</div>}
-
-          <button onClick={handleSignIn} disabled={!isFirebaseReady()} style={{ ...styles.btnPrimary, marginTop: 20 }}>
-            <GoogleIcon /> تسجيل دخول بـ Google
-          </button>
-
-          <p style={{ ...styles.muted, fontSize: 12, marginTop: 14 }}>
-            مسموح بس لـ: <code style={styles.code}>{ADMIN_EMAILS.join(' · ')}</code>
-          </p>
-        </div>
-      </Shell>
-    )
+    return <SignInGate onBack={() => onViewChange('landing')} />
   }
 
-  // ─── Signed in but not admin ───────────────────────────────────
   if (!isAdmin(user.email)) {
     return (
       <Shell onBack={() => onViewChange('landing')} user={user}>
@@ -86,43 +53,128 @@ export default function AdminDashboard({ onViewChange }) {
             الحساب <strong style={{ color: T.text }}>{user.email}</strong> مش admin.
           </p>
           <p style={{ ...styles.muted, fontSize: 12, marginTop: 8 }}>
-            سجل خروج وادخل بالحساب الصحيح.
+            سجل خروج وحاول بحساب admin.
           </p>
-          <button onClick={signOutUser} style={{ ...styles.btnGhost, marginTop: 20 }}>
-            تسجيل خروج
+          <button onClick={signOut} style={{ ...styles.btnGhost, marginTop: 20 }}>تسجيل خروج</button>
+        </div>
+      </Shell>
+    )
+  }
+
+  return <AdminView user={user} onBack={() => onViewChange('landing')} />
+}
+
+// ─── Sign-in screen (Magic Link) ──────────────────────────────────
+function SignInGate({ onBack }) {
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    const clean = email.trim().toLowerCase()
+    if (!clean || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      setError('إيميل غير صحيح')
+      return
+    }
+    if (!isAdmin(clean)) {
+      setError('الإيميل ده مش admin. تواصل مع صاحب الموقع.')
+      return
+    }
+    setBusy(true)
+    try {
+      await sendMagicLink(clean)
+      setSent(true)
+    } catch (err) {
+      console.error(err)
+      setError(err?.message || 'فشل إرسال الرابط. حاول تاني.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (sent) {
+    return (
+      <Shell onBack={onBack}>
+        <div style={styles.centerCard}>
+          <div style={styles.lockIcon}>📧</div>
+          <h1 style={styles.h1}>افحص إيميلك</h1>
+          <p style={styles.muted}>
+            بعتنالك رابط دخول على <strong style={{ color: T.text }}>{email}</strong>.<br/>
+            دوس على الرابط في الإيميل علشان تكمل الدخول.
+          </p>
+          <p style={{ ...styles.muted, fontSize: 12, marginTop: 16, color: T.text3 }}>
+            ⚡ الرابط بيتفعل لمرة واحدة فقط ومدته 1 ساعة
+          </p>
+          <button onClick={() => { setSent(false); setEmail('') }} style={{ ...styles.btnGhost, marginTop: 24 }}>
+            استخدم إيميل تاني
           </button>
         </div>
       </Shell>
     )
   }
 
-  // ─── Admin view ────────────────────────────────────────────────
-  return <AdminView user={user} onBack={() => onViewChange('landing')} />
+  return (
+    <Shell onBack={onBack}>
+      <div style={styles.centerCard}>
+        <div style={styles.lockIcon}>🔒</div>
+        <h1 style={styles.h1}>لوحة التحكم</h1>
+        <p style={styles.muted}>اكتب إيميلك وهنبعتلك رابط دخول.</p>
 
-  async function handleSignIn() {
-    setSignInError('')
-    try {
-      await signInWithGoogle()
-    } catch (err) {
-      console.error(err)
-      setSignInError(err?.message || 'فشل تسجيل الدخول')
-    }
-  }
+        <form onSubmit={handleSubmit} style={{ marginTop: 24 }}>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="admin@example.com"
+            disabled={busy}
+            autoComplete="email"
+            style={{
+              width: '100%',
+              background: T.bg3,
+              border: `1px solid ${error ? T.error : T.border}`,
+              borderRadius: 10, padding: '12px 14px',
+              color: T.text, fontSize: 14.5, outline: 'none',
+              direction: 'ltr', textAlign: 'left',
+              fontFamily: 'inherit', marginBottom: 12,
+            }}
+          />
+          {error && <div style={styles.errorBanner}>⚠️ {error}</div>}
+          <button type="submit" disabled={busy} style={{ ...styles.btnPrimary, width: '100%', padding: 12 }}>
+            {busy ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ ...styles.spinner, width: 14, height: 14, borderWidth: 2, borderTopColor: '#000', borderColor: 'rgba(0,0,0,0.2)' }} /> جاري الإرسال…
+              </span>
+            ) : 'ابعت رابط الدخول'}
+          </button>
+        </form>
+
+        <p style={{ ...styles.muted, fontSize: 12, marginTop: 16, color: T.text3 }}>
+          مسموح بس لـ:<br/>
+          <code style={styles.code}>{ADMIN_EMAILS.join(' · ')}</code>
+        </p>
+      </div>
+    </Shell>
+  )
 }
 
-// ─── Admin Dashboard View ──────────────────────────────────────────
+// ─── Admin Dashboard view ─────────────────────────────────────────
 function AdminView({ user, onBack }) {
   const [submissions, setSubmissions] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all')   // 'all' | 'project_intake' | 'feedback' | 'unread'
-  const [selected, setSelected] = useState(null)
-  const [refreshing, setRefreshing] = useState(false)
+  const [loading, setLoading]         = useState(true)
+  const [filter, setFilter]           = useState('all')
+  const [selected, setSelected]       = useState(null)
+  const [refreshing, setRefreshing]   = useState(false)
+  const [cloudError, setCloudError]   = useState(null)
 
   async function load() {
     setLoading(true)
     try {
-      const data = await listAll()
-      setSubmissions(data)
+      const { items, cloudError } = await listAll()
+      setSubmissions(items)
+      setCloudError(cloudError)
     } catch (err) {
       console.error('[Admin] load failed:', err)
     } finally {
@@ -140,6 +192,11 @@ function AdminView({ user, onBack }) {
   }, [submissions, filter])
 
   const unreadCount = useMemo(() => submissions.filter(s => !s.read).length, [submissions])
+  const counts = useMemo(() => ({
+    project_intake: submissions.filter(s => s.type === 'project_intake').length,
+    feedback:       submissions.filter(s => s.type === 'feedback').length,
+    contact:        submissions.filter(s => s.type === 'contact').length,
+  }), [submissions])
 
   async function handleMarkRead(s, read) {
     await markRead(s.id, read)
@@ -157,10 +214,9 @@ function AdminView({ user, onBack }) {
   return (
     <Shell onBack={onBack} user={user}>
       <div style={styles.adminWrap}>
-        {/* ── Header strip ── */}
         <div style={styles.adminHeader}>
           <div>
-            <h1 style={{ ...styles.h1, marginBottom: 4, textAlign: 'left' }}>الطلبات الواردة</h1>
+            <h1 style={{ ...styles.h1, marginBottom: 4, textAlign: 'right' }}>الطلبات الواردة</h1>
             <p style={{ color: T.text3, fontSize: 13, margin: 0 }}>
               {submissions.length} إجمالي · <span style={{ color: T.gold }}>{unreadCount} غير مقروء</span>
             </p>
@@ -176,44 +232,39 @@ function AdminView({ user, onBack }) {
           </button>
         </div>
 
-        {/* ── Filter tabs ── */}
+        {cloudError && (
+          <div style={styles.warning}>
+            ⚠️ مش قادر أوصل لـ Supabase ({cloudError}). عارض البيانات المحلية بس.
+          </div>
+        )}
+
         <div style={styles.filterRow}>
-          <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>الكل ({submissions.length})</FilterChip>
-          <FilterChip active={filter === 'unread'} onClick={() => setFilter('unread')}>غير مقروء ({unreadCount})</FilterChip>
-          <FilterChip active={filter === 'project_intake'} onClick={() => setFilter('project_intake')}>
-            🚀 مشاريع ({submissions.filter(s => s.type === 'project_intake').length})
-          </FilterChip>
-          <FilterChip active={filter === 'feedback'} onClick={() => setFilter('feedback')}>
-            💬 آراء ({submissions.filter(s => s.type === 'feedback').length})
-          </FilterChip>
+          <FilterChip active={filter === 'all'}            onClick={() => setFilter('all')}>الكل ({submissions.length})</FilterChip>
+          <FilterChip active={filter === 'unread'}         onClick={() => setFilter('unread')}>غير مقروء ({unreadCount})</FilterChip>
+          <FilterChip active={filter === 'project_intake'} onClick={() => setFilter('project_intake')}>🚀 مشاريع ({counts.project_intake})</FilterChip>
+          <FilterChip active={filter === 'feedback'}       onClick={() => setFilter('feedback')}>💬 آراء ({counts.feedback})</FilterChip>
+          {counts.contact > 0 && (
+            <FilterChip active={filter === 'contact'}      onClick={() => setFilter('contact')}>✉️ تواصل ({counts.contact})</FilterChip>
+          )}
         </div>
 
-        {/* ── Body: list + detail ── */}
         {loading ? (
-          <div style={styles.centerCard}><span style={styles.spinner} /><p style={{ marginTop: 16, color: T.text2 }}>جاري التحميل...</p></div>
+          <div style={styles.centerCard}><span style={styles.spinner} /><p style={{ marginTop: 16, color: T.text2 }}>جاري التحميل…</p></div>
         ) : filtered.length === 0 ? (
           <div style={styles.emptyState}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
             <h3 style={{ margin: '0 0 6px', fontWeight: 700 }}>مفيش طلبات</h3>
             <p style={{ color: T.text3, fontSize: 13, margin: 0 }}>
-              لما حد يبعت من /dashboard أو /feedback، هتلاقي طلبه هنا.
+              لما حد يبعت من /start أو /feedback، هتلاقي طلبه هنا.
             </p>
           </div>
         ) : (
-          <div style={styles.split}>
-            {/* List */}
+          <div style={styles.split} className="vx-admin-split">
             <div style={styles.list}>
               {filtered.map(s => (
-                <SubmissionCard
-                  key={s.id}
-                  submission={s}
-                  active={selected?.id === s.id}
-                  onClick={() => setSelected(s)}
-                />
+                <SubmissionCard key={s.id} submission={s} active={selected?.id === s.id} onClick={() => setSelected(s)} />
               ))}
             </div>
-
-            {/* Detail panel */}
             <div style={styles.detail}>
               {selected ? (
                 <SubmissionDetail
@@ -223,9 +274,7 @@ function AdminView({ user, onBack }) {
                   onClose={() => setSelected(null)}
                 />
               ) : (
-                <div style={styles.detailEmpty}>
-                  <p>اختار طلب من القائمة لعرض التفاصيل</p>
-                </div>
+                <div style={styles.detailEmpty}><p>اختار طلب من القائمة لعرض التفاصيل</p></div>
               )}
             </div>
           </div>
@@ -265,9 +314,7 @@ function SubmissionCard({ submission, active, onClick }) {
       </div>
       <div style={styles.cardFooter}>
         <span>{formatTime(submission.createdAt)}</span>
-        {submission.syncedToCloud === false && (
-          <span style={{ color: T.text3 }}>• محلي</span>
-        )}
+        {submission.syncedToCloud === false && <span style={{ color: T.text3 }}>• محلي</span>}
       </div>
     </div>
   )
@@ -277,7 +324,7 @@ function SubmissionCard({ submission, active, onClick }) {
 function SubmissionDetail({ s, onMarkRead, onDelete, onClose }) {
   const meta = TYPE_LABELS[s.type] || { label: s.type, emoji: '📄', color: T.text2 }
   const waLink = s.whatsapp
-    ? `https://wa.me/${s.whatsapp.replace(/[^\d]/g, '')}?text=${encodeURIComponent(`أهلاً ${s.name}, شكراً لتواصلك مع Vixcell بخصوص "${(s.brief || '').slice(0, 50)}…"`)}`
+    ? `https://wa.me/${String(s.whatsapp).replace(/[^\d]/g, '')}?text=${encodeURIComponent(`أهلاً ${s.name}, شكراً لتواصلك مع Vixcell بخصوص "${String(s.brief || s.message || '').slice(0, 50)}…"`)}`
     : null
 
   return (
@@ -322,7 +369,7 @@ function SubmissionDetail({ s, onMarkRead, onDelete, onClose }) {
           {s.read ? 'تعليم كغير مقروء' : 'تعليم كمقروء'}
         </button>
         {waLink && (
-          <a href={waLink} target="_blank" rel="noreferrer" style={{ ...styles.btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <a href={waLink} target="_blank" rel="noreferrer" style={{ ...styles.btnPrimary, textDecoration: 'none' }}>
             💬 رد على واتساب
           </a>
         )}
@@ -334,7 +381,7 @@ function SubmissionDetail({ s, onMarkRead, onDelete, onClose }) {
   )
 }
 
-// ─── Shell (top bar with user/signout) ─────────────────────────────
+// ─── Shell ─────────────────────────────────────────────────────────
 function Shell({ children, onBack, user }) {
   return (
     <div style={styles.root}>
@@ -355,7 +402,7 @@ function Shell({ children, onBack, user }) {
               ? <img src={user.picture} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
               : <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.bg3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{user.name?.[0] || '?'}</div>
             }
-            <button onClick={signOutUser} style={styles.signoutBtn}>خروج</button>
+            <button onClick={signOut} style={styles.signoutBtn}>خروج</button>
           </div>
         ) : <div />}
       </header>
@@ -364,7 +411,7 @@ function Shell({ children, onBack, user }) {
   )
 }
 
-// ─── Tiny helpers ──────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────
 function FilterChip({ active, onClick, children }) {
   return (
     <button
@@ -376,17 +423,6 @@ function FilterChip({ active, onClick, children }) {
         borderColor: active ? T.gold : T.border,
       }}
     >{children}</button>
-  )
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-    </svg>
   )
 }
 
@@ -405,8 +441,7 @@ function RefreshIcon({ spinning }) {
 function formatTime(ts) {
   if (!ts) return ''
   const d = new Date(ts)
-  const now = Date.now()
-  const diff = now - ts
+  const diff = Date.now() - ts
   if (diff < 60_000) return 'الآن'
   if (diff < 3600_000) return `قبل ${Math.floor(diff / 60_000)} دقيقة`
   if (diff < 86_400_000) return `قبل ${Math.floor(diff / 3_600_000)} ساعة`
@@ -444,14 +479,14 @@ const styles = {
   warning: {
     background: 'rgba(250,204,21,0.1)', border: `1px solid rgba(250,204,21,0.3)`,
     color: '#fde68a', padding: '12px 14px', borderRadius: 10,
-    fontSize: 13, lineHeight: 1.6, marginTop: 16, textAlign: 'right',
+    fontSize: 13, lineHeight: 1.6, marginBottom: 16,
   },
   errorBanner: {
     background: 'rgba(239,68,68,0.1)', border: `1px solid rgba(239,68,68,0.3)`,
     color: T.error, padding: '10px 14px', borderRadius: 10,
-    fontSize: 13, marginTop: 16,
+    fontSize: 13, marginBottom: 12,
   },
-  code: { background: T.bg3, padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', fontSize: 12 },
+  code: { background: T.bg3, padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', fontSize: 12, color: T.text },
 
   adminWrap: { maxWidth: 1200, margin: '0 auto', padding: '28px 20px 64px' },
   adminHeader: {
@@ -473,7 +508,7 @@ const styles = {
   },
 
   split: { display: 'grid', gridTemplateColumns: 'minmax(280px, 420px) 1fr', gap: 16, alignItems: 'start' },
-  list: { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' },
+  list: { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' },
   detail: {
     position: 'sticky', top: 84,
     background: T.bg2, border: `1px solid ${T.border}`,
@@ -483,45 +518,30 @@ const styles = {
   detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 12 },
   detailRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '10px 0', borderBottom: `1px solid ${T.border}`,
-    fontSize: 13,
+    padding: '10px 0', borderBottom: `1px solid ${T.border}`, fontSize: 13,
   },
   detailLabel: { color: T.text3, fontWeight: 600 },
   detailValue: { color: T.text, fontWeight: 500 },
   link: { color: T.gold, textDecoration: 'none' },
-  briefBox: {
-    marginTop: 20, padding: 16,
-    background: T.bg3, border: `1px solid ${T.border}`, borderRadius: 12,
-  },
+  briefBox: { marginTop: 20, padding: 16, background: T.bg3, border: `1px solid ${T.border}`, borderRadius: 12 },
   briefText: { color: T.text, fontSize: 14, lineHeight: 1.7, margin: '8px 0 0', whiteSpace: 'pre-wrap' },
   detailActions: { display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap' },
 
-  card: {
-    border: `1px solid`, borderRadius: 12, padding: 14,
-    cursor: 'pointer', transition: 'all .15s', fontFamily: 'inherit',
-  },
-  typeChip: {
-    display: 'inline-block', padding: '2px 8px', borderRadius: 50,
-    fontSize: 10.5, fontWeight: 700,
-    border: `1px solid`,
-  },
+  card: { border: `1px solid`, borderRadius: 12, padding: 14, cursor: 'pointer', transition: 'all .15s', fontFamily: 'inherit' },
+  typeChip: { display: 'inline-block', padding: '2px 8px', borderRadius: 50, fontSize: 10.5, fontWeight: 700, border: `1px solid` },
   cardName: { fontSize: 14, fontWeight: 700, color: T.text, margin: '0 0 4px' },
   cardPreview: { fontSize: 12, color: T.text3, margin: 0, lineHeight: 1.5 },
   cardFooter: { display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 11, color: T.text3 },
   unreadDot: { display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: T.gold, boxShadow: `0 0 6px ${T.gold}` },
 
   emptyState: { textAlign: 'center', padding: '80px 20px', color: T.text2 },
-  iconBtn: {
-    background: 'transparent', border: 'none', color: T.text3,
-    cursor: 'pointer', fontSize: 18, padding: 4, borderRadius: 6,
-    fontFamily: 'inherit',
-  },
+  iconBtn: { background: 'transparent', border: 'none', color: T.text3, cursor: 'pointer', fontSize: 18, padding: 4, borderRadius: 6, fontFamily: 'inherit' },
 
   btnPrimary: {
     background: T.gold, color: '#000', border: 'none', borderRadius: 10,
     padding: '10px 18px', fontSize: 13.5, fontWeight: 700,
     cursor: 'pointer', transition: 'all .2s', fontFamily: 'inherit',
-    display: 'inline-flex', alignItems: 'center', gap: 8,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   btnGhost: {
     background: 'transparent', color: T.text, border: `1px solid ${T.border}`,
