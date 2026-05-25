@@ -85,12 +85,26 @@ function App() {
     return () => { lenis.destroy() }
   }, [view])
 
-  // "Start a Project" trigger from Hero / Navbar → goes to the intake form now
+  // "Start a Project" trigger from Hero / Navbar → scroll to the contact form
+  // (the ContactFooter on the landing page IS the project intake now)
   useEffect(() => {
-    const handler = () => setView('start')
+    const handler = () => {
+      if (view !== 'landing') {
+        setView('landing')
+        // Wait for landing to mount, then scroll
+        setTimeout(() => scrollToContact(), 300)
+      } else {
+        scrollToContact()
+      }
+    }
     window.addEventListener('start-project', handler)
     return () => window.removeEventListener('start-project', handler)
-  }, [])
+  }, [view])
+
+  function scrollToContact() {
+    const el = document.getElementById('contact')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   // ─── Route switch ─────────────────────────────────────────────
   if (view === 'portfolio') return <PortfolioPage onViewChange={setView} />
@@ -101,10 +115,10 @@ function App() {
   // Landing
   return (
     <div className="app-wrapper">
-      <Navbar currentView={view} onViewChange={setView} onStartProject={() => setView('start')} />
+      <Navbar currentView={view} onViewChange={setView} onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} />
 
       <main style={{ minHeight: '100vh' }}>
-        <Hero onStartProject={() => setView('start')} />
+        <Hero onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} />
         <Services />
         <Portfolio onViewChange={setView} />
         <AIDemo />
