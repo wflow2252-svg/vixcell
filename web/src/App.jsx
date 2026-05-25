@@ -10,20 +10,37 @@ import Portfolio from './components/Portfolio'
 import AIDemo from './components/AIDemo'
 import LiveChat from './components/LiveChat'
 import ContactFooter from './components/ContactFooter'
-import ClientDashboard from './components/ClientDashboard'
+import StartProjectForm from './components/StartProjectForm'
+import FeedbackForm from './components/FeedbackForm'
+import AdminDashboard from './components/AdminDashboard'
 import PortfolioPage from './pages/PortfolioPage'
 
 gsap.registerPlugin(ScrollTrigger)
 
+// ─── Path ↔ view mapping ──────────────────────────────────────────
+const PATH_TO_VIEW = {
+  '/':          'landing',
+  '/portfolio': 'portfolio',
+  '/dashboard': 'start',     // legacy URL → new form
+  '/start':     'start',
+  '/feedback':  'feedback',
+  '/admin':     'admin',
+}
+const VIEW_TO_PATH = {
+  landing:   '/',
+  portfolio: '/portfolio',
+  start:     '/start',
+  feedback:  '/feedback',
+  admin:     '/admin',
+}
+
 function App() {
   const [view, setView] = useState(() => {
     try {
-      if (window.location.pathname === '/dashboard') return 'dashboard'
-      if (window.location.pathname === '/portfolio') return 'portfolio'
-      
+      const path = window.location.pathname
+      if (PATH_TO_VIEW[path]) return PATH_TO_VIEW[path]
       const saved = localStorage.getItem('vix_view')
-      if (saved === 'dashboard') return 'dashboard'
-      if (saved === 'portfolio') return 'portfolio'
+      if (saved && VIEW_TO_PATH[saved]) return saved
     } catch (e) {
       console.warn('[Vixcell] localStorage not available:', e)
     }
@@ -31,68 +48,66 @@ function App() {
   })
 
   useEffect(() => {
-    try { localStorage.setItem('vix_view', view) } catch (e) { /* ignore */ }
-    if (view === 'portfolio') {
-      window.history.pushState({}, '', '/portfolio')
-    } else if (view === 'landing') {
-      window.history.pushState({}, '', '/')
-    } else if (view === 'dashboard') {
-      window.history.pushState({}, '', '/dashboard')
+    try { localStorage.setItem('vix_view', view) } catch {}
+    const path = VIEW_TO_PATH[view] || '/'
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path)
     }
   }, [view])
 
+  // Handle browser back/forward
   useEffect(() => {
+    const onPop = () => {
+      const newView = PATH_TO_VIEW[window.location.pathname] || 'landing'
+      setView(newView)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // Smooth scroll only on the landing page (not on form/admin pages)
+  useEffect(() => {
+    if (view !== 'landing') return
     const lenis = new Lenis({
       duration: 1.2,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      direction: 'vertical',
-      gestureDirection: 'vertical',
       smooth: true,
       mouseMultiplier: 1,
       smoothTouch: false,
       touchMultiplier: 2,
       infinite: false,
     })
-
     lenis.on('scroll', ScrollTrigger.update)
     gsap.ticker.add((time) => { lenis.raf(time * 1000) })
     gsap.ticker.lagSmoothing(0, 0)
     lenis.scrollTo(0, { immediate: true })
     setTimeout(() => { ScrollTrigger.refresh() }, 100)
-
     return () => { lenis.destroy() }
   }, [view])
 
-  // Listen for "Start a Project" trigger from Hero / Navbar
+  // "Start a Project" trigger from Hero / Navbar → goes to the intake form now
   useEffect(() => {
-    const handler = () => setView('dashboard')
+    const handler = () => setView('start')
     window.addEventListener('start-project', handler)
     return () => window.removeEventListener('start-project', handler)
   }, [])
 
-  // Portfolio full page
-  if (view === 'portfolio') {
-    return <PortfolioPage onViewChange={setView} />
-  }
+  // ─── Route switch ─────────────────────────────────────────────
+  if (view === 'portfolio') return <PortfolioPage onViewChange={setView} />
+  if (view === 'start')     return <StartProjectForm onViewChange={setView} />
+  if (view === 'feedback')  return <FeedbackForm    onViewChange={setView} />
+  if (view === 'admin')     return <AdminDashboard  onViewChange={setView} />
 
-  // Dashboard = full AI page
-  if (view === 'dashboard') {
-    return <ClientDashboard onViewChange={setView} />
-  }
-
+  // Landing
   return (
     <div className="app-wrapper">
-      <Navbar currentView={view} onViewChange={setView} onStartProject={() => setView('dashboard')} />
+      <Navbar currentView={view} onViewChange={setView} onStartProject={() => setView('start')} />
 
       <main style={{ minHeight: '100vh' }}>
-        {view === 'landing' ? (
-          <>
-            <Hero onStartProject={() => setView('dashboard')} />
-            <Services />
-            <Portfolio onViewChange={setView} />
-            <AIDemo />
-          </>
-        ) : null}
+        <Hero onStartProject={() => setView('start')} />
+        <Services />
+        <Portfolio onViewChange={setView} />
+        <AIDemo />
       </main>
 
       <ContactFooter />
