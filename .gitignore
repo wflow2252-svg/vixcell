@@ -28,3 +28,8 @@ Thumbs.db
 .vercel
 *.exe
 agy.exe
+
+# Vercel pulled env files
+.env.production
+.env.development
+.env.preview

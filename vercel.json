@@ -3,6 +3,17 @@
   "outputDirectory": "web/dist",
   "routes": [
     { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "functions": {
+    "api/cron/daily-post-ar.js": { "maxDuration": 60 },
+    "api/cron/daily-post-en.js": { "maxDuration": 60 },
+    "api/cron/market-analysis.js": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/cron/daily-post-ar", "schedule": "0 8 * * *" },
+    { "path": "/api/cron/daily-post-en", "schedule": "0 18 * * *" },
+    { "path": "/api/cron/market-analysis", "schedule": "0 6 * * 0" }
   ]
 }
