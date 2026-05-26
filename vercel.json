@@ -3,7 +3,7 @@
   "outputDirectory": "web/dist",
   "routes": [
     { "handle": "filesystem" },
-    { "src": "/__/auth/handler", "dest": "/api/__/auth/handler" },
+    { "src": "/__/auth/handler", "dest": "/api/auth/google/callback" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
@@ -12,9 +12,9 @@
     "api/cron/daily-post-en.js": { "maxDuration": 60 },
     "api/cron/market-analysis.js": { "maxDuration": 60 },
     "api/auth/google/login.js": { "maxDuration": 10 },
+    "api/auth/google/callback.js": { "maxDuration": 10 },
     "api/auth/me.js": { "maxDuration": 10 },
-    "api/auth/logout.js": { "maxDuration": 10 },
-    "api/__/auth/handler.js": { "maxDuration": 10 }
+    "api/auth/logout.js": { "maxDuration": 10 }
   },
   "crons": [
     { "path": "/api/cron/daily-post-ar", "schedule": "0 8 * * *" },
