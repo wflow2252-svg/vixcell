@@ -66,7 +66,21 @@ async function readCompetitorPosts({ fb_page, name, max = 6, onLog = () => {} })
         const time = a.querySelector('a[href*="/posts/"], a[href*="/videos/"], a[href*="/photos/"]');
         const link = time ? time.href : null;
 
-        return { text, reactions, comments, shares, link };
+        // Image URLs — FB renders post images in <img> tags inside the article.
+        // We skip avatar/icon thumbnails (< 200px) and emoji/reaction graphics.
+        const images = Array.from(a.querySelectorAll('img'))
+          .map((img) => ({
+            src: img.currentSrc || img.src,
+            width: img.naturalWidth || img.width || 0,
+            height: img.naturalHeight || img.height || 0,
+            alt: img.alt || '',
+          }))
+          .filter((img) => img.src && img.width >= 200 && img.height >= 200)
+          .filter((img) => !/emoji|reaction|profile/i.test(img.alt))
+          .slice(0, 2) // 1-2 images per post is enough
+          .map((img) => img.src);
+
+        return { text, reactions, comments, shares, link, images };
       }).filter((p) => p.text);
     }, max);
 

@@ -12,27 +12,74 @@ const {
   getCompetitors,
   saveCampaign,
   thisWeekStart,
+  downloadAsBuffer,
 } = require('../lib/supabase');
 const { readCompetitorPosts } = require('../lib/fb-scrape');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
-function summarisePosts(posts) {
+function summarisePosts(posts, competitor) {
   if (!posts.length) return '(لم نتمكن من قراءة بوستات)';
   return posts.map((p, i) => {
     const eng = `${p.reactions || 0}❤  ${p.comments || 0}💬  ${p.shares || 0}↪`;
-    return `  ${i + 1}. [${eng}] ${(p.text || '').slice(0, 200)}`;
+    const imgRef = p._imageRef ? ` [الصورة المرفقة: ${p._imageRef}]` : '';
+    return `  ${i + 1}. [${eng}]${imgRef} ${(p.text || '').slice(0, 200)}`;
   }).join('\n');
 }
 
-function buildResearchPrompt(brand, scraped) {
+// Pick up to N best-performing posts (by engagement) that have an image,
+// download the top image of each, save to temp file, return the file paths
+// plus a labelled mapping so Gemini can reference them in its analysis.
+async function downloadTopImages(scraped, { max = 6, onLog = () => {} } = {}) {
+  const candidates = [];
+  for (const c of scraped) {
+    for (const p of c.posts) {
+      if (!p.images?.length) continue;
+      const score = (p.reactions || 0) + (p.comments || 0) * 2 + (p.shares || 0) * 3;
+      candidates.push({ competitor: c.competitor, post: p, score });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score);
+
+  const tmpDir = path.join(os.tmpdir(), `vixcell-fb-${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const files = [];
+  for (const { competitor, post } of candidates.slice(0, max)) {
+    try {
+      const buf = await downloadAsBuffer(post.images[0]);
+      if (!buf) continue;
+      const safeName = competitor.replace(/[^a-z0-9_-]/gi, '_').slice(0, 20);
+      const label = `${safeName}-${files.length + 1}`;
+      const filePath = path.join(tmpDir, `${label}.jpg`);
+      fs.writeFileSync(filePath, buf);
+      post._imageRef = label; // so summarisePosts can mention it
+      files.push({ path: filePath, label, competitor });
+      onLog(`[market] downloaded image: ${label} (${(buf.length / 1024).toFixed(0)}kB)`);
+    } catch (e) {
+      onLog(`[market] download failed for ${competitor}: ${e.message}`);
+    }
+  }
+  return { files, tmpDir };
+}
+
+function buildResearchPrompt(brand, scraped, imageFiles) {
   const blocks = scraped.length
     ? scraped.map((c) => {
         const header = `### ${c.competitor}${c.url ? ` — ${c.url}` : ''}`;
         if (c.note && !c.posts.length) return `${header}\nملاحظة: ${c.note}\n`;
-        return `${header}\n${summarisePosts(c.posts)}\n`;
+        return `${header}\n${summarisePosts(c.posts, c.competitor)}\n`;
       }).join('\n')
     : '(لا يوجد منافسين متتبعين)';
 
+  const imagesBlock = imageFiles?.length
+    ? `\n🖼️ مرفق مع الرسالة دي ${imageFiles.length} صورة من بوستات المنافسين (الأعلى engagement) — اسماء الصور بالترتيب: ${imageFiles.map(f => f.label).join('، ')}. حلل كل صورة من ناحية: الستايل البصري، الألوان، التايبوجرافي، نوع الصورة (3D, photography, illustration)، إيش بيخلي الصورة لافتة للنظر.\n`
+    : '';
+
   return `أنت محلل سوق ومستشار محتوى رقمي لـ ${brand?.brand_name || 'VIXCELL'} — استوديو ديجيتال في مصر/الشرق الأوسط.
+
+${imagesBlock}
 
 📌 الـ Brand:
 - الاسم: ${brand?.brand_name || 'VIXCELL'}
@@ -53,6 +100,10 @@ ${blocks}
 ثم اختر **ثيمة الأسبوع** لـ ${brand?.brand_name || 'VIXCELL'} واكتب **٧ مواضيع بوستات يومية** متماشية.
 
 اكتب الرد بالـ Markdown ده بالظبط:
+
+## تحليل بصري للصور المرفقة
+- **<اسم الصورة>**: <الستايل + الألوان + التايبوجرافي + إيش بيخلي الصورة شغّالة، ٣ سطور لكل صورة>
+- ... (لكل صورة مرفقة)
 
 ## تحليل المنافسين (مبني على البيانات الحقيقية)
 - **<اسم المنافس>**: <ملخّص نشاطه + ٢-٣ ثيمات شغّال عليها + توصية لينا، ٣-٤ سطور>
@@ -137,10 +188,21 @@ async function run({ log = console.log }) {
   const totalPosts = scraped.reduce((a, c) => a + c.posts.length, 0);
   log(`Scraped ${totalPosts} post(s) total across ${scraped.length} competitor(s)`);
 
-  // Send the real data to Gemini for synthesis
+  // Download the highest-engagement images so Gemini can visually analyse them
+  log('Downloading top competitor images for visual analysis…');
+  const { files: imageFiles, tmpDir } = await downloadTopImages(scraped, { max: 6, onLog: log });
+  log(`Got ${imageFiles.length} image(s) ready to upload to Gemini`);
+
+  // Send the real data + images to Gemini for synthesis
   await newConversation();
-  log('Asking Gemini to synthesise findings into a report + weekly campaign…');
-  const resp = await sendPrompt(buildResearchPrompt(brand, scraped), { onLog: log });
+  log('Asking Gemini to analyse images + posts and synthesise a strategy…');
+  const resp = await sendPrompt(buildResearchPrompt(brand, scraped, imageFiles), {
+    onLog: log,
+    files: imageFiles.map(f => f.path),
+  });
+
+  // Clean up temp images
+  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
   const text = resp.text;
   if (!text || text.length < 200) {
     throw new Error(`Analysis response too short: ${text}`);

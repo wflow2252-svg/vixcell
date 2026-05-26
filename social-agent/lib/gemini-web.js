@@ -29,8 +29,26 @@ async function ensureGeminiPage() {
   return page;
 }
 
-async function sendPrompt(prompt, { onLog = () => {} } = {}) {
+async function sendPrompt(prompt, { onLog = () => {}, files = [] } = {}) {
   const page = await ensureGeminiPage();
+
+  // 1. Attach any files first so they're staged before we send the prompt
+  if (files.length) {
+    onLog(`Attaching ${files.length} file(s) to Gemini chat…`);
+    try {
+      const input = await page.$('input[type="file"]');
+      if (!input) {
+        onLog('⚠️ Could not find file input — sending prompt without attachments');
+      } else {
+        await input.setInputFiles(files);
+        // Wait for upload thumbnails to appear before sending
+        await page.waitForTimeout(2500);
+      }
+    } catch (e) {
+      onLog(`⚠️ File attach failed: ${e.message}`);
+    }
+  }
+
   onLog('Typing prompt into Gemini…');
 
   // Click on the editable area and type
