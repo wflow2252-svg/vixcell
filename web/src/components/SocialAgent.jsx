@@ -9,8 +9,30 @@ const T = {
   error: '#ef4444', success: '#22c55e',
 }
 
-const AGENT_URL = import.meta.env.VITE_SOCIAL_AGENT_URL || 'http://localhost:3001'
-const AGENT_TOKEN = import.meta.env.VITE_SOCIAL_AGENT_TOKEN || ''
+// Defaults: VITE_ env vars are used if set at build time. Otherwise the admin
+// enters URL + token via the settings panel below; their entry is persisted
+// to localStorage so they only type it once.
+const DEFAULT_URL = import.meta.env.VITE_SOCIAL_AGENT_URL || 'http://localhost:3001'
+const DEFAULT_TOKEN = import.meta.env.VITE_SOCIAL_AGENT_TOKEN || ''
+const LS_KEY = 'vx_social_agent_cfg'
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}')
+    return {
+      url:   saved.url   || DEFAULT_URL,
+      token: saved.token || DEFAULT_TOKEN,
+    }
+  } catch {
+    return { url: DEFAULT_URL, token: DEFAULT_TOKEN }
+  }
+}
+
+function saveConfig({ url, token }) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ url, token }))
+  } catch {}
+}
 
 const RECIPES = [
   { id: 'daily-post-ar', label: 'بوست عربي', emoji: '🇸🇦', desc: 'بوست عربي + صورة على فيسبوك' },
@@ -19,27 +41,39 @@ const RECIPES = [
 ]
 
 export default function SocialAgent() {
+  const [config, setConfig] = useState(loadConfig)
   const [connected, setConnected] = useState(false)
   const [job, setJob] = useState(null)
   const [logs, setLogs] = useState([])
   const [screenshot, setScreenshot] = useState(null)
   const [error, setError] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
   const wsRef = useRef(null)
   const logRef = useRef(null)
+
+  const { url: AGENT_URL, token: AGENT_TOKEN } = config
 
   // ─── WebSocket connection ────────────────────────────────────
   useEffect(() => {
     if (!AGENT_TOKEN) {
-      setError('VITE_SOCIAL_AGENT_TOKEN غير معرّف في .env')
+      setError('Token مش متضبط — اضغط "إعدادات" تحت وحط الـ token')
+      setShowSettings(true)
       return
     }
+    setError('')
 
     let cancelled = false
     let reconnectTimer = null
 
     function connect() {
       const wsUrl = AGENT_URL.replace(/^http/, 'ws') + `/ws?token=${encodeURIComponent(AGENT_TOKEN)}`
-      const ws = new WebSocket(wsUrl)
+      let ws
+      try {
+        ws = new WebSocket(wsUrl)
+      } catch (e) {
+        setError(`فشل الاتصال بـ ${AGENT_URL}: ${e.message}`)
+        return
+      }
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -83,7 +117,7 @@ export default function SocialAgent() {
       if (reconnectTimer) clearTimeout(reconnectTimer)
       if (wsRef.current) wsRef.current.close()
     }
-  }, [])
+  }, [AGENT_URL, AGENT_TOKEN])
 
   // Auto-scroll logs
   useEffect(() => {
@@ -127,6 +161,12 @@ export default function SocialAgent() {
     }
   }
 
+  function applySettings(next) {
+    saveConfig(next)
+    setConfig(next)
+    setShowSettings(false)
+  }
+
   // ─── UI ──────────────────────────────────────────────────────
   return (
     <div style={styles.wrap}>
@@ -137,17 +177,30 @@ export default function SocialAgent() {
             بيشغّل Gemini Web UI من جهازك ويولّد محتوى. شغّل <code style={styles.code}>npm start</code> في <code style={styles.code}>social-agent/</code> الأول.
           </p>
         </div>
-        <div style={styles.statusBox}>
-          <span style={{ ...styles.statusDot, background: connected ? T.success : T.error }} />
-          <span style={{ fontSize: 13, color: connected ? T.success : T.error, fontWeight: 600 }}>
-            {connected ? 'متصل' : 'مفصول'}
-          </span>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={styles.statusBox}>
+            <span style={{ ...styles.statusDot, background: connected ? T.success : T.error }} />
+            <span style={{ fontSize: 13, color: connected ? T.success : T.error, fontWeight: 600 }}>
+              {connected ? 'متصل' : 'مفصول'}
+            </span>
+          </div>
+          <button onClick={() => setShowSettings(!showSettings)} style={styles.settingsBtn} title="إعدادات">
+            ⚙️ إعدادات
+          </button>
         </div>
       </div>
 
       {error && <div style={styles.errorBox}>⚠️ {error}</div>}
 
-      {!connected && (
+      {showSettings && (
+        <SettingsPanel
+          initial={config}
+          onCancel={() => setShowSettings(false)}
+          onSave={applySettings}
+        />
+      )}
+
+      {!connected && !showSettings && (
         <div style={styles.helpBox}>
           <strong>الـ Agent مش شغّال. عشان تشغّله:</strong>
           <ol style={{ margin: '8px 0', paddingInlineStart: 20, lineHeight: 1.8 }}>
@@ -155,6 +208,7 @@ export default function SocialAgent() {
             <li>أول مرة بس: <code style={styles.code}>npm install</code></li>
             <li>دايماً: <code style={styles.code}>npm start</code></li>
             <li>المتصفح هيفتح — سجّل دخول في Gemini مرة واحدة</li>
+            <li>اضغط <strong>⚙️ إعدادات</strong> فوق وحط نفس الـ AGENT_TOKEN من <code style={styles.code}>social-agent/.env</code></li>
           </ol>
         </div>
       )}
@@ -242,6 +296,63 @@ export default function SocialAgent() {
   )
 }
 
+// ─── Settings panel ──────────────────────────────────────────────
+function SettingsPanel({ initial, onCancel, onSave }) {
+  const [url, setUrl] = useState(initial.url || 'http://localhost:3001')
+  const [token, setToken] = useState(initial.token || '')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    onSave({ url: url.trim(), token: token.trim() })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={styles.settingsPanel}>
+      <h3 style={{ ...styles.h3, marginTop: 0 }}>⚙️ إعدادات الـ Agent</h3>
+      <p style={styles.muted}>
+        القيم دي هتتحفظ محلياً في الـ browser بتاعك (localStorage). كل أدمن بيدخلها مرة واحدة على جهازه.
+      </p>
+
+      <div style={{ marginTop: 16 }}>
+        <label style={styles.label}>Agent URL</label>
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="http://localhost:3001"
+          style={styles.input}
+          dir="ltr"
+          required
+        />
+        <p style={{ ...styles.muted, fontSize: 11, marginTop: 4 }}>
+          مكان الـ social-agent بتاعك. لو شغّال على PC بتاعك سيبها <code style={styles.code}>http://localhost:3001</code>
+        </p>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <label style={styles.label}>AGENT_TOKEN</label>
+        <input
+          type="text"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="random string من social-agent/.env"
+          style={styles.input}
+          dir="ltr"
+          required
+        />
+        <p style={{ ...styles.muted, fontSize: 11, marginTop: 4 }}>
+          نفس قيمة <code style={styles.code}>AGENT_TOKEN</code> في <code style={styles.code}>social-agent/.env</code>
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+        <button type="button" onClick={onCancel} style={styles.btnGhost}>إلغاء</button>
+        <button type="submit" style={styles.btnPrimary}>حفظ + اتصال</button>
+      </div>
+    </form>
+  )
+}
+
 const styles = {
   wrap: { padding: 24, maxWidth: 1400, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 16, flexWrap: 'wrap' },
@@ -251,6 +362,12 @@ const styles = {
   code: { background: T.bg3, padding: '2px 6px', borderRadius: 4, fontSize: 12, fontFamily: 'monospace', color: T.gold },
   statusBox: { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 8 },
   statusDot: { width: 8, height: 8, borderRadius: '50%' },
+  settingsBtn: { background: T.bg2, border: `1px solid ${T.border}`, color: T.text, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  settingsPanel: { background: T.bg2, border: `1px solid ${T.gold}`, borderRadius: 12, padding: 20, marginBottom: 24 },
+  label: { display: 'block', color: T.text, fontSize: 12, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  input: { width: '100%', boxSizing: 'border-box', padding: '10px 14px', background: T.bg3, color: T.text, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontFamily: 'monospace', outline: 'none' },
+  btnPrimary: { background: T.gold, color: '#000', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  btnGhost: { background: 'transparent', color: T.text, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   errorBox: { padding: 12, background: 'rgba(239,68,68,0.1)', border: `1px solid ${T.error}`, borderRadius: 8, color: T.error, marginBottom: 16, fontSize: 13 },
   helpBox: { padding: 16, background: T.goldDim, border: `1px solid ${T.gold}`, borderRadius: 8, color: T.text, marginBottom: 24, fontSize: 13 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: 24 },
