@@ -19,34 +19,87 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 })
 
 // ─── Auth helpers ──────────────────────────────────────────────────
-// Magic-link only. Works out of the box with Supabase's default email
-// service — zero dashboard configuration required. Rate limit on the
-// free tier: ~4 emails/hour per user.
+// Custom Google OAuth via our own Vercel API routes (no Supabase Auth
+// involved, so no dashboard URL config to worry about).
+//
+//   /api/auth/google/login        → redirects browser to Google consent
+//   /__/auth/handler              → Google calls back here, we set our cookie
+//   /api/auth/me                  → read current user from cookie
+//   /api/auth/logout              → clear cookie
+
+/** Kick off Google OAuth. Redirects the browser away. */
+export function signInWithGoogle() {
+  if (typeof window === 'undefined') return
+  const returnTo = encodeURIComponent(window.location.pathname || '/admin')
+  window.location.href = `/api/auth/google/login?return_to=${returnTo}`
+}
+
+/** Sign out — clears the session cookie, then redirects home. */
+export async function signOut() {
+  if (typeof window !== 'undefined') {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      })
+    } catch (_) {}
+    window.location.href = '/'
+  }
+}
+
+/** Returns the currently signed-in user, or null. */
+export async function getCurrentUser() {
+  if (typeof window === 'undefined') return null
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    const { user } = await res.json()
+    return user || null
+  } catch (_) {
+    return null
+  }
+}
 
 /**
- * Send a sign-in magic link to an admin's email. They click it and land
- * back on /admin with a session attached.
+ * Subscribe to auth changes. We poll /api/auth/me every 30s because we don't
+ * have a push channel — good enough for an admin dashboard. Also fires once
+ * immediately and listens for `focus` so sign-in is reflected on tab switch.
  */
-export async function signInWithMagicLink(email) {
-  const redirectTo = typeof window !== 'undefined'
-    ? `${window.location.origin}/admin`
-    : undefined
+export function onAuthChange(callback) {
+  let active = true
+  let lastJson = ''
 
-  const { data, error } = await supabase.auth.signInWithOtp({
-    email: (email || '').trim().toLowerCase(),
-    options: {
-      emailRedirectTo: redirectTo,
-      shouldCreateUser: true,
-    },
-  })
-  if (error) throw error
-  return data
+  async function tick() {
+    if (!active) return
+    const u = await getCurrentUser()
+    const json = JSON.stringify(u)
+    if (json !== lastJson) {
+      lastJson = json
+      callback(u)
+    }
+  }
+
+  tick()
+  const interval = setInterval(tick, 30000)
+  const onFocus = () => tick()
+  if (typeof window !== 'undefined') window.addEventListener('focus', onFocus)
+
+  return () => {
+    active = false
+    clearInterval(interval)
+    if (typeof window !== 'undefined') window.removeEventListener('focus', onFocus)
+  }
 }
 
 /**
  * Send a verification magic link to a client who just submitted a form.
- * Confirms they own the email they entered. Same Supabase email service,
- * just redirects back to the homepage so they see a "verified" state.
+ * Still uses Supabase Auth for this — it only needs to send the email, not
+ * actually establish a session. Default Supabase email works without SMTP setup.
  */
 export async function sendClientVerification(email, reference) {
   const redirectTo = typeof window !== 'undefined'
@@ -65,39 +118,5 @@ export async function sendClientVerification(email, reference) {
   return data
 }
 
-// Deprecated — kept so old imports don't break. Throws to make the migration loud.
-export const signInWithGoogle = () => {
-  throw new Error('Google OAuth removed — use signInWithMagicLink(email) instead.')
-}
-
-export async function signOut() {
-  await supabase.auth.signOut()
-}
-
-export async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser()
-  return user ? toAppUser(user) : null
-}
-
-/**
- * Subscribe to auth state changes.
- * Callback fires with either a user object or null.
- * Returns an unsubscribe function.
- */
-export function onAuthChange(callback) {
-  // Fire once with current state
-  getCurrentUser().then(callback)
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session?.user ? toAppUser(session.user) : null)
-  })
-  return () => data.subscription.unsubscribe()
-}
-
-function toAppUser(user) {
-  return {
-    uid:     user.id,
-    email:   user.email,
-    name:    user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0],
-    picture: user.user_metadata?.avatar_url || null,
-  }
-}
+// Deprecated alias — kept so older imports don't break.
+export const signInWithMagicLink = sendClientVerification

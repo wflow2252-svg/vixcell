@@ -3,6 +3,7 @@
   "outputDirectory": "web/dist",
   "routes": [
     { "handle": "filesystem" },
+    { "src": "/__/auth/handler", "dest": "/api/__/auth/handler" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
