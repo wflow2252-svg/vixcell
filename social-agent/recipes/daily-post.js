@@ -96,7 +96,7 @@ HEADLINE: <٣-٥ كلمات عربي — العنوان اللي هيتكتب ع
 SUBHEADING: <جملة واحدة عربي قصيرة، تحت العنوان على الصورة>
 CAPTION: <البوست كامل ٦٠-١٠٠ كلمة، يبدأ بهوك قوي، فيه قيمة فعلية، CTA ناعمة في الآخر>
 HASHTAGS: <٦-٨ هاشتاجات مفصولة بمسافة>
-IMAGE_PROMPT: <prompt إنجليزي للصورة — modern professional photography or 3D abstract, dark elegant background with ${brand?.brand_colors?.primary || '#c8a35c'} accents, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en}` : 'reflecting the post topic'}, NO text in image, leave bottom 40% emptier for text overlay, premium quality, 1:1 square>`;
+IMAGE_PROMPT: <prompt إنجليزي للصورة. اطلب: premium commercial advertising poster, 3D rendered hero product OR luxury product photography centered in frame, dark cinematic background (deep black/charcoal) with subtle ${brand?.brand_colors?.primary || '#c8a35c'} metallic glow and rim lighting, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en} (subtle ornaments not gaudy)` : 'reflecting the post topic'}, premium agency style like Apple/Samsung ads, ultra-detailed, octane render quality. NO TEXT, NO LOGOS, NO WORDS in the image. Leave the top 25% and bottom 25% of the frame dimmer/emptier so headline + service list overlays read cleanly. Portrait 4:5 aspect ratio>`;
   }
 
   return `You are a content writer for ${brand?.brand_name || 'VIXCELL'} (digital studio in Egypt).
@@ -126,7 +126,7 @@ HEADLINE: <3-5 words — bold image headline>
 SUBHEADING: <one short line, sits under headline on image>
 CAPTION: <full 60-100 word post: strong hook, real value, soft CTA at the end>
 HASHTAGS: <6-8 hashtags separated by spaces>
-IMAGE_PROMPT: <English image prompt — modern professional photography or 3D abstract, dark elegant background with ${brand?.brand_colors?.primary || '#c8a35c'} accents, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en}` : 'reflecting the post topic'}, NO text in image, leave bottom 40% emptier for text overlay, premium quality, 1:1 square>`;
+IMAGE_PROMPT: <English image prompt. Request: premium commercial advertising poster, 3D rendered hero product OR luxury product photography centered in frame, dark cinematic background (deep black/charcoal) with subtle ${brand?.brand_colors?.primary || '#c8a35c'} metallic glow and rim lighting, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en} (subtle ornaments, tasteful)` : 'reflecting the post topic'}, premium agency style like Apple/Samsung ads, ultra-detailed, octane render quality. NO TEXT, NO LOGOS, NO WORDS in the image. Leave the top 25% and bottom 25% of the frame dimmer/emptier so headline + service list overlays read cleanly. Portrait 4:5 aspect ratio>`;
 }
 
 function parseResponse(text) {
@@ -183,6 +183,9 @@ async function run({ language, log = console.log }) {
       eventBadge: useEventBadge ? (language === 'ar' ? event.name_ar : event.name_en) : null,
       eventMotif: useEventBadge ? event.motif : null,
       brandName:  brand?.brand_name || 'VIXCELL',
+      tagline:    brand?.tagline,
+      services:   Array.isArray(brand?.services) ? brand.services : [],
+      contact:    brand?.website || 'vixcell.com',
       logoUrl:    brand?.logo_url,
       accent:     brand?.brand_colors?.primary || '#c8a35c',
     });

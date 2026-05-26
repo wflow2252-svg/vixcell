@@ -4,6 +4,7 @@ import { listAll, markRead, remove, isAdmin, ADMIN_EMAILS } from '../services/su
 import DotPixelIcon from './DotPixelIcon'
 import SocialAgent from './SocialAgent'
 import BrandSettings from './BrandSettings'
+import CampaignEditor from './CampaignEditor'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
@@ -194,12 +195,20 @@ function AdminView({ user, onBack }) {
         >
           🎨 Brand
         </button>
+        <button
+          onClick={() => setActiveTab('campaign')}
+          style={{ ...styles.tab, ...(activeTab === 'campaign' ? styles.tabActive : {}) }}
+        >
+          🎯 Campaign
+        </button>
       </div>
 
       {activeTab === 'social' ? (
         <SocialAgent />
       ) : activeTab === 'brand' ? (
         <BrandSettings />
+      ) : activeTab === 'campaign' ? (
+        <CampaignEditor />
       ) : (
       <div style={styles.adminWrap}>
         <div style={styles.adminHeader}>

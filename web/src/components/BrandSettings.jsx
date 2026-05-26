@@ -138,12 +138,43 @@ export default function BrandSettings() {
     setCompetitors((prev) => prev.map((x) => (x.id === c.id ? data : x)))
   }
 
-  // ─── Logo file selection ─────────────────────────────────
-  function handleLogoChange(e) {
+  // ─── Logo file selection — uploads immediately ───────────
+  async function handleLogoChange(e) {
     const f = e.target.files?.[0]
     if (!f) return
-    setLogoFile(f)
     setLogoPreview(URL.createObjectURL(f))
+    setError('')
+    setSaving(true)
+    try {
+      const ext = (f.name.split('.').pop() || 'png').toLowerCase()
+      const path = `logo-${Date.now()}.${ext}`
+      const up = await supabase.storage.from('brand-assets').upload(path, f, {
+        upsert: true,
+        contentType: f.type || 'image/png',
+      })
+      if (up.error) throw up.error
+      const { data: pub } = supabase.storage.from('brand-assets').getPublicUrl(path)
+      const logoUrl = pub.publicUrl
+
+      // Persist on brand_config immediately so the Social Agent picks it up
+      // on the next recipe run without waiting for the user to hit Save.
+      const { data, error: upErr } = await supabase
+        .from('brand_config')
+        .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
+        .eq('id', true)
+        .select()
+        .single()
+      if (upErr) throw upErr
+
+      setBrand(data)
+      setLogoPreview(logoUrl)
+      setLogoFile(null)
+      setSavedAt(Date.now())
+    } catch (err) {
+      setError(`فشل رفع اللوجو: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
