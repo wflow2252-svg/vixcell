@@ -70,6 +70,37 @@ function stopScreenshotStream() {
 
 // ─── HTTP server ──────────────────────────────────────────────────
 const app = express();
+
+// Private Network Access preflight — Chrome 113+ blocks requests from HTTPS
+// origins (vixcell.com) to private networks (localhost) unless the server
+// explicitly opts in by responding to the preflight with
+// `Access-Control-Allow-Private-Network: true`. This middleware MUST run
+// before cors() and before the WebSocketServer upgrade handler.
+//   https://developer.chrome.com/blog/private-network-access-preflight
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const isAllowedOrigin = origin && ALLOWED.some(a => origin === a || origin.startsWith(a));
+
+  // Set PNA header on every response from an allowed origin (cheap, harmless).
+  if (isAllowedOrigin) {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
+
+  // Answer PNA preflights directly so the cors() middleware doesn't reject them.
+  if (req.method === 'OPTIONS' && req.headers['access-control-request-private-network']) {
+    if (isAllowedOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-agent-token');
+      res.setHeader('Access-Control-Max-Age', '7200');
+      return res.status(204).end();
+    }
+    return res.status(403).end();
+  }
+  next();
+});
+
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
