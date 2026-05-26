@@ -21,6 +21,7 @@ const {
 const { postToFacebook } = require('../lib/meta');
 const { buildPoster } = require('../lib/image');
 const { getNextEvent, describeToday } = require('../lib/events');
+const { buildImagePrompt } = require('../lib/imagePrompts');
 
 function fmtServices(services) {
   if (!services) return '(غير محدد)';
@@ -96,7 +97,7 @@ HEADLINE: <٣-٥ كلمات عربي — العنوان اللي هيتكتب ع
 SUBHEADING: <جملة واحدة عربي قصيرة، تحت العنوان على الصورة>
 CAPTION: <البوست كامل ٦٠-١٠٠ كلمة، يبدأ بهوك قوي، فيه قيمة فعلية، CTA ناعمة في الآخر>
 HASHTAGS: <٦-٨ هاشتاجات مفصولة بمسافة>
-IMAGE_PROMPT: <prompt إنجليزي للصورة. اطلب: premium commercial advertising poster, 3D rendered hero product OR luxury product photography centered in frame, dark cinematic background (deep black/charcoal) with subtle ${brand?.brand_colors?.primary || '#c8a35c'} metallic glow and rim lighting, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en} (subtle ornaments not gaudy)` : 'reflecting the post topic'}, premium agency style like Apple/Samsung ads, ultra-detailed, octane render quality. NO TEXT, NO LOGOS, NO WORDS in the image. Leave the top 25% and bottom 25% of the frame dimmer/emptier so headline + service list overlays read cleanly. Portrait 4:5 aspect ratio>`;
+VISUAL_SUBJECT: <١-٣ كلمات بالإنجليزي تصف الـ hero element اللي هيتعرض في وسط الـ poster، مثلاً "metallic dashboard" أو "glass laptop" أو "crescent lantern". هحوّلها لـ prompt احترافي بنفسي>`;
   }
 
   return `You are a content writer for ${brand?.brand_name || 'VIXCELL'} (digital studio in Egypt).
@@ -126,7 +127,7 @@ HEADLINE: <3-5 words — bold image headline>
 SUBHEADING: <one short line, sits under headline on image>
 CAPTION: <full 60-100 word post: strong hook, real value, soft CTA at the end>
 HASHTAGS: <6-8 hashtags separated by spaces>
-IMAGE_PROMPT: <English image prompt. Request: premium commercial advertising poster, 3D rendered hero product OR luxury product photography centered in frame, dark cinematic background (deep black/charcoal) with subtle ${brand?.brand_colors?.primary || '#c8a35c'} metallic glow and rim lighting, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en} (subtle ornaments, tasteful)` : 'reflecting the post topic'}, premium agency style like Apple/Samsung ads, ultra-detailed, octane render quality. NO TEXT, NO LOGOS, NO WORDS in the image. Leave the top 25% and bottom 25% of the frame dimmer/emptier so headline + service list overlays read cleanly. Portrait 4:5 aspect ratio>`;
+VISUAL_SUBJECT: <1-3 English words describing the hero element for the poster's center, e.g. "metallic dashboard", "glass laptop", "crescent lantern". I will build the full art-direction prompt myself.>`;
 }
 
 function parseResponse(text) {
@@ -135,12 +136,12 @@ function parseResponse(text) {
     return m ? m[1].trim() : '';
   };
   return {
-    topic:       grab('TOPIC'),
-    headline:    grab('HEADLINE'),
-    subheading:  grab('SUBHEADING'),
-    caption:     grab('CAPTION'),
-    hashtags:    grab('HASHTAGS').split(/\s+/).filter(Boolean),
-    imagePrompt: grab('IMAGE_PROMPT'),
+    topic:         grab('TOPIC'),
+    headline:      grab('HEADLINE'),
+    subheading:    grab('SUBHEADING'),
+    caption:       grab('CAPTION'),
+    hashtags:      grab('HASHTAGS').split(/\s+/).filter(Boolean),
+    visualSubject: grab('VISUAL_SUBJECT'),
   };
 }
 
@@ -157,20 +158,30 @@ async function run({ language, log = console.log }) {
   ]);
   log(`[${language}] Brand: ${brand?.brand_name || '(none)'} · Campaign: ${campaign?.theme || '(none)'} · Recent: ${recent.length}`);
 
-  log(`[${language}] Asking Gemini for headline + caption + image prompt…`);
+  log(`[${language}] Asking Gemini for headline + caption + visual subject…`);
   await newConversation();
   const step1 = await sendPrompt(
     buildPrompt({ language, brand, campaign, recent, event, today }),
     { onLog: log }
   );
   const parsed = parseResponse(step1.text);
-  if (!parsed.caption || !parsed.imagePrompt) {
+  if (!parsed.caption || !parsed.visualSubject) {
     throw new Error(`Gemini response didn't match expected format. Got: ${step1.text.slice(0, 500)}`);
   }
-  log(`[${language}] Topic: ${parsed.topic} · Headline: "${parsed.headline}"`);
+  log(`[${language}] Topic: ${parsed.topic} · Headline: "${parsed.headline}" · Visual: "${parsed.visualSubject}"`);
+
+  // Build the full art-direction prompt from our curated template library
+  // — we don't trust Gemini to art-direct itself.
+  const imagePrompt = buildImagePrompt({
+    topic:   parsed.topic,
+    hook:    parsed.headline,
+    subject: parsed.visualSubject,
+    accent:  brand?.brand_colors?.primary || '#c8a35c',
+  });
+  log(`[${language}] Image prompt template: ${imagePrompt.match(/\[Template: ([^\]]+)\]/)?.[1] || 'fallback'}`);
 
   log(`[${language}] Asking Gemini to generate the background image…`);
-  const step2 = await sendPrompt(`Generate an image: ${parsed.imagePrompt}`, { onLog: log });
+  const step2 = await sendPrompt(`Generate an image: ${imagePrompt}`, { onLog: log });
 
   let imageUrl = null;
   if (step2.images.length > 0) {

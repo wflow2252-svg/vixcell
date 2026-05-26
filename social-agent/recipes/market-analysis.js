@@ -1,12 +1,11 @@
-// Weekly market analysis + campaign strategy.
+// Weekly market analysis + campaign strategy — FB-aware version.
 //
-// Loads the brand + competitor list, asks Gemini to research each competitor's
-// recent positioning, then synthesise:
-//   1. A market report (saved to market_reports)
-//   2. The week's campaign — theme + goal + key messages + 7 daily prompts
-//      (saved to campaigns; daily-post recipes pick this up automatically)
+// Instead of asking Gemini "what are competitors doing?" (which hallucinates),
+// we actually visit each competitor's Facebook page via Playwright, scrape
+// their recent posts + engagement, then feed REAL data to Gemini so it
+// synthesises a grounded report and a week's campaign.
 
-const { sendPrompt, newConversation } = require('../lib/gemini-web');
+const { sendPrompt, newConversation, ensureGeminiPage } = require('../lib/gemini-web');
 const {
   saveMarketReport,
   getBrandConfig,
@@ -14,16 +13,24 @@ const {
   saveCampaign,
   thisWeekStart,
 } = require('../lib/supabase');
+const { readCompetitorPosts } = require('../lib/fb-scrape');
 
-function buildResearchPrompt(brand, competitors) {
-  const list = competitors.length
-    ? competitors.map((c, i) =>
-        `${i + 1}. ${c.name}` +
-        (c.url ? `  —  ${c.url}` : '') +
-        (c.fb_page ? `  —  fb.com/${c.fb_page}` : '') +
-        (c.notes ? `\n   ملاحظات: ${c.notes}` : '')
-      ).join('\n')
-    : '(مفيش منافسين محددين في قاعدة البيانات)';
+function summarisePosts(posts) {
+  if (!posts.length) return '(لم نتمكن من قراءة بوستات)';
+  return posts.map((p, i) => {
+    const eng = `${p.reactions || 0}❤  ${p.comments || 0}💬  ${p.shares || 0}↪`;
+    return `  ${i + 1}. [${eng}] ${(p.text || '').slice(0, 200)}`;
+  }).join('\n');
+}
+
+function buildResearchPrompt(brand, scraped) {
+  const blocks = scraped.length
+    ? scraped.map((c) => {
+        const header = `### ${c.competitor}${c.url ? ` — ${c.url}` : ''}`;
+        if (c.note && !c.posts.length) return `${header}\nملاحظة: ${c.note}\n`;
+        return `${header}\n${summarisePosts(c.posts)}\n`;
+      }).join('\n')
+    : '(لا يوجد منافسين متتبعين)';
 
   return `أنت محلل سوق ومستشار محتوى رقمي لـ ${brand?.brand_name || 'VIXCELL'} — استوديو ديجيتال في مصر/الشرق الأوسط.
 
@@ -33,24 +40,25 @@ function buildResearchPrompt(brand, competitors) {
 - الخدمات: ${Array.isArray(brand?.services) ? brand.services.join('، ') : '—'}
 - الجمهور: ${brand?.target_audience || 'أصحاب البزنس في مصر و MENA'}
 
-🏢 المنافسون المعروفون:
-${list}
+📊 بيانات حقيقية من Facebook لبوستات المنافسين الأخيرة:
+
+${blocks}
 
 🎬 المهمة:
-ابحث (من معرفتك الحالية + أي مصدر معروف) عن:
-1. كل منافس: إيه اللي بيركز عليه دلوقتي؟ نقاط قوته؟ ضعفه أو الفرص اللي مش شاغل عليها؟
-2. تريندات السوق في الويب/AI/تطبيقات في مصر/MENA الأسبوع/الشهر ده.
-3. الـ gaps اللي يقدر ${brand?.brand_name || 'VIXCELL'} يدخلها.
+بناءً على البيانات الحقيقية فوق (مش معلوماتك العامة)، حلّل:
+1. كل منافس: إيه الـ themes اللي بيركز عليها دلوقتي؟ نقاط القوة (اللي مقاسة بالـ engagement)؟ ضعف أو فرص لينا؟
+2. تريندات مشتركة بين المنافسين الأسبوع ده.
+3. ثغرات يقدر ${brand?.brand_name || 'VIXCELL'} يستغلها (مواضيع متغطّاش، نبرة مفقودة، إلخ).
 
-ثم اختر **ثيمة الأسبوع** (تركيز محتوى محدد، مش مجرد "marketing")، واكتب **٧ مواضيع بوستات** يومية متماشية مع الثيمة.
+ثم اختر **ثيمة الأسبوع** لـ ${brand?.brand_name || 'VIXCELL'} واكتب **٧ مواضيع بوستات يومية** متماشية.
 
-اكتب الرد بالـ Markdown ده بالظبط (لا تضيف نص قبله أو بعده):
+اكتب الرد بالـ Markdown ده بالظبط:
 
-## تحليل المنافسين
-- **<اسم المنافس>**: <نقاط القوة + الضعف + الفرصة لينا، ٢-٣ سطور لكل واحد>
+## تحليل المنافسين (مبني على البيانات الحقيقية)
+- **<اسم المنافس>**: <ملخّص نشاطه + ٢-٣ ثيمات شغّال عليها + توصية لينا، ٣-٤ سطور>
 - ... (لكل منافس)
 
-## تريندات السوق الحالية
+## تريندات مشتركة الأسبوع
 - <bullet>
 - <bullet>
 - <bullet>
@@ -63,7 +71,7 @@ ${list}
 ## ثيمة الأسبوع
 THEME: <جملة قصيرة عن الثيمة>
 GOAL: <جملة عن الهدف>
-KEY_MESSAGES: <فاصلة بين كل رسالة وأخرى، ٣-٥ رسائل مفتاحية>
+KEY_MESSAGES: <فاصلة بين كل رسالة، ٣-٥ رسائل>
 
 ## مواضيع البوستات (٧ أيام)
 DAY_1: <موضوع البوست>
@@ -105,20 +113,42 @@ async function run({ log = console.log }) {
     getBrandConfig(),
     getCompetitors(),
   ]);
-  log(`Brand: ${brand?.brand_name || '(none)'} · Competitors tracked: ${competitors.length}`);
+  log(`Brand: ${brand?.brand_name || '(none)'} · Competitors: ${competitors.length}`);
 
+  if (!competitors.length) {
+    throw new Error('مفيش منافسين في قاعدة البيانات. روح Brand tab وضيف منافسين أولاً.');
+  }
+
+  // Bring up the persistent browser so the scraper reuses the same context
+  await ensureGeminiPage().catch(() => {});
+
+  // Visit each competitor's Facebook page and collect real post data
+  log(`Scraping Facebook for ${competitors.length} competitor(s)…`);
+  const scraped = [];
+  for (const c of competitors) {
+    if (!c.fb_page) {
+      scraped.push({ competitor: c.name, posts: [], note: 'no fb_page configured' });
+      continue;
+    }
+    const data = await readCompetitorPosts({ fb_page: c.fb_page, name: c.name, max: 6, onLog: log });
+    scraped.push(data);
+  }
+
+  const totalPosts = scraped.reduce((a, c) => a + c.posts.length, 0);
+  log(`Scraped ${totalPosts} post(s) total across ${scraped.length} competitor(s)`);
+
+  // Send the real data to Gemini for synthesis
   await newConversation();
-
-  log('Asking Gemini for market analysis + weekly strategy…');
-  const resp = await sendPrompt(buildResearchPrompt(brand, competitors), { onLog: log });
+  log('Asking Gemini to synthesise findings into a report + weekly campaign…');
+  const resp = await sendPrompt(buildResearchPrompt(brand, scraped), { onLog: log });
   const text = resp.text;
   if (!text || text.length < 200) {
-    throw new Error(`Market analysis response too short: ${text}`);
+    throw new Error(`Analysis response too short: ${text}`);
   }
 
   // ─── Parse sections ─────────────────────────────────────
-  const competitorAnalysis = extractSection(text, 'تحليل المنافسين');
-  const trends             = extractSection(text, 'تريندات السوق الحالية');
+  const competitorAnalysis = extractSection(text, 'تحليل المنافسين.*');
+  const trends             = extractSection(text, 'تريندات مشتركة.*');
   const gaps               = extractSection(text, 'ثغرات.*');
   const theme              = extractField(text, 'THEME');
   const goal               = extractField(text, 'GOAL');
@@ -147,11 +177,16 @@ async function run({ log = console.log }) {
       theme,
       goal,
       keyMessages,
-      strategyBody: [competitorAnalysis, trends, gaps, dailyPrompts.length ? '## مواضيع البوستات\n' + dailyPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n') : ''].filter(Boolean).join('\n\n'),
+      strategyBody: [
+        competitorAnalysis,
+        trends,
+        gaps,
+        dailyPrompts.length ? '## مواضيع البوستات\n' + dailyPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n') : '',
+      ].filter(Boolean).join('\n\n'),
     });
-    log(`✅ Campaign saved. Next daily-post will use this theme automatically.`);
+    log('✅ Campaign saved. Next daily-post will use this theme.');
   } else {
-    log('⚠️ No THEME extracted from Gemini response — campaign not saved.');
+    log('⚠️ No THEME extracted — campaign not saved.');
   }
 
   return {
@@ -163,6 +198,8 @@ async function run({ log = console.log }) {
     goal,
     keyMessages,
     dailyPrompts,
+    competitorsScraped: scraped.length,
+    postsScraped: totalPosts,
   };
 }
 
