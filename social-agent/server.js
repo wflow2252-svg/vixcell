@@ -86,6 +86,38 @@ function auth(req, res, next) {
   next();
 }
 
+// Friendly landing page so the admin can confirm the server is up by just
+// visiting http://localhost:3001 in a browser.
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(`<!doctype html>
+<html dir="rtl" lang="ar"><meta charset="utf-8"><title>VIXCELL Social Agent</title>
+<style>
+  body { background:#0c0c0e; color:#e8e8ed; font-family:system-ui,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+  .card { max-width:520px; padding:32px; text-align:center; }
+  h1 { color:#c8a35c; margin:0 0 16px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#22c55e; margin-inline-end:6px; }
+  code { background:#1a1a1f; color:#c8a35c; padding:3px 8px; border-radius:5px; font-size:13px; }
+  a { color:#c8a35c; }
+  ul { text-align:start; line-height:2; }
+</style>
+<div class="card">
+  <h1>🤖 VIXCELL Social Agent</h1>
+  <p><span class="dot"></span> السيرفر شغّال على المنفذ ${PORT}</p>
+  <p>الـ Recipes المتاحة: <code>${Object.keys(recipes).join('</code>, <code>')}</code></p>
+  <p>الحالة: <code>${currentJob ? 'مهمة شغالة: '+currentJob.recipe : 'في انتظار أمر من الداش بورد'}</code></p>
+  <hr style="border-color:#1a1a1f; margin:24px 0;">
+  <p>عشان تتحكم فيه:</p>
+  <ul>
+    <li>روح <a href="https://vixcell.com/admin">vixcell.com/admin</a></li>
+    <li>سجّل دخول بـ Google</li>
+    <li>اضغط تاب <strong>🤖 Social Agent</strong></li>
+    <li>اضغط <strong>⚙️ إعدادات</strong> وحط الـ AGENT_TOKEN</li>
+  </ul>
+</div>
+</html>`);
+});
+
 app.get('/health', (req, res) => {
   res.json({
     ok: true,
