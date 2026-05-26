@@ -151,12 +151,26 @@ async function run({ language, log = console.log }) {
   log(`[${language}] ${today.arabic_full}${event ? ` · next event: ${event.name_ar} (in ${event.daysUntil}d)` : ' · no upcoming events'}`);
 
   log(`[${language}] Loading brand + campaign + recent posts…`);
-  const [brand, campaign, recent] = await Promise.all([
+  let [brand, campaign, recent] = await Promise.all([
     getBrandConfig(),
     getCurrentCampaign(),
     getRecentTopics({ language, days: 14, limit: 14 }),
   ]);
   log(`[${language}] Brand: ${brand?.brand_name || '(none)'} · Campaign: ${campaign?.theme || '(none)'} · Recent: ${recent.length}`);
+
+  // Auto-generate this week's campaign if missing. Runs at most once a week
+  // (the first daily-post of the week triggers it; subsequent posts reuse it).
+  if (!campaign) {
+    log(`[${language}] 📊 No campaign for this week yet — generating one from competitor FB data first…`);
+    try {
+      const market = require('./market-analysis');
+      await market.run({ log });
+      campaign = await getCurrentCampaign();
+      log(`[${language}] ✅ Campaign generated: ${campaign?.theme || '(theme unclear)'}`);
+    } catch (e) {
+      log(`[${language}] ⚠️ Auto-strategy failed (${e.message}). Continuing without campaign.`);
+    }
+  }
 
   log(`[${language}] Asking Gemini for headline + caption + visual subject…`);
   await newConversation();
