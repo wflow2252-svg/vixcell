@@ -56,7 +56,7 @@ export default function SocialAgent() {
   // ─── WebSocket connection ────────────────────────────────────
   useEffect(() => {
     if (!AGENT_TOKEN) {
-      setError('Token مش متضبط — اضغط "إعدادات" تحت وحط الـ token')
+      setError('Token مش متضبط — اضغط "إعدادات" فوق وحط الـ token')
       setShowSettings(true)
       return
     }
@@ -64,22 +64,70 @@ export default function SocialAgent() {
 
     let cancelled = false
     let reconnectTimer = null
+    let attempts = 0
+    let everConnected = false
 
-    function connect() {
+    async function probeServer() {
+      // Quick HTTP probe before the WS attempt — gives us a clearer error
+      // (CORS-blocked / unreachable / 401) instead of just a generic WS fail.
+      try {
+        const res = await fetch(`${AGENT_URL}/health`, {
+          headers: { 'x-agent-token': AGENT_TOKEN },
+        })
+        if (res.ok) return { ok: true }
+        if (res.status === 401) return { ok: false, msg: 'الـ AGENT_TOKEN غلط — قارنه مع اللي في social-agent/.env' }
+        return { ok: false, msg: `السيرفر رد بـ HTTP ${res.status}` }
+      } catch (e) {
+        const m = String(e?.message || e)
+        if (/CORS|cross-origin/i.test(m)) {
+          return { ok: false, msg: `الـ browser رافض الاتصال (CORS). تأكد إن npm start شغّال على ${AGENT_URL}` }
+        }
+        if (/failed to fetch|networkerror|load failed/i.test(m)) {
+          return { ok: false, msg: `مفيش سيرفر شغّال على ${AGENT_URL}. شغّل npm start في social-agent/` }
+        }
+        return { ok: false, msg: m }
+      }
+    }
+
+    async function connect() {
+      attempts++
+
+      // On the first attempt only, probe HTTP so we can surface a specific
+      // error if the user is missing something. Skip the probe on later
+      // retries to keep the network quiet.
+      if (attempts === 1) {
+        const probe = await probeServer()
+        if (!probe.ok) {
+          setError(probe.msg)
+          // Try again in a few seconds — maybe they started npm start.
+          if (!cancelled) reconnectTimer = setTimeout(connect, 5000)
+          return
+        }
+      }
+
       const wsUrl = AGENT_URL.replace(/^http/, 'ws') + `/ws?token=${encodeURIComponent(AGENT_TOKEN)}`
       let ws
       try {
         ws = new WebSocket(wsUrl)
       } catch (e) {
-        setError(`فشل الاتصال بـ ${AGENT_URL}: ${e.message}`)
+        setError(`فشل فتح WebSocket لـ ${AGENT_URL}: ${e.message}`)
         return
       }
       wsRef.current = ws
 
+      const failTimer = setTimeout(() => {
+        if (ws.readyState !== 1) {
+          try { ws.close() } catch (_) {}
+        }
+      }, 8000)
+
       ws.onopen = () => {
+        clearTimeout(failTimer)
         if (cancelled) { ws.close(); return }
         setConnected(true)
         setError('')
+        everConnected = true
+        attempts = 0
       }
 
       ws.onmessage = (e) => {
@@ -102,8 +150,14 @@ export default function SocialAgent() {
       }
 
       ws.onerror = () => { /* handled by onclose */ }
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        clearTimeout(failTimer)
         setConnected(false)
+        if (!everConnected && ev.code === 1008) {
+          setError('الـ AGENT_TOKEN في الإعدادات مش مطابق للي في social-agent/.env')
+        } else if (!everConnected) {
+          setError(`WebSocket متبلكش الاتصال. لو في Brave، اضغط أيقونة الـ Lion 🦁 → "Shields Down" للموقع، وحدّث الصفحة.`)
+        }
         if (!cancelled) {
           reconnectTimer = setTimeout(connect, 3000)
         }
