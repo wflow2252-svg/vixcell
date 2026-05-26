@@ -2,7 +2,7 @@
 // and the `state` we signed earlier. We exchange the code for an ID token,
 // verify it, and issue our own session cookie.
 
-const { sign, verify, setCookieHeader } = require('../../lib/sessionCookie');
+const { sign, verify, setCookieHeader } = require('../../../lib/sessionCookie');
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;

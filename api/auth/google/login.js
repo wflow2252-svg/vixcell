@@ -4,7 +4,7 @@
 // We pass a one-time `state` value (signed) so the callback can detect CSRF.
 
 const crypto = require('crypto');
-const { sign } = require('../../lib/sessionCookie');
+const { sign } = require('../../../lib/sessionCookie');
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 

@@ -1,6 +1,6 @@
 // Returns the currently signed-in user from the session cookie, or null.
 
-const { getSession } = require('../lib/sessionCookie');
+const { getSession } = require('../../lib/sessionCookie');
 
 module.exports = (req, res) => {
   const session = getSession(req);

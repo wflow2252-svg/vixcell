@@ -1,5 +1,5 @@
-const { verifyCron } = require('../lib/auth');
-const { runDailyPost } = require('../lib/dailyPost');
+const { verifyCron } = require('../../lib/auth');
+const { runDailyPost } = require('../../lib/dailyPost');
 
 module.exports = async (req, res) => {
   const auth = verifyCron(req);

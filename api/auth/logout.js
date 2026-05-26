@@ -1,6 +1,6 @@
 // Clears the session cookie and redirects home.
 
-const { clearCookieHeader } = require('../lib/sessionCookie');
+const { clearCookieHeader } = require('../../lib/sessionCookie');
 
 module.exports = (req, res) => {
   res.setHeader('Set-Cookie', clearCookieHeader());

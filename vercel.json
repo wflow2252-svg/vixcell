@@ -8,13 +8,13 @@
     { "src": "/(.*)", "dest": "/index.html" }
   ],
   "functions": {
-    "api/cron/daily-post-ar.js": { "maxDuration": 60 },
-    "api/cron/daily-post-en.js": { "maxDuration": 60 },
-    "api/cron/market-analysis.js": { "maxDuration": 60 },
-    "api/auth/google/login.js": { "maxDuration": 10 },
-    "api/auth/google/callback.js": { "maxDuration": 10 },
-    "api/auth/me.js": { "maxDuration": 10 },
-    "api/auth/logout.js": { "maxDuration": 10 }
+    "api/cron/daily-post-ar.js":     { "maxDuration": 60, "includeFiles": "lib/**" },
+    "api/cron/daily-post-en.js":     { "maxDuration": 60, "includeFiles": "lib/**" },
+    "api/cron/market-analysis.js":   { "maxDuration": 60, "includeFiles": "lib/**" },
+    "api/auth/google/login.js":      { "maxDuration": 10, "includeFiles": "lib/**" },
+    "api/auth/google/callback.js":   { "maxDuration": 10, "includeFiles": "lib/**" },
+    "api/auth/me.js":                { "maxDuration": 10, "includeFiles": "lib/**" },
+    "api/auth/logout.js":            { "maxDuration": 10, "includeFiles": "lib/**" }
   },
   "crons": [
     { "path": "/api/cron/daily-post-ar", "schedule": "0 8 * * *" },

@@ -1,5 +1,5 @@
-const { verifyCron } = require('../lib/auth');
-const { runMarketAnalysis } = require('../lib/market');
+const { verifyCron } = require('../../lib/auth');
+const { runMarketAnalysis } = require('../../lib/market');
 
 module.exports = async (req, res) => {
   const auth = verifyCron(req);
