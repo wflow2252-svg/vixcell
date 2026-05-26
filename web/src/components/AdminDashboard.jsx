@@ -3,6 +3,7 @@ import { signInWithGoogle, signOut, onAuthChange } from '../services/supabase'
 import { listAll, markRead, remove, isAdmin, ADMIN_EMAILS } from '../services/submissions'
 import DotPixelIcon from './DotPixelIcon'
 import SocialAgent from './SocialAgent'
+import BrandSettings from './BrandSettings'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
@@ -187,10 +188,18 @@ function AdminView({ user, onBack }) {
         >
           🤖 Social Agent
         </button>
+        <button
+          onClick={() => setActiveTab('brand')}
+          style={{ ...styles.tab, ...(activeTab === 'brand' ? styles.tabActive : {}) }}
+        >
+          🎨 Brand
+        </button>
       </div>
 
       {activeTab === 'social' ? (
         <SocialAgent />
+      ) : activeTab === 'brand' ? (
+        <BrandSettings />
       ) : (
       <div style={styles.adminWrap}>
         <div style={styles.adminHeader}>

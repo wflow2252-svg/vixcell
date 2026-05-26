@@ -53,4 +53,94 @@ async function getRecentTopics({ language, days = 14, limit = 14 }) {
   return data || [];
 }
 
-module.exports = { client, uploadImage, logPost, saveMarketReport, getRecentTopics };
+// ─── Brand + campaign helpers ────────────────────────────────────
+
+async function getBrandConfig() {
+  const sb = client();
+  const { data, error } = await sb.from('brand_config').select('*').eq('id', true).maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function updateBrandConfig(patch) {
+  const sb = client();
+  const { data, error } = await sb
+    .from('brand_config')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', true)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function getCompetitors({ activeOnly = true } = {}) {
+  const sb = client();
+  let q = sb.from('competitors').select('*');
+  if (activeOnly) q = q.eq('is_active', true);
+  const { data, error } = await q.order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+// Returns the Monday of the week containing the given date (default: today),
+// as a "YYYY-MM-DD" string. Used as the natural key of the campaigns table.
+function thisWeekStart(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getUTCDay(); // 0 (Sun) - 6 (Sat)
+  const diff = (day + 6) % 7; // days since Monday
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
+
+async function getCurrentCampaign() {
+  const sb = client();
+  const weekStart = thisWeekStart();
+  const { data, error } = await sb
+    .from('campaigns')
+    .select('*')
+    .eq('week_start', weekStart)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function saveCampaign({ weekStart, theme, goal, keyMessages, strategyBody }) {
+  const sb = client();
+  const { data, error } = await sb
+    .from('campaigns')
+    .upsert({
+      week_start: weekStart || thisWeekStart(),
+      theme,
+      goal,
+      key_messages: keyMessages || [],
+      strategy_body: strategyBody,
+    }, { onConflict: 'week_start' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function downloadAsBuffer(url) {
+  if (!url) return null;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const ab = await res.arrayBuffer();
+  return Buffer.from(ab);
+}
+
+module.exports = {
+  client,
+  uploadImage,
+  logPost,
+  saveMarketReport,
+  getRecentTopics,
+  getBrandConfig,
+  updateBrandConfig,
+  getCompetitors,
+  getCurrentCampaign,
+  saveCampaign,
+  thisWeekStart,
+  downloadAsBuffer,
+};
