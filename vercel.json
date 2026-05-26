@@ -10,7 +10,11 @@
   "functions": {
     "api/cron/daily-post-ar.js": { "maxDuration": 60 },
     "api/cron/daily-post-en.js": { "maxDuration": 60 },
-    "api/cron/market-analysis.js": { "maxDuration": 60 }
+    "api/cron/market-analysis.js": { "maxDuration": 60 },
+    "api/auth/google/login.js": { "maxDuration": 10 },
+    "api/auth/me.js": { "maxDuration": 10 },
+    "api/auth/logout.js": { "maxDuration": 10 },
+    "api/__/auth/handler.js": { "maxDuration": 10 }
   },
   "crons": [
     { "path": "/api/cron/daily-post-ar", "schedule": "0 8 * * *" },
