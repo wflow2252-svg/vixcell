@@ -15,10 +15,5 @@
     "api/auth/google/callback.js":   { "maxDuration": 10, "includeFiles": "lib/**" },
     "api/auth/me.js":                { "maxDuration": 10, "includeFiles": "lib/**" },
     "api/auth/logout.js":            { "maxDuration": 10, "includeFiles": "lib/**" }
-  },
-  "crons": [
-    { "path": "/api/cron/daily-post-ar", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/daily-post-en", "schedule": "0 18 * * *" },
-    { "path": "/api/cron/market-analysis", "schedule": "0 6 * * 0" }
-  ]
+  }
 }
