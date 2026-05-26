@@ -1,41 +1,153 @@
-// Post-processes a generated image: composites the brand logo into a corner,
-// applies a subtle brand-color border, and re-encodes as PNG.
+// Builds a professional 1080×1080 social poster from a Gemini-generated
+// background. Composites:
+//   • Dark gradient at the bottom for text legibility
+//   • Large Arabic headline (3-5 words)
+//   • Smaller subheading line
+//   • Event badge (top-left) if it's a holiday
+//   • Brand logo (bottom-right)
+//   • Brand-color frame
 //
-// Pure best-effort — if anything fails (no sharp, missing logo, etc.) we
-// fall back to the original buffer so the post still goes out.
+// Falls back to the original buffer if anything goes wrong so the post
+// still ships.
 
 const sharp = require('sharp');
 const { downloadAsBuffer } = require('./supabase');
 
-async function applyBrandFinish(buffer, { logoUrl, accent = '#c8a35c' } = {}) {
-  if (!buffer || !Buffer.isBuffer(buffer)) return buffer;
+const W = 1080;
+const H = 1080;
 
-  let img;
+// XML-safe escape — headlines come from Gemini and may contain & < > "
+function esc(s = '') {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// SVG overlay covering the full 1080×1080 frame
+function buildOverlaySVG({
+  headline,
+  subheading,
+  eventBadge,
+  eventMotif,
+  brandName,
+  accent = '#c8a35c',
+}) {
+  const headlineSafe   = esc(headline   || '');
+  const subheadingSafe = esc(subheading || '');
+  const brandSafe      = esc(brandName  || 'VIXCELL');
+
+  // Choose font sizes that look balanced at 1080×1080
+  const headlineSize    = headlineSafe.length > 24 ? 64 : 84;
+  const subheadingSize  = 28;
+  const badgeSize       = 22;
+  const brandWatermark  = 20;
+
+  const badge = eventBadge ? `
+    <g transform="translate(60, 60)">
+      <rect x="0" y="0" rx="22" ry="22" width="${(eventBadge.length * 16) + 80}" height="48"
+            fill="${accent}" opacity="0.95"/>
+      <text x="${((eventBadge.length * 16) + 80) / 2}" y="32"
+            font-family="Tahoma, 'Segoe UI', Arial, sans-serif"
+            font-size="${badgeSize}" font-weight="700" fill="#000"
+            text-anchor="middle" direction="rtl">${esc(eventMotif || '')} ${esc(eventBadge)}</text>
+    </g>` : '';
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="bottomFade" x1="0" y1="0.6" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#000000" stop-opacity="0"/>
+      <stop offset="60%"  stop-color="#000000" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Bottom gradient for headline legibility -->
+  <rect x="0" y="0" width="${W}" height="${H}" fill="url(#bottomFade)"/>
+
+  <!-- Brand-color frame -->
+  <rect x="8" y="8" width="${W - 16}" height="${H - 16}"
+        rx="40" ry="40"
+        fill="none" stroke="${accent}" stroke-width="6" opacity="0.9"/>
+
+  <!-- Event badge top-left if present -->
+  ${badge}
+
+  <!-- Headline + subheading bottom-center -->
+  <g transform="translate(${W / 2}, ${H - 220})">
+    <text x="0" y="0"
+          font-family="Tahoma, 'Segoe UI', 'Arial', sans-serif"
+          font-size="${headlineSize}" font-weight="800" fill="#ffffff"
+          text-anchor="middle" direction="rtl"
+          style="paint-order:stroke;stroke:#000;stroke-width:2;stroke-opacity:0.4;">
+      ${headlineSafe}
+    </text>
+    <text x="0" y="${headlineSize + 14}"
+          font-family="Tahoma, 'Segoe UI', 'Arial', sans-serif"
+          font-size="${subheadingSize}" font-weight="500" fill="${accent}"
+          text-anchor="middle" direction="rtl">
+      ${subheadingSafe}
+    </text>
+  </g>
+
+  <!-- Bottom-left brand wordmark (fallback if no logo image) -->
+  <text x="60" y="${H - 60}"
+        font-family="Tahoma, 'Segoe UI', Arial, sans-serif"
+        font-size="${brandWatermark}" font-weight="700" fill="#ffffff"
+        opacity="0.7" letter-spacing="3">${brandSafe.toUpperCase()}</text>
+</svg>`;
+}
+
+/**
+ * Composes a brand-finished poster from a raw background image.
+ *
+ * @param {Buffer} buffer  - the Gemini-generated background
+ * @param {Object} options - { headline, subheading, eventBadge, eventMotif,
+ *                            brandName, logoUrl, accent }
+ * @returns {Promise<Buffer>} - the finished PNG
+ */
+async function buildPoster(buffer, options = {}) {
+  if (!buffer || !Buffer.isBuffer(buffer)) return buffer;
+  const {
+    headline = '',
+    subheading = '',
+    eventBadge,
+    eventMotif,
+    brandName = 'VIXCELL',
+    logoUrl,
+    accent = '#c8a35c',
+  } = options;
+
   try {
-    img = sharp(buffer);
-    const meta = await img.metadata();
-    const W = meta.width || 1024;
-    const H = meta.height || 1024;
+    // 1. Resize background to a 1:1 1080×1080 canvas
+    const bg = await sharp(buffer)
+      .resize(W, H, { fit: 'cover', position: 'attention' })
+      .toBuffer();
 
     const composites = [];
 
-    // 1. Logo in the bottom-right corner if we have one.
+    // 2. The text + frame overlay
+    const overlay = buildOverlaySVG({ headline, subheading, eventBadge, eventMotif, brandName, accent });
+    composites.push({ input: Buffer.from(overlay), top: 0, left: 0 });
+
+    // 3. Logo in the bottom-right
     if (logoUrl) {
       try {
         const logoBuf = await downloadAsBuffer(logoUrl);
         if (logoBuf) {
-          // Size logo to ~12% of the image's shorter side, capped at 200px.
-          const target = Math.min(Math.round(Math.min(W, H) * 0.12), 200);
+          const target = 140;
           const logoResized = await sharp(logoBuf)
             .resize({ width: target, height: target, fit: 'inside' })
             .png()
             .toBuffer();
-          const logoMeta = await sharp(logoResized).metadata();
-          const margin = Math.round(Math.min(W, H) * 0.03);
+          const meta = await sharp(logoResized).metadata();
           composites.push({
             input: logoResized,
-            top:  H - (logoMeta.height || target) - margin,
-            left: W - (logoMeta.width  || target) - margin,
+            top:  H - (meta.height || target) - 50,
+            left: W - (meta.width  || target) - 50,
           });
         }
       } catch (e) {
@@ -43,25 +155,17 @@ async function applyBrandFinish(buffer, { logoUrl, accent = '#c8a35c' } = {}) {
       }
     }
 
-    // 2. Thin accent border so posts feel like a series.
-    try {
-      const border = Math.max(4, Math.round(Math.min(W, H) * 0.005));
-      const svg = `<svg width="${W}" height="${H}">
-        <rect x="${border/2}" y="${border/2}"
-              width="${W - border}" height="${H - border}"
-              fill="none" stroke="${accent}" stroke-width="${border}"
-              rx="${border * 4}" ry="${border * 4}" opacity="0.8" />
-      </svg>`;
-      composites.push({ input: Buffer.from(svg), top: 0, left: 0 });
-    } catch (_) {}
-
-    if (composites.length === 0) return buffer;
-
-    return await sharp(buffer).composite(composites).png().toBuffer();
+    return await sharp(bg).composite(composites).png({ quality: 92 }).toBuffer();
   } catch (e) {
-    console.warn('[image] sharp processing failed, returning original:', e.message);
+    console.warn('[image] poster composition failed, returning original:', e.message);
     return buffer;
   }
 }
 
-module.exports = { applyBrandFinish };
+// Back-compat — older recipes call applyBrandFinish; route it to buildPoster
+// with minimal options (no headline).
+async function applyBrandFinish(buffer, opts = {}) {
+  return buildPoster(buffer, { ...opts, headline: opts.headline || '', subheading: opts.subheading || '' });
+}
+
+module.exports = { buildPoster, applyBrandFinish };

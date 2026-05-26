@@ -1,9 +1,14 @@
-// Daily post recipe — brand-aware, campaign-aware version.
+// Brand-aware, campaign-aware, event-aware daily post.
 //
-// Loads brand_config + current week's campaign + the last 14 posts, builds
-// a rich prompt for Gemini, scrapes the response, generates an image,
-// composites the brand logo onto it, uploads everything to Supabase, and
-// (optionally) posts to Facebook.
+//   1. Load brand_config, current campaign, last 14 posts, upcoming events.
+//   2. If an event falls within 2 days AND is "greeting"-eligible, switch to
+//      a holiday-greeting post (overrides the campaign theme).
+//   3. Otherwise, follow the campaign theme.
+//   4. Ask Gemini for: TOPIC, HEADLINE (3-5 Arabic words for the image),
+//      SUBHEADING (one line), CAPTION (60-100 words), HASHTAGS, IMAGE_PROMPT.
+//   5. Generate the background via Gemini.
+//   6. Compose a proper 1080×1080 poster with headline + logo + brand frame.
+//   7. Upload, log, post to Facebook.
 
 const { sendPrompt, newConversation } = require('../lib/gemini-web');
 const {
@@ -14,7 +19,8 @@ const {
   getCurrentCampaign,
 } = require('../lib/supabase');
 const { postToFacebook } = require('../lib/meta');
-const { applyBrandFinish } = require('../lib/image');
+const { buildPoster } = require('../lib/image');
+const { getNextEvent, describeToday } = require('../lib/events');
 
 function fmtServices(services) {
   if (!services) return '(غير محدد)';
@@ -22,80 +28,105 @@ function fmtServices(services) {
   return String(services);
 }
 
-function buildPrompt({ language, brand, campaign, recent }) {
+function buildPrompt({ language, brand, campaign, recent, event, today }) {
   const isAr = language === 'ar';
   const recentList = recent.length
     ? recent.map((r) => `- ${r.topic}`).join('\n')
     : (isAr ? '- (مفيش بوستات قبل كده)' : '- (no previous posts)');
 
-  const campaignBlock = campaign
+  // Event block — only when an event is within 2 days AND eligible for greeting
+  const eventBlock = (event && event.daysUntil <= 2 && event.greeting)
+    ? (isAr
+        ? `🌟 مناسبة قريبة (مهمة جداً):
+- الاسم: ${event.name_ar}
+- بُعد: ${event.daysUntil === 0 ? 'اليوم' : event.daysUntil === 1 ? 'بكرا' : `بعد ${event.daysUntil} يوم`}
+- النوع: ${event.type}
+- اكتب بوست تهنئة بسيط، أنيق، يحط البراند في ملاحظة في الآخر — مش بوست مبيعات`
+        : `🌟 Upcoming event (high priority):
+- Name: ${event.name_en}
+- In: ${event.daysUntil} day(s)
+- Type: ${event.type}
+- Write a tasteful greeting post — brand mention soft at the end, NOT a sales pitch`)
+    : '';
+
+  // Campaign block (only used when no event override)
+  const campaignBlock = !eventBlock && campaign
     ? (isAr
         ? `🎯 ثيمة الأسبوع: ${campaign.theme}
-الهدف: ${campaign.goal || '(غير محدد)'}
-الرسائل المفتاحية: ${(campaign.key_messages || []).join('، ') || '(غير محدد)'}`
+الهدف: ${campaign.goal || '—'}
+الرسائل المفتاحية: ${(campaign.key_messages || []).join('، ') || '—'}`
         : `🎯 This week's theme: ${campaign.theme}
-Goal: ${campaign.goal || '(unspecified)'}
-Key messages: ${(campaign.key_messages || []).join(', ') || '(unspecified)'}`)
-    : (isAr
-        ? `🎯 ثيمة الأسبوع: مفيش حملة محددة — اختار موضوع متعلق بخدمات ${brand?.brand_name || 'VIXCELL'}`
-        : `🎯 This week's theme: no campaign set — pick a topic relevant to ${brand?.brand_name || 'VIXCELL'}'s services`);
+Goal: ${campaign.goal || '—'}
+Key messages: ${(campaign.key_messages || []).join(', ') || '—'}`)
+    : (!eventBlock
+        ? (isAr
+            ? `🎯 مفيش حملة محددة الأسبوع ده — اختار موضوع مفيد متعلق بخدمات ${brand?.brand_name || 'VIXCELL'}`
+            : `🎯 No campaign this week — pick a useful topic relevant to ${brand?.brand_name || 'VIXCELL'}'s services`)
+        : '');
+
+  const dateBlock = isAr
+    ? `📅 اليوم: ${today.arabic_full}${today.isWeekend ? ' (إجازة نهاية الأسبوع)' : ''}`
+    : `📅 Today: ${today.english_full}${today.isWeekend ? ' (weekend)' : ''}`;
 
   if (isAr) {
-    return `أنت كاتب محتوى محترف لـ ${brand?.brand_name || 'VIXCELL'}.
+    return `أنت كاتب محتوى محترف لـ ${brand?.brand_name || 'VIXCELL'} (استوديو ديجيتال في مصر).
+
+${dateBlock}
 
 📌 الـ Brand:
 - الاسم: ${brand?.brand_name || 'VIXCELL'}
 - الـ tagline: ${brand?.tagline || '—'}
-- الوصف: ${brand?.description || '—'}
 - الخدمات: ${fmtServices(brand?.services)}
-- الجمهور المستهدف: ${brand?.target_audience || '—'}
-- النبرة: ${brand?.tone || 'احترافية، حادة، عملية'}
-- الموقع: ${brand?.website || 'vixcell.com'}
+- الجمهور: ${brand?.target_audience || 'أصحاب البزنس في مصر'}
+- النبرة: ${brand?.tone || 'احترافية، عملية، بدون إيموجي زيادة'}
 
+${eventBlock}
 ${campaignBlock}
 
-⚠️ المواضيع اللي اتعملت آخر ١٤ يوم (تجنّبها):
+⚠️ تجنّب المواضيع دي (اتعملت آخر ١٤ يوم):
 ${recentList}
 
 🎬 المهمة:
-اكتب بوست عربي قصير لـ Facebook (٦٠-٩٠ كلمة) يجذب أصحاب البزنس في مصر والشرق الأوسط، متماشي مع ثيمة الأسبوع.
+اكتب بوست عربي احترافي لـ Facebook. مهم جداً تكون الـ HEADLINE قصيرة (٣-٥ كلمات) لأنها هتتكتب على الصورة بخط كبير.
 
-اكتب الرد بالشكل ده بالظبط (مفيش حاجة قبله أو بعده):
+اكتب الرد بالشكل ده بالظبط — مفيش حاجة قبله أو بعده، مفيش markdown:
 
-TOPIC: <كلمتين عن الموضوع بالإنجليزي للـ tag>
-HOOK: <جملة افتتاح قوية، ٨-١٢ كلمة>
-CAPTION: <البوست هنا — هوك في الأول + معلومة قيمة + CTA ناعمة في الآخر تذكر ${brand?.brand_name || 'VIXCELL'}>
-HASHTAGS: <٦-٨ هاشتاجات مفصولة بمسافة، خليط عربي وإنجليزي>
-IMAGE_PROMPT: <prompt احترافي بالإنجليزي للصورة — clean modern, brand-safe, no text in image, square 1:1، يعكس ثيمة الأسبوع ولون البراند الأساسي ${brand?.brand_colors?.primary || '#c8a35c'} على خلفية داكنة>`;
+TOPIC: <كلمتين بالإنجليزي للـ tag>
+HEADLINE: <٣-٥ كلمات عربي — العنوان اللي هيتكتب على الصورة، قوي ومباشر>
+SUBHEADING: <جملة واحدة عربي قصيرة، تحت العنوان على الصورة>
+CAPTION: <البوست كامل ٦٠-١٠٠ كلمة، يبدأ بهوك قوي، فيه قيمة فعلية، CTA ناعمة في الآخر>
+HASHTAGS: <٦-٨ هاشتاجات مفصولة بمسافة>
+IMAGE_PROMPT: <prompt إنجليزي للصورة — modern professional photography or 3D abstract, dark elegant background with ${brand?.brand_colors?.primary || '#c8a35c'} accents, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en}` : 'reflecting the post topic'}, NO text in image, leave bottom 40% emptier for text overlay, premium quality, 1:1 square>`;
   }
 
-  // English
-  return `You are a content writer for ${brand?.brand_name || 'VIXCELL'}.
+  return `You are a content writer for ${brand?.brand_name || 'VIXCELL'} (digital studio in Egypt).
+
+${dateBlock}
 
 📌 Brand:
 - Name: ${brand?.brand_name || 'VIXCELL'}
 - Tagline: ${brand?.tagline || '—'}
-- Description: ${brand?.description || '—'}
 - Services: ${fmtServices(brand?.services)}
-- Target audience: ${brand?.target_audience || '—'}
+- Audience: ${brand?.target_audience || 'business owners in Egypt/MENA'}
 - Tone: ${brand?.tone || 'confident, sharp, modern, no emoji spam'}
-- Website: ${brand?.website || 'vixcell.com'}
 
+${eventBlock}
 ${campaignBlock}
 
-⚠️ Previously covered (avoid repeating):
+⚠️ Avoid these topics (covered in last 14 days):
 ${recentList}
 
 🎬 Task:
-Write a short English Facebook post (60-90 words) for business owners in Egypt/MENA, aligned with this week's theme.
+Write a professional English Facebook post. IMPORTANT: HEADLINE must be 3-5 words because it goes on the image as large text.
 
-Reply in EXACTLY this format (nothing else):
+Reply in EXACTLY this format — nothing before/after, no markdown:
 
-TOPIC: <two words about the topic>
-HOOK: <strong opening, 8-12 words>
-CAPTION: <hook + valuable insight + soft CTA mentioning ${brand?.brand_name || 'VIXCELL'} at the end>
+TOPIC: <two-word tag>
+HEADLINE: <3-5 words — bold image headline>
+SUBHEADING: <one short line, sits under headline on image>
+CAPTION: <full 60-100 word post: strong hook, real value, soft CTA at the end>
 HASHTAGS: <6-8 hashtags separated by spaces>
-IMAGE_PROMPT: <professional image prompt — clean modern, brand-safe, no text in image, square 1:1, reflects this week's theme and the brand's primary color ${brand?.brand_colors?.primary || '#c8a35c'} on a dark background>`;
+IMAGE_PROMPT: <English image prompt — modern professional photography or 3D abstract, dark elegant background with ${brand?.brand_colors?.primary || '#c8a35c'} accents, ${event?.daysUntil <= 2 && event?.greeting ? `themed around ${event.name_en}` : 'reflecting the post topic'}, NO text in image, leave bottom 40% emptier for text overlay, premium quality, 1:1 square>`;
 }
 
 function parseResponse(text) {
@@ -105,7 +136,8 @@ function parseResponse(text) {
   };
   return {
     topic:       grab('TOPIC'),
-    hook:        grab('HOOK'),
+    headline:    grab('HEADLINE'),
+    subheading:  grab('SUBHEADING'),
     caption:     grab('CAPTION'),
     hashtags:    grab('HASHTAGS').split(/\s+/).filter(Boolean),
     imagePrompt: grab('IMAGE_PROMPT'),
@@ -113,40 +145,53 @@ function parseResponse(text) {
 }
 
 async function run({ language, log = console.log }) {
-  log(`[${language}] Loading brand config + current campaign…`);
+  const today = describeToday();
+  const event = getNextEvent({ daysAhead: 5 });
+  log(`[${language}] ${today.arabic_full}${event ? ` · next event: ${event.name_ar} (in ${event.daysUntil}d)` : ' · no upcoming events'}`);
+
+  log(`[${language}] Loading brand + campaign + recent posts…`);
   const [brand, campaign, recent] = await Promise.all([
     getBrandConfig(),
     getCurrentCampaign(),
     getRecentTopics({ language, days: 14, limit: 14 }),
   ]);
-  log(`[${language}] Brand: ${brand?.brand_name || '(none)'} · Campaign: ${campaign?.theme || '(no campaign — generic post)'} · Recent: ${recent.length}`);
+  log(`[${language}] Brand: ${brand?.brand_name || '(none)'} · Campaign: ${campaign?.theme || '(none)'} · Recent: ${recent.length}`);
 
-  log(`[${language}] Asking Gemini for caption + image prompt…`);
+  log(`[${language}] Asking Gemini for headline + caption + image prompt…`);
   await newConversation();
-  const step1 = await sendPrompt(buildPrompt({ language, brand, campaign, recent }), { onLog: log });
+  const step1 = await sendPrompt(
+    buildPrompt({ language, brand, campaign, recent, event, today }),
+    { onLog: log }
+  );
   const parsed = parseResponse(step1.text);
   if (!parsed.caption || !parsed.imagePrompt) {
     throw new Error(`Gemini response didn't match expected format. Got: ${step1.text.slice(0, 500)}`);
   }
-  log(`[${language}] Topic: ${parsed.topic} · Hook: ${parsed.hook.slice(0, 60)}…`);
+  log(`[${language}] Topic: ${parsed.topic} · Headline: "${parsed.headline}"`);
 
-  log(`[${language}] Asking Gemini to generate the image…`);
+  log(`[${language}] Asking Gemini to generate the background image…`);
   const step2 = await sendPrompt(`Generate an image: ${parsed.imagePrompt}`, { onLog: log });
 
   let imageUrl = null;
   if (step2.images.length > 0) {
     const raw = step2.images[0];
-    log(`[${language}] Applying brand finish (logo + accent border)…`);
-    const branded = await applyBrandFinish(raw.buffer, {
-      logoUrl: brand?.logo_url,
-      accent: brand?.brand_colors?.primary || '#c8a35c',
+    log(`[${language}] Composing professional poster (headline + logo + frame)…`);
+    const useEventBadge = event && event.daysUntil <= 2 && event.greeting;
+    const branded = await buildPoster(raw.buffer, {
+      headline:   parsed.headline,
+      subheading: parsed.subheading,
+      eventBadge: useEventBadge ? (language === 'ar' ? event.name_ar : event.name_en) : null,
+      eventMotif: useEventBadge ? event.motif : null,
+      brandName:  brand?.brand_name || 'VIXCELL',
+      logoUrl:    brand?.logo_url,
+      accent:     brand?.brand_colors?.primary || '#c8a35c',
     });
     const slug = `${language}-${(parsed.topic || 'post').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}.png`;
-    log(`[${language}] Uploading branded image to Supabase (${slug})…`);
+    log(`[${language}] Uploading composed poster to Supabase (${slug})…`);
     imageUrl = await uploadImage(branded, slug, 'image/png');
     log(`[${language}] Image URL: ${imageUrl}`);
   } else {
-    log(`[${language}] ⚠️ Gemini didn't return an image. Continuing with text-only post.`);
+    log(`[${language}] ⚠️ Gemini didn't return an image. Continuing text-only.`);
   }
 
   const fullCaption = parsed.hashtags.length
@@ -185,8 +230,10 @@ async function run({ language, log = console.log }) {
   return {
     language,
     topic: parsed.topic,
+    headline: parsed.headline,
     caption: fullCaption,
     imageUrl,
+    event: event?.name_ar || null,
     campaign: campaign?.theme || null,
     facebook: fbResult,
   };
