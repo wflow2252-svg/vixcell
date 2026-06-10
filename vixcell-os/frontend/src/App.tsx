@@ -1,0 +1,122 @@
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
+import { useAuthStore, useAppStore } from '@/store'
+import { authAPI } from '@/api/client'
+
+import Layout from '@/components/Layout'
+import LoginPage from '@/pages/LoginPage'
+import SetupWizardPage from '@/pages/SetupWizardPage'
+import DashboardPage from '@/pages/DashboardPage'
+import LeadsPage from '@/pages/LeadsPage'
+import CRMPage from '@/pages/CRMPage'
+import SocialPage from '@/pages/SocialPage'
+import ContentPage from '@/pages/ContentPage'
+import AnalyticsPage from '@/pages/AnalyticsPage'
+import SettingsPage from '@/pages/SettingsPage'
+import AIModelsPage from '@/pages/AIModelsPage'
+import KnowledgePage from '@/pages/KnowledgePage'
+import FlowBuilderPage from '@/pages/FlowBuilderPage'
+
+type AppStatus = 'loading' | 'setup' | 'login' | 'ready'
+
+export default function App() {
+  const [status, setStatus] = useState<AppStatus>('loading')
+  const { isAuthenticated, loadUser } = useAuthStore()
+  const { language } = useAppStore()
+
+  useEffect(() => {
+    // Apply language direction
+    document.documentElement.setAttribute('dir', language === 'ar' ? 'rtl' : 'ltr')
+    document.documentElement.setAttribute('lang', language)
+  }, [language])
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const res = await authAPI.wizardStatus()
+        if (res.data.setup_required) {
+          setStatus('setup')
+          return
+        }
+        if (isAuthenticated) {
+          await loadUser()
+          setStatus('ready')
+        } else {
+          setStatus('login')
+        }
+      } catch {
+        // Backend not yet available — show login
+        setStatus(isAuthenticated ? 'ready' : 'login')
+      }
+    }
+    init()
+  }, [])
+
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-screen bg-surface-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-brand-gradient flex items-center justify-center shadow-glow-lg animate-pulse">
+            <span className="text-2xl font-black text-white">V</span>
+          </div>
+          <div className="flex gap-1">
+            {[0,1,2].map(i => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full bg-brand-500"
+                style={{ animation: `bounce 1s infinite ${i * 0.15}s` }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <BrowserRouter>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#1a1a35',
+            color: '#e2e8f0',
+            border: '1px solid rgba(99,102,241,0.2)',
+            borderRadius: '12px',
+          },
+        }}
+      />
+
+      <Routes>
+        {status === 'setup' && (
+          <Route path="*" element={<SetupWizardPage onComplete={() => setStatus('ready')} />} />
+        )}
+
+        {status === 'login' && (
+          <>
+            <Route path="/login" element={<LoginPage onLogin={() => setStatus('ready')} />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </>
+        )}
+
+        {status === 'ready' && (
+          <Route element={<Layout />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/leads" element={<LeadsPage />} />
+            <Route path="/crm" element={<CRMPage />} />
+            <Route path="/social" element={<SocialPage />} />
+            <Route path="/content" element={<ContentPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/knowledge" element={<KnowledgePage />} />
+            <Route path="/flows" element={<FlowBuilderPage />} />
+            <Route path="/ai-models" element={<AIModelsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Route>
+        )}
+      </Routes>
+    </BrowserRouter>
+  )
+}

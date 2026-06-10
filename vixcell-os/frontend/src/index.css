@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --brand: #6366f1;
+  --brand-dark: #4f46e5;
+  --bg: #0b0d12;
+  --panel: #11141b;
+  --card: #161a23;
+  --elev: #1c212c;
+  --line: #232936;
+  --line-soft: #1a1f29;
+}
+
+html { font-family: 'Inter Variable', system-ui, sans-serif; }
+html[dir="rtl"] { font-family: 'Cairo Variable', system-ui, sans-serif; }
+body {
+  background: var(--bg);
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Material Symbols sizing helper — pair with the Icon component */
+.material-symbols-rounded {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2e3645; border-radius: 4px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: #3a4356; }
+
+@layer components {
+  /* Cards — flat, crisp borders, no glassy haze */
+  .glass-card {
+    @apply bg-surface-700 border border-line rounded-xl;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 rounded-lg font-semibold text-sm text-white transition-colors duration-150;
+    background: var(--brand);
+  }
+  .btn-primary:hover { background: var(--brand-dark); }
+  .btn-primary:active { filter: brightness(0.92); }
+  .btn-primary:disabled { @apply opacity-50 cursor-not-allowed; }
+
+  .btn-ghost {
+    @apply px-4 py-2 rounded-lg font-medium text-sm text-slate-300 border border-line bg-surface-600/40 hover:text-white hover:bg-surface-600 transition-colors duration-150;
+  }
+
+  .btn-danger {
+    @apply px-4 py-2 rounded-lg font-semibold text-sm text-white bg-red-600 hover:bg-red-700 transition-colors duration-150;
+  }
+
+  .input-field {
+    @apply w-full px-3 py-2 rounded-lg text-sm text-white border border-line bg-surface-800 outline-none transition-colors duration-150;
+  }
+  .input-field:focus { @apply border-brand-500; box-shadow: 0 0 0 3px rgba(99,102,241,0.18); }
+  .input-field::placeholder { @apply text-slate-500; }
+
+  .stat-card {
+    @apply glass-card p-5 flex flex-col gap-2;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors duration-150 text-slate-400 hover:text-slate-100 hover:bg-surface-600/60;
+  }
+  .sidebar-item.active {
+    @apply text-white bg-surface-600;
+    border-inline-start: 2px solid var(--brand);
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold;
+  }
+  .badge-green  { @apply badge bg-emerald-500/15 text-emerald-400; }
+  .badge-yellow { @apply badge bg-amber-500/15 text-amber-400; }
+  .badge-red    { @apply badge bg-red-500/15 text-red-400; }
+  .badge-blue   { @apply badge bg-blue-500/15 text-blue-400; }
+  .badge-purple { @apply badge bg-purple-500/15 text-purple-400; }
+
+  .table-wrapper { @apply w-full overflow-x-auto rounded-xl; }
+  .data-table { @apply w-full text-sm; }
+  .data-table thead tr { @apply border-b border-line; }
+  .data-table thead th {
+    @apply px-4 py-3 text-start text-xs font-semibold text-slate-400 uppercase tracking-wider;
+  }
+  .data-table tbody tr { @apply border-b border-line-soft hover:bg-surface-600/40 transition-colors duration-100; }
+  .data-table tbody td { @apply px-4 py-3 text-slate-300; }
+
+  /* Electron titlebar drag regions */
+  .drag-region { -webkit-app-region: drag; }
+  .no-drag { -webkit-app-region: no-drag; }
+}
+
+/* ── Gradient text (logo accents only) ─────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Legacy orb class kept as no-op so old markup renders clean */
+.bg-orb { display: none; }

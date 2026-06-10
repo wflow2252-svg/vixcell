@@ -33,3 +33,6 @@ agy.exe
 .env.production
 .env.development
 .env.preview
+
+# Vixcell AI OS runtime storage (database, AI models, uploads)
+VixcellAI/
