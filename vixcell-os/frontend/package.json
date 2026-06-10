@@ -64,7 +64,6 @@
     },
     "win": {
       "target": [
-        "nsis",
         "portable"
       ],
       "icon": "public/icon.ico"
@@ -80,7 +79,6 @@
         "to": "backend",
         "filter": [
           "**/*",
-          "!venv/**/*",
           "!__pycache__/**/*",
           "!.pytest_cache/**/*",
           "!tests/**/*"
