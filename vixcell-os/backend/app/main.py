@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.database import engine, Base
-from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai
+from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice
 import logging
 
 # Initialize Logging
@@ -84,6 +84,7 @@ app.include_router(leads.router, prefix=f"{settings.API_V1_STR}/leads", tags=["L
 app.include_router(crm.router, prefix=f"{settings.API_V1_STR}/crm", tags=["CRM"])
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["Dashboard"])
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai", tags=["AI Engine"])
+app.include_router(voice.router, prefix=f"{settings.API_V1_STR}/voice", tags=["Voice AI"])
 
 
 @app.get("/health")

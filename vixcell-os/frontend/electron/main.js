@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, session } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 const crypto = require('crypto')
@@ -170,6 +170,11 @@ async function createWindow() {
 
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  // Voice assistant: auto-grant microphone for our local app only
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(permission === 'media' || permission === 'audioCapture')
+  })
+
   try {
     await startBackend()
   } catch (err) {

@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import TitleBar from './TitleBar'
 import Sidebar from './Sidebar'
+import VoiceAssistant from './VoiceAssistant'
 
 export default function Layout() {
   return (
@@ -17,6 +18,9 @@ export default function Layout() {
           </div>
         </main>
       </div>
+
+      {/* Voice assistant — available on every page */}
+      <VoiceAssistant />
     </div>
   )
 }

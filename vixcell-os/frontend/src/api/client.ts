@@ -107,6 +107,20 @@ export const dashboardAPI = {
   stats: () => api.get('/dashboard/stats'),
 }
 
+// ── Voice AI ──────────────────────────────────────────────────────────────────
+export const voiceAPI = {
+  status: () => api.get('/voice/status'),
+  transcribe: (blob: Blob) => {
+    const form = new FormData()
+    form.append('audio', blob, 'clip.webm')
+    return api.post('/voice/transcribe', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000, // first call downloads the Whisper model
+    })
+  },
+  command: (text: string) => api.post('/voice/command', { text }),
+}
+
 // ── AI Engine ─────────────────────────────────────────────────────────────────
 export const aiAPI = {
   status: () => api.get('/ai/status'),
