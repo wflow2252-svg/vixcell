@@ -144,8 +144,27 @@ async function createWindow() {
       webSecurity: !isDev,
     },
     show: false,
-    icon: path.join(__dirname, '..', 'public', 'icon.png'),
   })
+
+  // Surface load failures instead of hanging invisibly
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) =>
+    console.error(`[Electron] Page failed to load: ${code} ${desc} ${url}`))
+  mainWindow.webContents.on('render-process-gone', (_e, details) =>
+    console.error('[Electron] Renderer gone:', details.reason))
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
+    mainWindow.focus()
+  })
+
+  // Failsafe: never leave the user with an invisible app if ready-to-show
+  // is delayed or skipped (observed with packaged file:// loads)
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      console.warn('[Electron] ready-to-show timeout — forcing window visible')
+      mainWindow.show()
+    }
+  }, 4000)
 
   if (isDev) {
     await mainWindow.loadURL('http://localhost:5173')
@@ -153,11 +172,6 @@ async function createWindow() {
   } else {
     await mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show()
-    mainWindow.focus()
-  })
 
   // Custom window controls via IPC
   ipcMain.on('window-minimize', () => mainWindow?.minimize())
@@ -169,6 +183,21 @@ async function createWindow() {
 }
 
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
+// Single instance: a second launch focuses the existing window instead of
+// piling up hidden background processes
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      if (!mainWindow.isVisible()) mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
+
 app.whenReady().then(async () => {
   // Voice assistant: auto-grant microphone for our local app only
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {

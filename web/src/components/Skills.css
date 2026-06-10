@@ -1,0 +1,145 @@
+.skills-section {
+  padding: 6rem 0;
+  background: #0A0A0A; /* Dark mode background flow */
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.skills-section .container {
+  position: relative;
+  z-index: 2;
+}
+
+.skills-header {
+  text-align: center;
+  margin-bottom: 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.skills-tagline {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #FF6B00; /* Vixcell branding orange */
+  text-transform: uppercase;
+  margin-bottom: 0.8rem;
+  display: block;
+}
+
+.skills-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.skills-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(0.95rem, 1.2vw, 1.1rem);
+  color: rgba(255, 255, 255, 0.6);
+  max-width: 600px;
+  line-height: 1.5;
+  text-align: center;
+  direction: rtl;
+}
+
+/* Compact Grid / Row Layout */
+.skills-container-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.skills-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Skill Item (Square + Label wrapper) */
+.skill-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Glassmorphic Small Square Card */
+.skill-square {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* Glow orb background */
+.skill-square::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: radial-gradient(circle at 50% 50%, var(--glow-color), transparent 70%);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover effects */
+.skill-square:hover {
+  transform: translateY(-8px) scale(1.08) rotate(3deg);
+  border-color: var(--brand-color);
+  box-shadow: 0 15px 35px var(--shadow-color), 0 0 0 1px var(--brand-color);
+}
+
+.skill-square:hover::before {
+  opacity: 1;
+}
+
+/* Official Logo Image styling */
+.skill-logo-img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,0.15));
+}
+
+.skill-square:hover .skill-logo-img {
+  transform: scale(1.12) rotate(-5deg);
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.25));
+}
+
+/* Label text below card */
+.skill-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  transition: color 0.3s ease;
+  letter-spacing: 0.02em;
+}
+
+.skill-item:hover .skill-label {
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(255,255,255,0.2);
+}

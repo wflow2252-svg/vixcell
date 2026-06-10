@@ -7,6 +7,8 @@ import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import Services from './components/Services'
 import Portfolio from './components/Portfolio'
+import MediaGallery from './components/MediaGallery'
+import Skills from './components/Skills'
 import AIDemo from './components/AIDemo'
 import LiveChat from './components/LiveChat'
 import ContactFooter from './components/ContactFooter'
@@ -121,6 +123,8 @@ function App() {
         <Hero onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} />
         <Services />
         <Portfolio onViewChange={setView} />
+        <MediaGallery />
+        <Skills />
         <AIDemo />
       </main>
 

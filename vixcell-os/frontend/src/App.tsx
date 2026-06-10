@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+// HashRouter: BrowserRouter breaks under file:// when packaged in Electron
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore, useAppStore } from '@/store'
 import { authAPI } from '@/api/client'
@@ -75,7 +76,7 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -117,6 +118,6 @@ export default function App() {
           </Route>
         )}
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   )
 }

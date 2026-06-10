@@ -11,22 +11,25 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.1",
+    "clsx": "2.1.1",
+    "fabric": "^5.3.0",
+    "framer-motion": "11.11.17",
+    "jszip": "3.10.1",
+    "lucide-react": "^1.17.0",
     "next": "14.2.34",
     "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "jszip": "3.10.1",
-    "framer-motion": "11.11.17",
-    "clsx": "2.1.1"
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "typescript": "5.6.3",
     "@types/node": "22.9.0",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
-    "tailwindcss": "3.4.14",
-    "postcss": "8.4.49",
     "autoprefixer": "10.4.20",
     "eslint": "8.57.1",
-    "eslint-config-next": "14.2.34"
+    "eslint-config-next": "14.2.34",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.14",
+    "typescript": "5.6.3"
   }
 }
