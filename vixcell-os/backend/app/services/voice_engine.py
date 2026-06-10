@@ -40,19 +40,19 @@ def get_model():
     with _model_lock:
         if _model is not None:
             return _model
+        import os
         from faster_whisper import WhisperModel
         download_root = str(Path(settings.MODEL_PATH) / "whisper")
-        size = settings.__dict__.get("WHISPER_MODEL") or WHISPER_SIZE
+        size = os.getenv("VIXCELL_WHISPER_MODEL", WHISPER_SIZE)
+        # CPU int8 by default: CUDA needs system cuBLAS/cuDNN DLLs that most
+        # machines lack, and the failure only surfaces at first encode.
+        # Opt in to GPU with VIXCELL_WHISPER_DEVICE=cuda.
+        device = os.getenv("VIXCELL_WHISPER_DEVICE", "cpu")
+        compute = "float16" if device == "cuda" else "int8"
         try:
-            # Try GPU first; fall back to CPU int8 (works everywhere)
-            try:
-                _model = WhisperModel(size, device="cuda", compute_type="float16",
-                                      download_root=download_root)
-                logger.info(f"Whisper '{size}' loaded on GPU")
-            except Exception:
-                _model = WhisperModel(size, device="cpu", compute_type="int8",
-                                      download_root=download_root)
-                logger.info(f"Whisper '{size}' loaded on CPU (int8)")
+            _model = WhisperModel(size, device=device, compute_type=compute,
+                                  download_root=download_root)
+            logger.info(f"Whisper '{size}' loaded on {device} ({compute})")
         except Exception as e:
             _model_error = str(e)
             raise
