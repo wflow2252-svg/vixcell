@@ -44,7 +44,9 @@ export default function ContentPage() {
           const m = await aiAPI.models()
           const names = m.data.models.map((x: any) => x.name)
           setModels(names)
-          if (names.length) setModel(names[0])
+          // Prefer instruct variants — thinking models are slow for content
+          const preferred = names.find((n: string) => n.includes('instruct')) || names[0]
+          if (preferred) setModel(preferred)
         } catch { /* models list optional */ }
       }
     }).catch(() => setAiRunning(false))

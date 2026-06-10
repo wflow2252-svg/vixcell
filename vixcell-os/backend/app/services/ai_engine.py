@@ -16,13 +16,19 @@ logger = logging.getLogger(__name__)
 OLLAMA_BASE = "http://127.0.0.1:11434"
 
 # Recommended catalog surfaced in the UI (name -> meta)
+# NOTE: the bare qwen3:4b tag is the *Thinking* variant which always emits
+# chain-of-thought and is slow for content tasks — prefer the Instruct tag.
 MODEL_CATALOG = [
-    {"name": "qwen3:4b",        "label": "Qwen3 4B",        "size": "2.6 GB", "languages": "Arabic + English", "good_for": "General assistant, content"},
+    {"name": "qwen3:4b-instruct-2507-q4_K_M", "label": "Qwen3 4B Instruct", "size": "2.5 GB", "languages": "Arabic + English", "good_for": "Fast content generation (recommended)"},
+    {"name": "qwen3:4b",        "label": "Qwen3 4B Thinking", "size": "2.6 GB", "languages": "Arabic + English", "good_for": "Step-by-step reasoning (slower)"},
     {"name": "qwen3:8b",        "label": "Qwen3 8B",        "size": "5.2 GB", "languages": "Arabic + English", "good_for": "Higher quality content"},
     {"name": "llama3.1:8b",     "label": "Llama 3.1 8B",    "size": "4.9 GB", "languages": "English (Arabic OK)", "good_for": "Reasoning, summaries"},
     {"name": "mistral:7b",      "label": "Mistral 7B",      "size": "4.1 GB", "languages": "English",          "good_for": "Fast drafting"},
     {"name": "deepseek-r1:8b",  "label": "DeepSeek R1 8B",  "size": "5.2 GB", "languages": "English + Arabic", "good_for": "Deep reasoning"},
 ]
+
+# Preferred default for generation when installed (instruct = no think blocks)
+PREFERRED_MODELS = ["qwen3:4b-instruct-2507-q4_K_M", "qwen3:4b"]
 
 # In-memory pull progress keyed by model name
 _pull_status: dict = {}
