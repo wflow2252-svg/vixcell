@@ -110,14 +110,31 @@ def pull_progress(name: str) -> dict:
         return _pull_status.get(name, {"status": "unknown", "done": False, "error": None})
 
 
+def _strip_think(text: str) -> str:
+    """Removes <think>...</think> reasoning blocks some models emit inline."""
+    if "</think>" in text:
+        text = text.split("</think>")[-1]
+    return text.strip()
+
+
 def chat(
     model: str,
     prompt: str,
     system: Optional[str] = None,
     temperature: float = 0.7,
-    timeout: float = 300.0,
+    timeout: float = 420.0,
+    # Generous cap: qwen3's template pre-opens a <think> block, so the model
+    # spends tokens reasoning before the closing tag and the real answer.
+    # _strip_think removes the reasoning; the cap must cover both parts.
+    max_tokens: int = 1400,
 ) -> str:
     """Single-turn chat completion. Raises httpx errors upward for the API layer."""
+    # Qwen3-family soft switch: appending /no_think to the system prompt
+    # disables chain-of-thought (the API-level "think" flag alone is not
+    # always honored), which cuts generation time dramatically on CPU.
+    if "qwen3" in model.lower():
+        system = f"{system or ''} /no_think".strip()
+
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -129,11 +146,14 @@ def chat(
             "model": model,
             "messages": messages,
             "stream": False,
-            "options": {"temperature": temperature},
-            # Qwen3 emits <think> blocks unless disabled
             "think": False,
+            # Cap output length and keep the model warm between requests —
+            # essential on modest hardware
+            "options": {"temperature": temperature, "num_predict": max_tokens},
+            "keep_alive": "30m",
         },
         timeout=timeout,
     )
     r.raise_for_status()
-    return (r.json().get("message") or {}).get("content", "").strip()
+    content = (r.json().get("message") or {}).get("content", "")
+    return _strip_think(content)
