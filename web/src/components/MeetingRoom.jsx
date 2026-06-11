@@ -235,6 +235,47 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
   const [camOn, setCamOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
 
+  const [activeMeetings, setActiveMeetings] = useState([])
+
+  useEffect(() => {
+    if (screen !== 'lobby') return
+    let active = true
+    async function loadActive() {
+      try {
+        const { data } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('type', 'active_meeting')
+          .eq('read', false)
+        if (active && data) {
+          const now = new Date()
+          const filtered = data.filter(m => {
+            const lastActive = new Date(m.metadata?.last_active || m.created_at)
+            return (now - lastActive) < 120000 // 2 minutes
+          })
+          setActiveMeetings(filtered)
+        }
+      } catch {}
+    }
+    loadActive()
+    const timer = setInterval(loadActive, 5000)
+    return () => { active = false; clearInterval(timer) }
+  }, [screen])
+
+  const handleSelectActive = useCallback((mId) => {
+    setJoinId(mId)
+    setMeetingId(mId)
+    if (isTabletMode) {
+      setClientName('Tablet')
+      setScreen('room')
+    } else if (isAdminMode) {
+      setScreen('pre')
+    } else {
+      setClientName(clientName || 'عميل')
+      setScreen('waiting')
+    }
+  }, [isTabletMode, isAdminMode, clientName])
+
   // Sync URL query params with active meeting room code
   useEffect(() => {
     if (meetingId && (screen === 'pre' || screen === 'room' || screen === 'waiting')) {
@@ -414,6 +455,8 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
       isTabletMode={isTabletMode} setIsTabletMode={setIsTabletMode}
       logoUrl={logoUrl}
       onViewChange={onViewChange}
+      activeMeetings={activeMeetings}
+      onSelectActive={handleSelectActive}
       onCreateMeeting={() => {
         setMeetingId(uid())
         if (isTabletMode) {
@@ -442,7 +485,7 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
    ADMIN LOBBY
 ═══════════════════════════════════════════════ */
 function AdminLobby({ adminName, setAdminName, clientName, setClientName, joinId, setJoinId,
-                 isAdminMode, setIsAdminMode, isTabletMode, setIsTabletMode, onCreateMeeting, onJoinMeeting, onOpenArchive, logoUrl, onViewChange }) {
+                 isAdminMode, setIsAdminMode, isTabletMode, setIsTabletMode, onCreateMeeting, onJoinMeeting, onOpenArchive, logoUrl, onViewChange, activeMeetings, onSelectActive }) {
   const [tab, setTab] = useState('new')
 
   return (
@@ -494,6 +537,32 @@ function AdminLobby({ adminName, setAdminName, clientName, setClientName, joinId
             جهاز لوحي
           </button>
         </div>
+
+        {/* Active Meetings List */}
+        {activeMeetings && activeMeetings.length > 0 && (
+          <div style={{ marginBottom: 20, padding: 14, background: 'rgba(26,115,232,0.05)', borderRadius: 14, border: '1px solid rgba(26,115,232,0.15)' }}>
+            <div style={{ color: C.blue, fontSize: 12, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontFamily: FONT }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, animation: 'recPulse 1.2s infinite' }} />
+              اجتماعات جارية حالياً (انقر للانضمام):
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {activeMeetings.map(m => (
+                <button key={m.name} onClick={() => onSelectActive(m.name)} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '10px 14px', background: C.bg3, border: `1px solid ${C.border}`,
+                  borderRadius: 10, cursor: 'pointer', textAlign: 'right', width: '100%',
+                  fontFamily: FONT, transition: 'all 0.2s', alignSelf: 'stretch'
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
+                    <span style={{ color: C.text, fontSize: 13, fontWeight: 700, fontFamily: FONT }}>اجتماع {m.metadata?.adminName || 'مضيف'}</span>
+                    <span style={{ color: C.text3, fontSize: 10, fontFamily: 'monospace' }}>كود: {m.name}</span>
+                  </div>
+                  <Icon name="chevron_left" size={18} style={{ color: C.blue }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Admin name */}
         {isAdminMode && !isTabletMode && (
@@ -687,6 +756,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const screenTrackRef = useRef(null)
   const [whiteboardActive, setWhiteboardActive] = useState(false)
   const [autoplayBlocked, setAutoplayBlocked] = useState(false)
+  const [videoFit, setVideoFit] = useState('contain')
 
   const toggleWhiteboard = useCallback((activeVal) => {
     const next = activeVal !== undefined ? activeVal : !whiteboardActive
@@ -1119,13 +1189,14 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
   /* ── WB init ── */
   useEffect(() => {
-    if (!whiteboardActive || !wbRef.current) return
+    const isTablet = displayName === 'Tablet' || isTabletMode
+    if ((!whiteboardActive && !isTablet) || !wbRef.current) return
     const c = wbRef.current
     c.width = c.offsetWidth; c.height = c.offsetHeight
     const ctx = c.getContext('2d')
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, c.width, c.height)
     ctxRef.current = ctx
-  }, [whiteboardActive])
+  }, [whiteboardActive, displayName, isTabletMode])
 
   /* ── Fullscreen ── */
   useEffect(() => {
@@ -1404,7 +1475,8 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 ref={remoteVideoRef}
                 autoPlay
                 playsInline
-                style={{ ...rm.mainVideo, display: remoteStream ? 'block' : 'none' }}
+                onDoubleClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
+                style={{ ...rm.mainVideo, objectFit: videoFit, display: remoteStream ? 'block' : 'none', cursor: 'pointer' }}
               />
               {autoplayBlocked && (
                 <button
@@ -1422,6 +1494,22 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 >
                   <Icon name="volume_up" size={20} />
                   <span>تفعيل الصوت والفيديو</span>
+                </button>
+              )}
+              {remoteStream && (
+                <button
+                  onClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
+                  style={{
+                    position: 'absolute', top: 20, left: 20,
+                    background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.1)',
+                    padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                    color: '#fff', cursor: 'pointer', fontFamily: FONT,
+                    display: 'flex', alignItems: 'center', gap: 6, zIndex: 10,
+                    transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                  }}
+                >
+                  <Icon name={videoFit === 'contain' ? 'zoom_in' : 'zoom_out'} size={16} />
+                  <span>{videoFit === 'contain' ? 'ملء الشاشة (تكبير)' : 'ملاءمة الشاشة (تصغير)'}</span>
                 </button>
               )}
               {remoteStream && (
@@ -1770,7 +1858,7 @@ function WaitingRoom({ meetingId, displayName, logoUrl, onAdmitted, onBack }) {
 /* ═══════════════════════════════════════════════
    CLIENT LOBBY
 ═══════════════════════════════════════════════ */
-function ClientLobby({ logoUrl, localStream, camOn, micOn, toggleCam, toggleMic, onJoin, onBack }) {
+function ClientLobby({ logoUrl, localStream, camOn, micOn, toggleCam, toggleMic, onJoin, onBack, activeMeetings }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState(() => {
     const queryParams = new URLSearchParams(window.location.search)
@@ -1840,6 +1928,31 @@ function ClientLobby({ logoUrl, localStream, camOn, micOn, toggleCam, toggleMic,
                 <label style={lob.label}>كود الاجتماع *</label>
                 <input value={code} onChange={e => setCode(e.target.value)}
                   placeholder="أدخل الكود الموجه لك" style={lob.input} dir="ltr" />
+              </div>
+            )}
+
+            {activeMeetings && activeMeetings.length > 0 && !hasCode && (
+              <div style={{ marginBottom: 10, padding: 12, background: 'rgba(52,168,83,0.05)', borderRadius: 12, border: '1px solid rgba(52,168,83,0.15)' }}>
+                <div style={{ color: C.green, fontSize: 12, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, fontFamily: FONT }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, animation: 'recPulse 1.2s infinite' }} />
+                  اجتماعات نشطة حالياً (انقر للاختيار):
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {activeMeetings.map(m => (
+                    <button key={m.name} onClick={() => setCode(m.name)} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 12px', background: C.bg3, border: `1px solid ${C.border}`,
+                      borderRadius: 8, cursor: 'pointer', textAlign: 'right', width: '100%',
+                      fontFamily: FONT
+                    }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
+                        <span style={{ color: C.text, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>اجتماع {m.metadata?.adminName || 'مضيف'}</span>
+                        <span style={{ color: C.text3, fontSize: 10, fontFamily: 'monospace' }}>كود: {m.name}</span>
+                      </div>
+                      <Icon name="chevron_left" size={16} style={{ color: C.green }} />
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
