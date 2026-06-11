@@ -68,7 +68,7 @@ const ProjectDetail = () => {
   };
 
   const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this project?')) {
+    if (window.confirm('هل أنت متأكد من رغبتك في حذف هذا المشروع نهائياً؟')) {
       try {
         await deleteProject(id);
         navigate('/projects');
@@ -80,17 +80,19 @@ const ProjectDetail = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full border-4 border-t-white border-b-white h-12 w-12"></div>
+      <div style={styles.loadingContainer}>
+        <div style={styles.spinner}></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="bg-red-500/20 border border-red-500/50 text-red-500 rounded-lg p-4 mb-6">
-          <p>{error}</p>
+      <div style={styles.errorContainer}>
+        <div style={styles.errorCard}>
+          <span className="material-symbols-rounded" style={styles.errorIcon}>error</span>
+          <h2 style={styles.errorTitle}>خطأ في تحميل بيانات المشروع</h2>
+          <p style={styles.errorText}>{error}</p>
         </div>
       </div>
     );
@@ -98,226 +100,259 @@ const ProjectDetail = () => {
 
   if (!project) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="text-white/50">Project not found.</p>
+      <div style={styles.errorContainer}>
+        <p style={{ color: '#6b6b75' }}>المشروع المطلوب غير موجود.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">{project.name}</h1>
-        <div className="flex space-x-3">
+    <div style={styles.wrapper}>
+      <div style={styles.headerSection}>
+        <div style={styles.titleArea}>
+          <button onClick={() => navigate('/projects')} style={styles.backBtn}>
+            <span className="material-symbols-rounded">arrow_forward</span>
+            <span>العودة للمشاريع</span>
+          </button>
+          <h2 style={styles.pageTitle}>{project.name}</h2>
+        </div>
+        <div style={styles.headerActions}>
           <button
             onClick={() => setEditing(!editing)}
-            className={`glass-button hover:glass-button px-4 py-2 rounded-lg text-sm font-medium text-white ${editing ? 'bg-white/20' : ''}`}
+            className="glass-button"
+            style={{
+              ...styles.editBtn,
+              borderColor: editing ? 'var(--gold)' : 'rgba(255,255,255,0.08)',
+              backgroundColor: editing ? 'var(--gold-dim)' : 'transparent',
+              color: editing ? 'var(--gold)' : '#e8e8ed'
+            }}
           >
-            {editing ? 'Cancel' : 'Edit'}
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+              {editing ? 'close' : 'edit'}
+            </span>
+            <span>{editing ? 'إلغاء التعديل' : 'تعديل المشروع'}</span>
           </button>
           <button
             onClick={handleDelete}
-            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-400 text-sm font-medium transition-colors"
+            className="glass-button"
+            style={styles.deleteBtn}
           >
-            Delete
+            <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>delete</span>
+            <span>حذف المشروع</span>
           </button>
         </div>
       </div>
 
-      {/* Project Info Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="glass-panel p-6">
-          <h3 className="text-sm font-medium text-white/70 mb-2">Client</h3>
-          <p className="text-white text-lg">{project.clientName}</p>
-        </div>
-        <div className="glass-panel p-6">
-          <h3 className="text-sm font-medium text-white/70 mb-2">Status</h3>
-          <span className={`status-badge status-${project.status.toLowerCase().replace(' ', '-')}`}>
-            {project.status}
-          </span>
-        </div>
-        <div className="glass-panel p-6">
-          <h3 className="text-sm font-medium text-white/70 mb-2">Budget</h3>
-          <p className="text-white text-lg">${project.budget ? Number(project.budget).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 'N/A'}</p>
-        </div>
-      </div>
-
-      {/* Project Details */}
-      <div className="glass-panel p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Project Details</h2>
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-medium text-white/70 mb-1">Start Date</p>
-            <p className="text-white">{project.startDate}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-white/70 mb-1">End Date</p>
-            <p className="text-white">{project.endDate || 'N/A'}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-white/70 mb-1">Description</p>
-            <p className="text-white/90 whitespace-pre-line">{project.description || 'No description provided.'}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Edit Form */}
+      {/* Edit Form (if editing is active) */}
       {editing && (
-        <div className="glass-panel p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Edit Project</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">Project Name</label>
+        <div className="glass-panel fade-in" style={styles.formCard}>
+          <h3 style={styles.formTitle}>تعديل بيانات المشروع</h3>
+          <form onSubmit={handleSubmit} style={styles.form}>
+            <div style={styles.formRow}>
+              <div style={styles.formField}>
+                <label style={styles.label}>اسم المشروع *</label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                  style={styles.input}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">Client Name</label>
+              <div style={styles.formField}>
+                <label style={styles.label}>اسم العميل *</label>
                 <input
                   type="text"
                   name="clientName"
                   value={formData.clientName}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                  style={styles.input}
                 />
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">Status</label>
+            <div style={styles.formRow}>
+              <div style={styles.formField}>
+                <label style={styles.label}>الحالة *</label>
                 <select
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                  style={styles.select}
                 >
-                  <option value="active">Active</option>
-                  <option value="on hold">On Hold</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="active">نشط (Active)</option>
+                  <option value="on hold">قيد الانتظار (On Hold)</option>
+                  <option value="completed">مكتمل (Completed)</option>
+                  <option value="cancelled">ملغي (Cancelled)</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">Start Date</label>
+              <div style={styles.formField}>
+                <label style={styles.label}>تاريخ البدء *</label>
                 <input
                   type="date"
                   name="startDate"
                   value={formData.startDate}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                  style={styles.input}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">End Date</label>
+            <div style={styles.formRow}>
+              <div style={styles.formField}>
+                <label style={styles.label}>تاريخ الانتهاء</label>
                 <input
                   type="date"
                   name="endDate"
                   value={formData.endDate}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                  style={styles.input}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">Budget ($)</label>
+              <div style={styles.formField}>
+                <label style={styles.label}>الميزانية ($)</label>
                 <input
                   type="number"
                   name="budget"
                   value={formData.budget}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                  style={styles.input}
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">Description</label>
+            <div style={styles.formFieldFull}>
+              <label style={styles.label}>الوصف وتفاصيل المشروع</label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                rows="4"
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                rows="3"
+                style={styles.textarea}
               />
             </div>
 
-            <div className="flex justify-end space-x-3">
+            <div style={styles.formActions}>
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white/70 text-sm transition-colors"
+                className="glass-button"
+                style={styles.cancelFormBtn}
               >
-                Cancel
+                إلغاء
               </button>
-              <button type="submit" className="px-6 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white font-medium text-sm transition-colors">
-                Update Project
+              <button type="submit" className="glass-button" style={styles.submitBtn}>
+                حفظ التعديلات
               </button>
             </div>
           </form>
         </div>
       )}
 
+      {/* Project Info Cards */}
+      <div style={styles.infoGrid}>
+        <div className="glass-panel" style={styles.infoCard}>
+          <span style={styles.infoLabel}>العميل</span>
+          <p style={styles.infoValue}>{project.clientName}</p>
+        </div>
+        <div className="glass-panel" style={styles.infoCard}>
+          <span style={styles.infoLabel}>حالة المشروع</span>
+          <div style={{ marginTop: '8px' }}>
+            <span className={`status-badge status-${project.status.toLowerCase().replace(' ', '-')}`}>
+              {project.status === 'active' ? 'نشط' :
+               project.status === 'on hold' ? 'قيد الانتظار' :
+               project.status === 'completed' ? 'مكتمل' :
+               project.status === 'cancelled' ? 'ملغي' : project.status}
+            </span>
+          </div>
+        </div>
+        <div className="glass-panel" style={styles.infoCard}>
+          <span style={styles.infoLabel}>الميزانية</span>
+          <p style={styles.infoValue}>
+            {project.budget ? `$${Number(project.budget).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}` : '—'}
+          </p>
+        </div>
+      </div>
+
+      {/* Project Details */}
+      <div className="glass-panel" style={styles.detailsCard}>
+        <h3 style={styles.sectionTitle}>تفاصيل المشروع</h3>
+        <div style={styles.detailsGrid}>
+          <div style={styles.detailItem}>
+            <span style={styles.detailLabel}>تاريخ البدء</span>
+            <p style={styles.detailValue}>{project.startDate}</p>
+          </div>
+          <div style={styles.detailItem}>
+            <span style={styles.detailLabel}>تاريخ الانتهاء المتوقع</span>
+            <p style={styles.detailValue}>{project.endDate || '—'}</p>
+          </div>
+          <div style={styles.detailItemFull}>
+            <span style={styles.detailLabel}>الوصف</span>
+            <p style={styles.descriptionText}>{project.description || 'لا يوجد وصف مضاف.'}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Tasks Section */}
-      <div className="glass-panel p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Tasks ({tasks.length})</h2>
+      <div className="glass-panel" style={styles.tasksCard}>
+        <div style={styles.tasksHeader}>
+          <h3 style={styles.sectionTitle}>مهام المشروع ({tasks.length})</h3>
           <button 
-            onClick={() => {
-              // Navigate to tasks page with filter for this project
-              navigate(`/tasks?projectId=${id}`);
-            }}
-            className="glass-button hover:glass-button px-4 py-2 rounded-lg text-sm font-medium text-white"
+            onClick={() => navigate(`/tasks?projectId=${id}`)}
+            className="glass-button"
+            style={styles.tasksAllBtn}
           >
-            View All Tasks
+            عرض جميع مهام المشروع
           </button>
         </div>
+        
         {tasks.length === 0 ? (
-          <p className="text-white/50 text-center py-8">No tasks found for this project.</p>
+          <div style={styles.emptyState}>
+            <span className="material-symbols-rounded" style={styles.emptyIcon}>task</span>
+            <p>لا توجد مهام مضافة للمشروع حالياً.</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table w-full whitespace-nowrap">
+          <div style={styles.tableWrapper}>
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th>Task Title</th>
-                  <th>Status</th>
-                  <th>Priority</th>
-                  <th>Due Date</th>
-                  <th>Actions</th>
+                  <th>عنوان المهمة</th>
+                  <th>الحالة</th>
+                  <th>الأهمية</th>
+                  <th>تاريخ الاستحقاق</th>
+                  <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
                 {tasks.map((task) => (
                   <tr key={task.id} className="fade-in">
-                    <td className="py-4">{task.title}</td>
+                    <td style={{ fontWeight: '600' }}>{task.title}</td>
                     <td>
                       <span className={`status-badge task-status-${task.status.toLowerCase().replace(' ', '-')}`}>
-                        {task.status}
+                        {task.status === 'todo' ? 'قيد الانتظار' :
+                         task.status === 'in progress' ? 'جاري العمل' :
+                         task.status === 'review' ? 'مراجعة' :
+                         task.status === 'done' ? 'مكتمل' : task.status}
                       </span>
                     </td>
                     <td>
                       <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>
-                        {task.priority}
+                        {task.priority === 'low' ? 'منخفضة' :
+                         task.priority === 'medium' ? 'متوسطة' :
+                         task.priority === 'high' ? 'عالية' : task.priority}
                       </span>
                     </td>
-                    <td className="py-4">{task.dueDate || 'N/A'}</td>
-                    <td className="flex space-x-2">
+                    <td>{task.dueDate || '—'}</td>
+                    <td>
                       <button
                         onClick={() => window.location.href = `/tasks/${task.id}`}
-                        className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-white/70 text-sm transition-colors"
+                        className="glass-button"
+                        style={styles.viewTaskBtn}
                       >
-                        View
+                        عرض
                       </button>
                     </td>
                   </tr>
@@ -329,6 +364,278 @@ const ProjectDetail = () => {
       </div>
     </div>
   );
+};
+
+const styles = {
+  wrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
+    fontFamily: "'Cairo', 'Outfit', sans-serif",
+  },
+  loadingContainer: {
+    display: 'flex',
+    height: '60vh',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinner: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    border: '3px solid rgba(255, 255, 255, 0.05)',
+    borderTopColor: '#c8a35c',
+    animation: 'spin 1s linear infinite',
+  },
+  errorContainer: {
+    display: 'flex',
+    height: '60vh',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorCard: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    padding: '32px',
+    borderRadius: '16px',
+    textAlign: 'center',
+    maxWidth: '400px',
+  },
+  errorIcon: {
+    fontSize: '48px',
+    color: '#ef4444',
+    marginBottom: '16px',
+  },
+  errorTitle: {
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#e8e8ed',
+    marginBottom: '8px',
+  },
+  errorText: {
+    fontSize: '14px',
+    color: '#a8a8b3',
+    margin: 0,
+  },
+  headerSection: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: '16px',
+  },
+  titleArea: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    alignItems: 'flex-start',
+  },
+  backBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    background: 'none',
+    border: 'none',
+    color: '#a8a8b3',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: '600',
+    fontFamily: 'Cairo, sans-serif',
+    padding: 0,
+  },
+  pageTitle: {
+    fontSize: '22px',
+    fontWeight: '800',
+    color: '#e8e8ed',
+    margin: 0,
+  },
+  headerActions: {
+    display: 'flex',
+    gap: '12px',
+  },
+  editBtn: {
+    padding: '10px 18px',
+    borderRadius: '10px',
+    fontSize: '13px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  deleteBtn: {
+    padding: '10px 18px',
+    borderRadius: '10px',
+    fontSize: '13px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    backgroundColor: 'rgba(239, 68, 68, 0.1) !important',
+    borderColor: 'rgba(239, 68, 68, 0.3) !important',
+    color: '#ef4444 !important',
+  },
+  formCard: {
+    padding: '24px',
+  },
+  formTitle: {
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#c8a35c',
+    marginBottom: '20px',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+    paddingBottom: '10px',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  formRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px',
+  },
+  formField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  formFieldFull: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  label: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#a8a8b3',
+  },
+  input: {
+    width: '100%',
+  },
+  select: {
+    width: '100%',
+  },
+  textarea: {
+    width: '100%',
+    resize: 'vertical',
+  },
+  formActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '10px',
+  },
+  cancelFormBtn: {
+    padding: '10px 20px',
+    borderRadius: '8px',
+    fontSize: '13px',
+  },
+  submitBtn: {
+    padding: '10px 24px',
+    borderRadius: '8px',
+    fontSize: '13px',
+    backgroundColor: 'var(--gold) !important',
+    color: '#000 !important',
+    border: 'none !important',
+  },
+  infoGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: '20px',
+  },
+  infoCard: {
+    padding: '20px 24px',
+  },
+  infoLabel: {
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#a8a8b3',
+  },
+  infoValue: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#e8e8ed',
+    margin: '8px 0 0',
+  },
+  detailsCard: {
+    padding: '24px',
+  },
+  sectionTitle: {
+    fontSize: '16px',
+    fontWeight: '700',
+    color: '#e8e8ed',
+    margin: '0 0 20px',
+  },
+  detailsGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '20px',
+  },
+  detailItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  detailItemFull: {
+    gridColumn: '1 / -1',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    borderTop: '1px solid rgba(255,255,255,0.04)',
+    paddingTop: '16px',
+    marginTop: '8px',
+  },
+  detailLabel: {
+    fontSize: '12px',
+    color: '#6b6b75',
+    fontWeight: '600',
+  },
+  detailValue: {
+    fontSize: '14px',
+    color: '#e8e8ed',
+    fontWeight: '600',
+    margin: 0,
+  },
+  descriptionText: {
+    fontSize: '14px',
+    color: '#a8a8b3',
+    lineHeight: '1.7',
+    margin: 0,
+    whiteSpace: 'pre-wrap',
+  },
+  tasksCard: {
+    padding: '24px 0',
+  },
+  tasksHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0 24px',
+    marginBottom: '20px',
+  },
+  tasksAllBtn: {
+    padding: '8px 16px',
+    borderRadius: '8px',
+    fontSize: '12px',
+  },
+  tableWrapper: {
+    overflowX: 'auto',
+    width: '100%',
+  },
+  viewTaskBtn: {
+    padding: '4px 12px',
+    borderRadius: '6px',
+    fontSize: '12px',
+  },
+  emptyState: {
+    textAlign: 'center',
+    padding: '40px 20px',
+    color: '#6b6b75',
+  },
+  emptyIcon: {
+    fontSize: '40px',
+    color: '#6b6b75',
+    marginBottom: '10px',
+  }
 };
 
 export default ProjectDetail;

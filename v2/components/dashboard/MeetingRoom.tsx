@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import AISpeechCenter from './AISpeechCenter'
 import Whiteboard from './Whiteboard'
+import { supabase } from '@/lib/supabase'
 
 interface MeetingRoomProps {
   callId: string
@@ -41,6 +42,7 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
   const [isVideoOn, setIsVideoOn] = useState(true)
   const [isMicOn, setIsMicOn] = useState(true)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
+  const [screenShareOwner, setScreenShareOwner] = useState<string | null>(null)
   const [showWhiteboard, setShowWhiteboard] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   
@@ -50,12 +52,17 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
   const [isDrawing, setIsDrawing] = useState(false)
   
   // Waiting Room state
-  const [waitingUsers, setWaitingUsers] = useState<Array<{ id: string, name: string }>>([
-    { id: 'u2', name: 'أحمد محمد (العميل)' }
-  ])
-  const [connectedUsers, setConnectedUsers] = useState<Array<{ id: string, name: string, role: string, active: boolean }>>([
-    { id: 'u1', name: 'الأدمن (أنت)', role: 'Admin', active: true }
-  ])
+  const [isWaitingApproved, setIsWaitingApproved] = useState(userRole === 'Admin')
+  const [waitingUsers, setWaitingUsers] = useState<Array<{ id: string, name: string }>>([])
+  const [connectedUsers, setConnectedUsers] = useState<Array<{ id: string, name: string, role: string, active: boolean }>>(() => {
+    if (userRole === 'Admin') {
+      return [{ id: 'u1', name: 'الأدمن (أنت)', role: 'Admin', active: true }]
+    } else if (userRole === 'Client') {
+      return [{ id: 'u2', name: 'أحمد محمد (العميل) (أنت)', role: 'Client', active: true }]
+    } else {
+      return [{ id: 'u3', name: 'المدرب (أنت)', role: 'Trainer', active: true }]
+    }
+  })
 
   // Sidebar navigation tab state
   const [activeSidebarTab, setActiveSidebarTab] = useState<'chat' | 'speech' | 'crm' | 'timeline'>('chat')
@@ -95,7 +102,7 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
 
   // Start Camera feed
   useEffect(() => {
-    if (isVideoOn && !isScreenSharing && !showWhiteboard) {
+    if (isVideoOn && !isScreenSharing && !showWhiteboard && isWaitingApproved) {
       navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then((stream) => {
           setLocalStream(stream)
@@ -117,7 +124,7 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
         localStream.getTracks().forEach(t => t.stop())
       }
     }
-  }, [isVideoOn, isScreenSharing, showWhiteboard])
+  }, [isVideoOn, isScreenSharing, showWhiteboard, isWaitingApproved])
 
   // Auto record when Admin joins
   useEffect(() => {
@@ -132,6 +139,132 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
     const stamp = `${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
     setTimelineEvents(prev => [...prev, { time: stamp, event: eventText }])
   }
+
+  const channelRef = useRef<any>(null)
+
+  // Real-time synchronization channel
+  useEffect(() => {
+    const channelName = `meeting:${callId}`
+    const channel = supabase.channel(channelName)
+    channelRef.current = channel
+
+    channel
+      .on('broadcast', { event: 'join_request' }, ({ payload }: any) => {
+        if (userRole === 'Admin') {
+          // Add to waiting room list
+          setWaitingUsers(prev => {
+            if (prev.some(u => u.id === payload.id)) return prev
+            return [...prev, { id: payload.id, name: payload.name }]
+          })
+          triggerTimelineEvent(`طلب انضمام جديد من: ${payload.name}`)
+        }
+      })
+      .on('broadcast', { event: 'join_approved' }, ({ payload }: any) => {
+        if (userRole === 'Client' && payload.id === 'u2') {
+          setIsWaitingApproved(true)
+          triggerTimelineEvent('تمت الموافقة على دخولك الغرفة من قبل الأدمن')
+        }
+        // Add approved user to connected list
+        setConnectedUsers(prev => {
+          if (prev.some(u => u.id === payload.id)) return prev
+          const isMe = (userRole === 'Client' && payload.id === 'u2') || (userRole === 'Admin' && payload.id === 'u1')
+          const cleanName = isMe ? `${payload.name} (أنت)` : payload.name
+          return [...prev, { id: payload.id, name: cleanName, role: payload.role, active: true }]
+        })
+      })
+      .on('broadcast', { event: 'presence' }, ({ payload }: any) => {
+        setConnectedUsers(prev => {
+          if (prev.some(u => u.id === payload.id)) return prev
+          const isMe = (userRole === 'Client' && payload.id === 'u2') || (userRole === 'Admin' && payload.id === 'u1')
+          const cleanName = isMe ? `${payload.name} (أنت)` : payload.name
+          return [...prev, { id: payload.id, name: cleanName, role: payload.role, active: true }]
+        })
+      })
+      .on('broadcast', { event: 'chat_message' }, ({ payload }: any) => {
+        setChatMessages(prev => {
+          if (prev.some(m => m.time === payload.time && m.text === payload.text && m.sender === payload.sender)) return prev
+          return [...prev, payload]
+        })
+      })
+      .on('broadcast', { event: 'file_shared' }, ({ payload }: any) => {
+        setLocalFiles(prev => {
+          if (prev.some(f => f.name === payload.fileMeta.name)) return prev
+          return [payload.fileMeta, ...prev]
+        })
+        setChatMessages(prev => {
+          if (prev.some(m => m.time === payload.time && m.sender === payload.sender && m.isFile)) return prev
+          return [...prev, {
+            sender: payload.sender,
+            text: `قام برفع ملف: ${payload.fileMeta.name}`,
+            time: payload.time,
+            isFile: true,
+            fileMeta: payload.fileMeta
+          }]
+        })
+      })
+      .on('broadcast', { event: 'screen_share_status' }, ({ payload }: any) => {
+        setIsScreenSharing(payload.sharing)
+        setScreenShareOwner(payload.owner)
+        if (payload.sharing) {
+          setShowWhiteboard(false)
+          triggerTimelineEvent(`${payload.owner === 'Admin' ? 'الأدمن' : 'العميل'} بدأ مشاركة الشاشة`)
+        } else {
+          triggerTimelineEvent(`تم إنهاء مشاركة الشاشة`)
+        }
+      })
+      .on('broadcast', { event: 'whiteboard_status' }, ({ payload }: any) => {
+        setShowWhiteboard(payload.visible)
+        if (payload.visible) {
+          setIsScreenSharing(false)
+          triggerTimelineEvent(`${payload.by === 'Admin' ? 'الأدمن' : 'العميل'} قام بتفعيل السبورة الذكية`)
+        } else {
+          triggerTimelineEvent(`تم إغلاق السبورة الذكية`)
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          if (userRole === 'Client') {
+            // Client requests to join
+            channel.send({
+              type: 'broadcast',
+              event: 'join_request',
+              payload: { id: 'u2', name: 'أحمد محمد (العميل)', role: 'Client' }
+            })
+          } else {
+            // Admin/Trainer broadcasts presence
+            channel.send({
+              type: 'broadcast',
+              event: 'presence',
+              payload: { 
+                id: userRole === 'Admin' ? 'u1' : 'u3', 
+                name: userRole === 'Admin' ? 'الأدمن' : 'المدرب', 
+                role: userRole 
+              }
+            })
+          }
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [callId, userRole])
+
+  // Periodic request broadcast for Client waiting room
+  useEffect(() => {
+    if (userRole === 'Client' && !isWaitingApproved) {
+      const interval = setInterval(() => {
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'join_request',
+            payload: { id: 'u2', name: 'أحمد محمد (العميل)', role: 'Client' }
+          })
+        }
+      }, 4000)
+      return () => clearInterval(interval)
+    }
+  }, [userRole, isWaitingApproved])
 
   // Loom-style Recording Controllers
   const handleStartRecording = () => {
@@ -150,21 +283,48 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
 
   // Screen Sharing
   const handleToggleScreenShare = async () => {
-    if (isScreenSharing) {
+    if (isScreenSharing && screenShareOwner === userRole) {
       setIsScreenSharing(false)
+      setScreenShareOwner(null)
       setIsAnnotating(false)
       triggerTimelineEvent('تم إيقاف مشاركة الشاشة')
+      
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'screen_share_status',
+          payload: { sharing: false, owner: null }
+        })
+      }
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
         setIsScreenSharing(true)
+        setScreenShareOwner(userRole)
         setShowWhiteboard(false)
-        triggerTimelineEvent('بدأ الأدمن في مشاركة الشاشة')
+        triggerTimelineEvent(`بدأ ${userRole === 'Admin' ? 'الأدمن' : 'العميل'} في مشاركة الشاشة`)
+        
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'screen_share_status',
+            payload: { sharing: true, owner: userRole }
+          })
+        }
         
         stream.getVideoTracks()[0].onended = () => {
           setIsScreenSharing(false)
+          setScreenShareOwner(null)
           setIsAnnotating(false)
           triggerTimelineEvent('تم إنهاء مشاركة الشاشة')
+          
+          if (channelRef.current) {
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'screen_share_status',
+              payload: { sharing: false, owner: null }
+            })
+          }
         }
       } catch (err) {
         console.warn('Screen share permission denied or not available.')
@@ -217,6 +377,14 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
     setWaitingUsers(waitingUsers.filter(u => u.id !== id))
     setConnectedUsers([...connectedUsers, { id, name, role: 'Client', active: true }])
     triggerTimelineEvent(`تم قبول دخول العميل: ${name}`)
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'join_approved',
+        payload: { id, name, role: 'Client' }
+      })
+    }
   }
 
   const rejectUser = (id: string, name: string) => {
@@ -231,16 +399,25 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
 
     const now = new Date()
     const stamp = `${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+    const sender = userRole === 'Admin' ? 'الأدمن' : 'العميل'
 
     const newMsg = {
-      sender: userRole === 'Admin' ? 'الأدمن' : 'العميل',
+      sender,
       text: chatInput,
       time: stamp
     }
-    setChatMessages([...chatMessages, newMsg])
+    setChatMessages(prev => [...prev, newMsg])
     setChatInput('')
     
-    triggerTimelineEvent(`أرسل الأدمن رسالة شات جديدة: "${chatInput.substring(0, 20)}..."`)
+    triggerTimelineEvent(`أرسل ${sender} رسالة شات جديدة: "${chatInput.substring(0, 20)}..."`)
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: newMsg
+      })
+    }
   }
 
   // In-call File uploads
@@ -249,6 +426,7 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
     const file = e.target.files[0]
     const now = new Date()
     const stamp = `${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+    const sender = userRole === 'Admin' ? 'الأدمن' : 'العميل'
 
     const fileMeta = {
       name: file.name,
@@ -257,18 +435,30 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
       content: file.name.endsWith('.png') || file.name.endsWith('.jpg') ? '/1080.png' : 'MOCK_UPLOAD_PREVIEW'
     }
 
-    setLocalFiles([fileMeta, ...localFiles])
+    setLocalFiles(prev => [fileMeta, ...prev])
 
     const newMsg = {
-      sender: 'الأدمن',
+      sender,
       text: `قام برفع ملف: ${file.name}`,
       time: stamp,
       isFile: true,
       fileMeta
     }
 
-    setChatMessages([...chatMessages, newMsg])
-    triggerTimelineEvent(`قام الأدمن برفع ملف للاجتماع: ${file.name}`)
+    setChatMessages(prev => [...prev, newMsg])
+    triggerTimelineEvent(`قام ${sender} برفع ملف للاجتماع: ${file.name}`)
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'file_shared',
+        payload: {
+          sender,
+          fileMeta,
+          time: stamp
+        }
+      })
+    }
   }
 
   // Simulated Remote Control AnyDesk triggers
@@ -286,6 +476,49 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
 
   const simulateRemoteControlAction = (action: string) => {
     setRemoteLog(prev => [...prev, action])
+  }
+
+  if (!isWaitingApproved) {
+    return (
+      <div className="flex h-[calc(100vh-120px)] w-full items-center justify-center bg-[#0c0c0e]/60 border border-white/5 rounded-2xl p-6 relative overflow-hidden backdrop-blur-xl animate-fade-in">
+        {/* Glow Effects */}
+        <div className="absolute top-[-10%] left-[-10%] h-[300px] w-[300px] rounded-full bg-[#c8a35c]/10 blur-[80px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] h-[300px] w-[300px] rounded-full bg-blue-500/5 blur-[80px] pointer-events-none" />
+
+        <div className="bg-[#0a0a0d]/90 border border-[#c8a35c]/20 rounded-2xl p-8 max-w-md w-full text-center space-y-6 shadow-[0_0_30px_rgba(200,163,92,0.05)] relative z-10">
+          <div className="h-16 w-16 bg-[#c8a35c]/10 border border-[#c8a35c]/30 rounded-full flex items-center justify-center mx-auto text-[#c8a35c] animate-pulse">
+            <Clock className="h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-lg font-bold text-white font-sans">غرفة الانتظار الرقمية</h3>
+            <p className="text-xs text-gray-500 font-mono tracking-wider">VIXCELL COLLABORATION GATEWAY</p>
+          </div>
+          <div className="bg-[#0c0c0e] p-4 rounded-xl border border-white/5 text-right space-y-2">
+            <p className="text-xs text-gray-300 font-sans leading-relaxed">
+              أهلاً بك يا <span className="font-bold text-white">أحمد محمد (العميل)</span>. لقد تم إرسال طلب انضمامك للغرفة بالرمز <span className="font-mono text-[#c8a35c]">{callId}</span>.
+            </p>
+            <div className="flex items-center gap-2 mt-3 justify-end text-[10px] text-gray-500">
+              <span className="font-mono">Real-time status: PENDING APPROVAL</span>
+              <span className="h-2.5 w-2.5 rounded-full bg-yellow-500 animate-ping" />
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center justify-center gap-2 py-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#c8a35c] animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#c8a35c] animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#c8a35c] animate-bounce" />
+            </div>
+            <p className="text-xs text-[#c8a35c] font-medium animate-pulse">يرجى الانتظار حتى يقبل الأدمن دخولك للاجتماع...</p>
+          </div>
+          <button
+            onClick={onEnd}
+            className="w-full py-2 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg text-xs font-bold border border-white/10 transition"
+          >
+            إلغاء والعودة للوحة الرئيسية
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -330,13 +563,20 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
                 {/* Simulated shared screen content */}
                 <div className="absolute inset-0 bg-[#0c0c0e] flex flex-col justify-between p-6 select-none">
                   <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                    <span className="text-xs font-mono font-bold text-gray-500">SHARED SCREEN: PC DISPLAY #1</span>
+                    <span className="text-xs font-mono font-bold text-gray-500">
+                      SHARED SCREEN: {screenShareOwner === 'Admin' ? 'الأدمن (Admin)' : 'العميل (Client)'} DISPLAY #1
+                    </span>
                     <span className="text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full font-mono">LIVE FEED</span>
                   </div>
                   <div className="text-center py-10 space-y-4">
-                    <h4 className="text-lg font-bold text-[#c8a35c]">مراجعة برمجة وتصميم السيرفر</h4>
+                    <h4 className="text-lg font-bold text-[#c8a35c]">
+                      {screenShareOwner === 'Admin' ? 'مراجعة برمجة وتصميم السيرفر' : 'مشاركة شاشة العميل'}
+                    </h4>
                     <p className="text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
-                      يعرض الأدمن حالياً الكود المصدري وإعدادات خوادم الإنتاج والـ API للعميل للموافقة على البدء.
+                      {screenShareOwner === 'Admin' 
+                        ? 'يعرض الأدمن حالياً الكود المصدري وإعدادات خوادم الإنتاج والـ API للعميل للموافقة على البدء.'
+                        : 'يعرض العميل حالياً ملاحظاته وتجربة الواجهة التفاعلية من جهازه.'
+                      }
                     </p>
                   </div>
                   <div className="flex justify-between text-[10px] text-gray-600 font-mono">
@@ -344,9 +584,9 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
                     <span>HTTPS://VIXCELL.COM</span>
                   </div>
                 </div>
-
+ 
                 {/* Draw Annotation Canvas Layer on top of Screen Share */}
-                {isAnnotating && (
+                {isAnnotating && screenShareOwner === userRole && (
                   <canvas
                     ref={annotationCanvasRef}
                     width={800}
@@ -359,28 +599,30 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
                   />
                 )}
               </div>
-
+ 
               {/* Float controls for Annotator */}
-              <div className="absolute top-6 left-6 z-30 bg-black/80 backdrop-blur border border-white/10 rounded-xl p-2.5 flex items-center gap-2.5">
-                <button
-                  onClick={() => setIsAnnotating(!isAnnotating)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    isAnnotating ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-white/5 text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <Edit className="h-3.5 w-3.5" />
-                  <span>{isAnnotating ? 'تعطيل الرسم على الشاشة' : 'تفعيل الرسم على الشاشة'}</span>
-                </button>
-
-                {isAnnotating && (
+              {screenShareOwner === userRole && (
+                <div className="absolute top-6 left-6 z-30 bg-black/80 backdrop-blur border border-white/10 rounded-xl p-2.5 flex items-center gap-2.5">
                   <button
-                    onClick={clearAnnotations}
-                    className="text-xs bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 px-2.5 py-1.5 rounded-lg"
+                    onClick={() => setIsAnnotating(!isAnnotating)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      isAnnotating ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-white/5 text-gray-400 hover:text-white'
+                    }`}
                   >
-                    مسح الرسم
+                    <Edit className="h-3.5 w-3.5" />
+                    <span>{isAnnotating ? 'تعطيل الرسم على الشاشة' : 'تفعيل الرسم على الشاشة'}</span>
                   </button>
-                )}
-              </div>
+ 
+                  {isAnnotating && (
+                    <button
+                      onClick={clearAnnotations}
+                      className="text-xs bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 px-2.5 py-1.5 rounded-lg"
+                    >
+                      مسح الرسم
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             /* Traditional Video Feeds Grid (Host + Client) */
@@ -494,10 +736,19 @@ export default function MeetingRoom({ callId, userRole, deviceRole, onEnd }: Mee
             {/* Whiteboard toggle */}
             <button
               onClick={() => {
-                setShowWhiteboard(!showWhiteboard)
+                const nextState = !showWhiteboard
+                setShowWhiteboard(nextState)
                 setIsScreenSharing(false)
                 setIsAnnotating(false)
-                triggerTimelineEvent(showWhiteboard ? 'تم الخروج من السبورة الذكية' : 'بدء تشغيل السبورة الذكية')
+                triggerTimelineEvent(nextState ? 'بدء تشغيل السبورة الذكية' : 'تم الخروج من السبورة الذكية')
+                
+                if (channelRef.current) {
+                  channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'whiteboard_status',
+                    payload: { visible: nextState, by: userRole }
+                  })
+                }
               }}
               className={`p-3.5 rounded-xl border transition ${
                 showWhiteboard 

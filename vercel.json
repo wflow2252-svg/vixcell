@@ -1,7 +1,14 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "",
   "outputDirectory": "web/dist",
   "routes": [
+    {
+      "src": "^/(index\\.html|portfolio|dashboard|start|feedback|admin|meeting)?$",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+      },
+      "continue": true
+    },
     { "handle": "filesystem" },
     { "src": "/__/auth/handler", "dest": "/api/auth/google/callback" },
     { "src": "/api/(.*)", "dest": "/api/$1" },

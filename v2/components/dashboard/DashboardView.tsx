@@ -15,6 +15,19 @@ export default function DashboardView() {
   const [userRole, setUserRole] = useState<'Admin' | 'Client' | 'Trainer'>('Admin')
   const [deviceRole, setDeviceRole] = useState<'control' | 'whiteboard' | 'chat'>('control')
   const [activeCallId, setActiveCallId] = useState<string | null>(null)
+
+  // Parse room query parameters to auto-join meeting as client
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const room = params.get('room')
+      if (room) {
+        setActiveCallId(room)
+        setActiveTab('live-call')
+        setUserRole('Client')
+      }
+    }
+  }, [])
   
   // Real-time synchronization state for multi-device admin sessions
   const [multiDeviceSession, setMultiDeviceSession] = useState({

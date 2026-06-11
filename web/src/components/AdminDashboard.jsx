@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { signInWithGoogle, signOut, onAuthChange } from '../services/supabase'
+import { signInWithGoogle, signOut, onAuthChange, supabase } from '../services/supabase'
 import { listAll, markRead, remove, isAdmin, ADMIN_EMAILS } from '../services/submissions'
 import DotPixelIcon from './DotPixelIcon'
 import SocialAgent from './SocialAgent'
 import BrandSettings from './BrandSettings'
 import CampaignEditor from './CampaignEditor'
+import MeetingRoom from './MeetingRoom'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
@@ -23,6 +24,26 @@ const TYPE_LABELS = {
 export default function AdminDashboard({ onViewChange }) {
   const [user, setUser]               = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [logoUrl, setLogoUrl]         = useState('/logo.png')
+  const [pwAuthed, setPwAuthed]       = useState(() => {
+    try { return sessionStorage.getItem('vx_pw_auth') === '1' } catch { return false }
+  })
+
+  useEffect(() => {
+    let active = true
+    async function loadLogo() {
+      try {
+        const { data } = await supabase.from('brand_config').select('logo_url').eq('id', true).maybeSingle()
+        if (active && data && data.logo_url) {
+          setLogoUrl(data.logo_url)
+        }
+      } catch (e) {
+        console.error('Failed to load logo:', e)
+      }
+    }
+    loadLogo()
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     const unsub = onAuthChange((u) => {
@@ -32,9 +53,18 @@ export default function AdminDashboard({ onViewChange }) {
     return () => unsub && unsub()
   }, [])
 
+  // Password login bypass
+  if (pwAuthed) {
+    const fakeUser = { email: ADMIN_EMAILS[0], name: 'Admin', picture: null }
+    return <AdminView user={fakeUser} onBack={() => onViewChange('landing')} onLogout={() => {
+      try { sessionStorage.removeItem('vx_pw_auth') } catch {}
+      setPwAuthed(false)
+    }} logoUrl={logoUrl} />
+  }
+
   if (authLoading) {
     return (
-      <Shell onBack={() => onViewChange('landing')}>
+      <Shell onBack={() => onViewChange('landing')} logoUrl={logoUrl}>
         <div style={styles.centerCard}>
           <span style={styles.spinner} />
           <p style={{ color: T.text2, marginTop: 16 }}>جاري التحقق…</p>
@@ -44,14 +74,21 @@ export default function AdminDashboard({ onViewChange }) {
   }
 
   if (!user) {
-    return <SignInGate onBack={() => onViewChange('landing')} />
+    return <SignInGate
+      onBack={() => onViewChange('landing')}
+      onPasswordLogin={() => {
+        try { sessionStorage.setItem('vx_pw_auth', '1') } catch {}
+        setPwAuthed(true)
+      }}
+      logoUrl={logoUrl}
+    />
   }
 
   if (!isAdmin(user.email)) {
     return (
-      <Shell onBack={() => onViewChange('landing')} user={user}>
+      <Shell onBack={() => onViewChange('landing')} user={user} logoUrl={logoUrl}>
         <div style={styles.centerCard}>
-          <img src="/logo.png" alt="VIXCELL" style={styles.bigLogo} />
+          <img src={logoUrl} alt="VIXCELL" style={styles.bigLogo} />
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
             <DotPixelIcon name="lock" size={36} color={T.error} />
           </div>
@@ -68,24 +105,38 @@ export default function AdminDashboard({ onViewChange }) {
     )
   }
 
-  return <AdminView user={user} onBack={() => onViewChange('landing')} />
+  return <AdminView user={user} onBack={() => onViewChange('landing')} logoUrl={logoUrl} />
 }
 
-// ─── Sign-in screen (Google OAuth via /api/auth/google/login) ─────
-function SignInGate({ onBack }) {
-  const [busy, setBusy] = useState(false)
+
+// ─── Sign-in screen ─────────────────────────────────────────────
+const ADMIN_PASSWORD = 'vixcell2024' // password fallback
+
+function SignInGate({ onBack, onPasswordLogin, logoUrl }) {
+  const [busy, setBusy]       = useState(false)
+  const [showPw, setShowPw]   = useState(false)
+  const [pw, setPw]           = useState('')
+  const [pwErr, setPwErr]     = useState('')
 
   function handleGoogle() {
     setBusy(true)
-    signInWithGoogle() // window.location.href = /api/auth/google/login
+    signInWithGoogle()
+  }
+
+  function handlePassword() {
+    if (pw === ADMIN_PASSWORD) {
+      onPasswordLogin()
+    } else {
+      setPwErr('كلمة المرور غلط')
+    }
   }
 
   return (
-    <Shell onBack={onBack}>
+    <Shell onBack={onBack} logoUrl={logoUrl}>
       <div style={styles.centerCard}>
-        <img src="/logo.png" alt="VIXCELL" style={styles.bigLogo} />
+        <img src={logoUrl} alt="VIXCELL" style={styles.bigLogo} />
         <h1 style={styles.h1}>لوحة التحكم</h1>
-        <p style={styles.muted}>سجل دخولك بحساب Google.</p>
+        <p style={styles.muted}>سجل دخولك للوصول للـ Dashboard</p>
 
         <button onClick={handleGoogle} disabled={busy} style={{ ...styles.googleBtn, marginTop: 24 }}>
           {busy ? (
@@ -101,11 +152,36 @@ function SignInGate({ onBack }) {
           )}
         </button>
 
-        <p style={{ ...styles.muted, fontSize: 12, marginTop: 18, color: T.text3 }}>
-          الحسابات المسموحة فقط:
-          <br />
-          <code style={styles.code}>{ADMIN_EMAILS.join(' · ')}</code>
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
+          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+          <span style={{ color: T.text3, fontSize: 12 }}>أو</span>
+          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+        </div>
+
+        <button
+          onClick={() => setShowPw(v => !v)}
+          style={{ ...styles.btnGhost, width: '100%', justifyContent: 'center', display: 'flex' }}
+        >
+          🔑 دخول بكلمة المرور
+        </button>
+
+        {showPw && (
+          <div style={{ marginTop: 14 }}>
+            <input
+              type="password"
+              value={pw}
+              onChange={e => { setPw(e.target.value); setPwErr('') }}
+              onKeyDown={e => e.key === 'Enter' && handlePassword()}
+              placeholder="كلمة المرور"
+              style={{ ...styles.emailInput, marginBottom: 10 }}
+              autoFocus
+            />
+            {pwErr && <p style={{ color: T.error, fontSize: 12, margin: '0 0 10px' }}>{pwErr}</p>}
+            <button onClick={handlePassword} style={{ ...styles.primaryBtn, width: '100%' }}>
+              دخول
+            </button>
+          </div>
+        )}
       </div>
     </Shell>
   )
@@ -123,8 +199,8 @@ function GoogleSvg() {
 }
 
 // ─── Admin Dashboard view ─────────────────────────────────────────
-function AdminView({ user, onBack }) {
-  const [activeTab, setActiveTab]     = useState('submissions')
+function AdminView({ user, onBack, logoUrl }) {
+  const [activeTab, setActiveTab]     = useState('meetings')
   const [submissions, setSubmissions] = useState([])
   const [loading, setLoading]         = useState(true)
   const [filter, setFilter]           = useState('all')
@@ -175,8 +251,14 @@ function AdminView({ user, onBack }) {
   }
 
   return (
-    <Shell onBack={onBack} user={user}>
+    <Shell onBack={onBack} user={user} logoUrl={logoUrl}>
       <div style={styles.tabBar}>
+        <button
+          onClick={() => setActiveTab('meetings')}
+          style={{ ...styles.tab, ...(activeTab === 'meetings' ? styles.tabActive : {}) }}
+        >
+          🎥 Meetings
+        </button>
         <button
           onClick={() => setActiveTab('submissions')}
           style={{ ...styles.tab, ...(activeTab === 'submissions' ? styles.tabActive : {}) }}
@@ -203,7 +285,9 @@ function AdminView({ user, onBack }) {
         </button>
       </div>
 
-      {activeTab === 'social' ? (
+      {activeTab === 'meetings' ? (
+        <AdminMeetingsManager logoUrl={logoUrl} />
+      ) : activeTab === 'social' ? (
         <SocialAgent />
       ) : activeTab === 'brand' ? (
         <BrandSettings />
@@ -280,6 +364,7 @@ function AdminView({ user, onBack }) {
         )}
       </div>
       )}
+
     </Shell>
   )
 }
@@ -394,7 +479,7 @@ function SubmissionDetail({ s, onMarkRead, onDelete, onClose }) {
 }
 
 // ─── Shell ─────────────────────────────────────────────────────────
-function Shell({ children, onBack, user }) {
+function Shell({ children, onBack, user, logoUrl }) {
   return (
     <div style={styles.root}>
       <header style={styles.topBar}>
@@ -402,7 +487,7 @@ function Shell({ children, onBack, user }) {
           <DotPixelIcon name="arrowLeft" size={18} color={T.text2} />
           الرجوع
         </button>
-        <img src="/logo.png" alt="VIXCELL" style={styles.topLogo} />
+        <img src={logoUrl || "/logo.png"} alt="VIXCELL" style={styles.topLogo} />
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {user.picture
@@ -624,4 +709,225 @@ if (typeof document !== 'undefined' && !document.getElementById('vx-admin-keyfra
 }
 `
   document.head.appendChild(style)
+}
+
+/* ═══════════════════════════════════════════════
+   ADMIN MEETINGS MANAGER
+═══════════════════════════════════════════════ */
+function AdminMeetingsManager({ logoUrl }) {
+  const [runningMeetings, setRunningMeetings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedMeetingId, setSelectedMeetingId] = useState(null)
+  const [showJoinDialog, setShowJoinDialog] = useState(false)
+  const [activeMeetingId, setActiveMeetingId] = useState(null)
+  const [activeRole, setActiveRole] = useState(null)
+
+  const loadActiveMeetings = async () => {
+    try {
+      const { data } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('type', 'active_meeting')
+        .eq('read', false)
+        .order('created_at', { ascending: false })
+      setRunningMeetings(data || [])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadActiveMeetings()
+    const interval = setInterval(loadActiveMeetings, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  if (activeMeetingId && activeRole) {
+    const jId = activeMeetingId === 'LOBBY_NEW' ? '' : activeMeetingId
+    const cRole = activeMeetingId === 'LOBBY_NEW' ? '' : activeRole
+    return (
+      <MeetingRoom
+        isAdmin={true}
+        joinMeetingId={jId}
+        chosenRole={cRole}
+        onViewChange={() => {
+          setActiveMeetingId(null)
+          setActiveRole(null)
+          loadActiveMeetings()
+        }}
+      />
+    )
+  }
+
+  return (
+    <div style={mStyles.wrap}>
+      <div style={mStyles.header}>
+        <div>
+          <h2 style={mStyles.title}>🎥 إدارة الاجتماعات الحية</h2>
+          <p style={mStyles.subtitle}>ابدأ اجتماعات جديدة أو انضم للاجتماعات النشطة للعملاء في الوقت الفعلي.</p>
+        </div>
+        <button
+          onClick={() => {
+            setActiveMeetingId('LOBBY_NEW')
+            setActiveRole('Hazem')
+          }}
+          style={styles.primaryBtn}
+        >
+          ➕ ابدأ اجتماع جديد
+        </button>
+      </div>
+
+      <div style={mStyles.tableCard}>
+        <div style={mStyles.cardTitle}>الاجتماعات الجارية حالياً ({runningMeetings.length})</div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: T.text2 }}>جاري التحميل...</div>
+        ) : runningMeetings.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: T.text3 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <DotPixelIcon name="videocam" size={40} color={T.text3} />
+            </div>
+            <div>لا توجد اجتماعات نشطة حالياً.</div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={mStyles.table}>
+              <thead>
+                <tr style={mStyles.trHead}>
+                  <th style={mStyles.th}>كود الاجتماع</th>
+                  <th style={mStyles.th}>اسم العميل</th>
+                  <th style={mStyles.th}>اسم الأدمن</th>
+                  <th style={mStyles.th}>المتصلون حالياً</th>
+                  <th style={mStyles.th}>التابلت (البورد)</th>
+                  <th style={mStyles.th}>تاريخ البدء</th>
+                  <th style={mStyles.th}>الإجراء</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runningMeetings.map((m) => {
+                  const mId = m.metadata?.meetingId || m.name
+                  const client = m.metadata?.clientName || 'عميل'
+                  const admin = m.metadata?.adminName || 'غير متصل'
+                  const parts = m.metadata?.participants || []
+                  const tablet = m.metadata?.tabletConnected ? '✅ متصل' : '❌ غير متصل'
+                  const timeStr = formatTime(new Date(m.created_at || m.metadata?.last_active).getTime())
+
+                  return (
+                    <tr key={m.id} style={mStyles.tr}>
+                      <td style={{ ...mStyles.td, fontFamily: 'monospace', color: T.gold, direction: 'ltr', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                          <span style={{ cursor: 'pointer' }} onClick={() => {
+                            navigator.clipboard.writeText(mId)
+                            alert('تم نسخ كود الاجتماع: ' + mId)
+                          }} title="اضغط لنسخ الكود الكامل">
+                            {mId.slice(0, 12)}...
+                          </span>
+                          <button onClick={() => {
+                            const url = `${window.location.origin}/meeting?code=${mId}`
+                            navigator.clipboard.writeText(url)
+                            alert('تم نسخ رابط الاجتماع الكامل')
+                          }} style={{ background: 'transparent', border: 'none', color: T.text3, cursor: 'pointer', display: 'flex', padding: 2 }} title="نسخ رابط الدعوة">
+                            <span className="material-symbols-rounded" style={{ fontSize: 16 }}>content_copy</span>
+                          </button>
+                        </div>
+                      </td>
+                      <td style={mStyles.td}>{client}</td>
+                      <td style={mStyles.td}>{admin}</td>
+                      <td style={mStyles.td}>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                          {parts.map((p, i) => (
+                            <span key={i} style={mStyles.partBadge}>{p}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td style={{ ...mStyles.td, color: m.metadata?.tabletConnected ? T.success : T.text3 }}>{tablet}</td>
+                      <td style={mStyles.td}>{timeStr}</td>
+                      <td style={mStyles.td}>
+                        <button
+                          onClick={() => {
+                            setSelectedMeetingId(mId)
+                            setShowJoinDialog(true)
+                          }}
+                          style={mStyles.joinBtn}
+                        >
+                          انضمام ↗
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {showJoinDialog && (
+        <div style={mStyles.modalOverlay} onClick={() => setShowJoinDialog(false)}>
+          <div style={mStyles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 18, color: T.text, textAlign: 'center' }}>الانضمام للاجتماع</h3>
+            <p style={{ margin: '0 0 24px', color: T.text2, fontSize: 13, textAlign: 'center' }}>اختر الدور الذي ترغب في الدخول به إلى الغرفة:</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <button
+                onClick={() => {
+                  setActiveMeetingId(selectedMeetingId)
+                  setActiveRole('حازم')
+                  setShowJoinDialog(false)
+                }}
+                style={mStyles.roleBtn}
+              >
+                👤 الدخول كـ حازم (أدمن)
+              </button>
+              <button
+                onClick={() => {
+                  setActiveMeetingId(selectedMeetingId)
+                  setActiveRole('نور')
+                  setShowJoinDialog(false)
+                }}
+                style={mStyles.roleBtn}
+              >
+                👤 الدخول كـ نور (أدمن)
+              </button>
+              <button
+                onClick={() => {
+                  setActiveMeetingId(selectedMeetingId)
+                  setActiveRole('Tablet')
+                  setShowJoinDialog(false)
+                }}
+                style={{ ...mStyles.roleBtn, borderColor: T.gold, color: T.gold }}
+              >
+                ✏️ الدخول كجهاز لوحي للرسم (Tablet Mode)
+              </button>
+            </div>
+            <button
+              onClick={() => setShowJoinDialog(false)}
+              style={{ ...styles.btnGhost, marginTop: 20, width: '100%' }}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const mStyles = {
+  wrap: { maxWidth: 1200, margin: '0 auto', padding: '28px 20px 64px' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' },
+  title: { margin: '0 0 4px', color: T.text, fontSize: 24, fontWeight: 700 },
+  subtitle: { color: T.text2, margin: 0, fontSize: 13 },
+  tableCard: { background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 16, padding: 20 },
+  cardTitle: { fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 16 },
+  table: { width: '100%', borderCollapse: 'collapse', textAlign: 'right' },
+  trHead: { borderBottom: `2px solid ${T.border}` },
+  th: { padding: '12px 8px', color: T.text2, fontSize: 13, fontWeight: 600 },
+  tr: { borderBottom: `1px solid ${T.border}`, transition: 'background 0.2s' },
+  td: { padding: '14px 8px', color: T.text, fontSize: 13.5 },
+  partBadge: { background: T.bg3, border: `1px solid ${T.border}`, padding: '2px 8px', borderRadius: 20, fontSize: 11, color: T.text2 },
+  joinBtn: { background: 'rgba(200,163,92,0.12)', border: `1px solid rgba(200,163,92,0.3)`, color: T.gold, padding: '6px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 'bold' },
+  modalOverlay: { position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' },
+  modalCard: { background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, boxSizing: 'border-box' },
+  roleBtn: { width: '100%', padding: '12px', background: T.bg3, border: `1px solid ${T.border}`, borderRadius: 10, color: T.text, fontSize: 14, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.2s' },
 }

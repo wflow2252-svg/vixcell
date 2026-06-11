@@ -1,8 +1,43 @@
+# Executables
 agy.exe
+*.exe
+*.bin
+
+# Dev tools & dependencies
+node_modules/
+**/node_modules/
+.git/
+.vercel/
+.antigravitycli/
+
+# Large project folders not needed for web
 backend/
 mobile/
 frontend/
-node_modules/
+v2/
+VixcellAI/
+social-agent/
+vixcell-os/
+lib/
+
+# Build artifacts (we only need web/dist)
 web/node_modules/
-.git/
-.vercel/
+web/.next/
+v2/.next/
+v2/out/
+v2/node_modules/
+
+# Misc
+*.log
+*.csv
+output.txt
+test.txt
+SETUP_AUTOMATION.md
+README.md
+build-next.js
+projects.csv
+/Gemini_Generated_Image_hdrxpahdrxpahdrx.png
+/1080.png
+/10800.png
+client_secret_*.json
+.env.production.local

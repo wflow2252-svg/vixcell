@@ -7,15 +7,13 @@ import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import Services from './components/Services'
 import Portfolio from './components/Portfolio'
-import MediaGallery from './components/MediaGallery'
-import Skills from './components/Skills'
-import AIDemo from './components/AIDemo'
-import LiveChat from './components/LiveChat'
+import ClientProjects from './components/ClientProjects'
 import ContactFooter from './components/ContactFooter'
 import StartProjectForm from './components/StartProjectForm'
 import FeedbackForm from './components/FeedbackForm'
 import AdminDashboard from './components/AdminDashboard'
 import PortfolioPage from './pages/PortfolioPage'
+import MeetingRoom from './components/MeetingRoom'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -27,6 +25,7 @@ const PATH_TO_VIEW = {
   '/start':     'start',
   '/feedback':  'feedback',
   '/admin':     'admin',
+  '/meeting':   'meeting',
 }
 const VIEW_TO_PATH = {
   landing:   '/',
@@ -34,6 +33,7 @@ const VIEW_TO_PATH = {
   start:     '/start',
   feedback:  '/feedback',
   admin:     '/admin',
+  meeting:   '/meeting',
 }
 
 function App() {
@@ -113,6 +113,7 @@ function App() {
   if (view === 'start')     return <StartProjectForm onViewChange={setView} />
   if (view === 'feedback')  return <FeedbackForm    onViewChange={setView} />
   if (view === 'admin')     return <AdminDashboard  onViewChange={setView} />
+  if (view === 'meeting')   return <MeetingRoom     isAdmin={false} onViewChange={setView} />
 
   // Landing
   return (
@@ -123,13 +124,10 @@ function App() {
         <Hero onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} />
         <Services />
         <Portfolio onViewChange={setView} />
-        <MediaGallery />
-        <Skills />
-        <AIDemo />
+        <ClientProjects />
       </main>
 
       <ContactFooter />
-      <LiveChat />
     </div>
   )
 }

@@ -1,52 +1,53 @@
-import React from 'react'
-import DotPixelIcon from '../components/DotPixelIcon'
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../services/supabase'
 
+// ─── المشاريع الحقيقية ────────────────────────────────────────────
 const allProjects = [
   {
-    title: "MedSync",
-    industry: "Healthcare",
-    description: "Enterprise hospital management platform.",
-    image: "https://images.unsplash.com/photo-1576091160550-2173ff9e5eb3?auto=format&fit=crop&w=800&q=80",
-    tags: ["Web Platform", "Enterprise", "UX/UI"]
+    title: "Alex Lab Coworking",
+    industry: "Coworking Space",
+    description: "منصة حجز ومجتمع لمساحات العمل المشترك في الإسكندرية.",
+    url: "https://alex-lab-coworking.vercel.app",
+    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
+    tags: ["Web Platform", "Booking", "Community"]
   },
   {
-    title: "FoodFlow",
-    industry: "E-Commerce",
-    description: "High-scale restaurant ordering system.",
-    image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
-    tags: ["Mobile", "E-Commerce", "Brand"]
+    title: "Morsal",
+    industry: "Digital Agency",
+    description: "وكالة إبداعية رقمية متخصصة في بناء الهوية البصرية والمنصات الرقمية.",
+    url: "https://morsall.com",
+    image: "https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=800&q=80",
+    tags: ["Brand Identity", "Web Design", "Agency"]
   },
   {
-    title: "TradeVault",
-    industry: "FinTech",
-    description: "Secure trading analytics dashboard.",
-    image: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=800&q=80",
-    tags: ["Dashboard", "FinTech", "Web"]
+    title: "Oman Project",
+    industry: "Corporate",
+    description: "موقع مؤسسي احترافي لشركة عُمانية بتصميم عالمي المستوى.",
+    url: "https://oman-xi.vercel.app",
+    image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+    tags: ["Corporate", "Web", "Enterprise"]
   },
-  {
-    title: "UrbanRide",
-    industry: "Transportation",
-    description: "Next-gen ride-sharing mobile application.",
-    image: "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=800&q=80",
-    tags: ["Mobile App", "UI/UX", "Brand"]
-  },
-  {
-    title: "EduCore",
-    industry: "EdTech",
-    description: "Interactive e-learning platform for universities.",
-    image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80",
-    tags: ["Web Platform", "EdTech", "UX/UI"]
-  },
-  {
-    title: "ShelfAI",
-    industry: "Retail",
-    description: "AI-powered inventory & shelf analytics system.",
-    image: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=800&q=80",
-    tags: ["AI", "Enterprise", "Dashboard"]
-  }
 ]
 
 export default function PortfolioPage({ onViewChange }) {
+  const [logoUrl, setLogoUrl] = useState('/logo.png')
+
+  useEffect(() => {
+    let active = true
+    async function loadLogo() {
+      try {
+        const { data } = await supabase.from('brand_config').select('logo_url').eq('id', true).maybeSingle()
+        if (active && data && data.logo_url) {
+          setLogoUrl(data.logo_url)
+        }
+      } catch (e) {
+        console.error('Failed to load logo:', e)
+      }
+    }
+    loadLogo()
+    return () => { active = false }
+  }, [])
+
   return (
     <div className="portfolio-page">
       {/* Header */}
@@ -56,7 +57,7 @@ export default function PortfolioPage({ onViewChange }) {
             <span>←</span> Back to Home
           </button>
           <button onClick={() => onViewChange('landing')} className="portfolio-page-logo">
-            <img src="/logo.png" alt="Vixcell" style={{ height: '22px' }} />
+            <img src={logoUrl} alt="Vixcell" style={{ height: '22px' }} />
           </button>
         </div>
       </header>
@@ -76,11 +77,26 @@ export default function PortfolioPage({ onViewChange }) {
       <div className="portfolio-page-content">
         <div className="portfolio-projects-grid">
           {allProjects.map((project, index) => (
-            <div key={index} className="portfolio-project-card">
+            <a
+              key={index}
+              href={project.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="portfolio-project-card"
+              style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+            >
               <div className="portfolio-project-image">
                 <img src={project.image} alt={project.title} />
-                <div className="portfolio-project-overlay">
-                  <DotPixelIcon name="arrowRightPixel" size={18} color="#ffffff" />
+                <div className="portfolio-project-overlay" style={{
+                  position: 'absolute', inset: 0,
+                  background: 'rgba(26,115,232,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  opacity: 0, transition: 'opacity .3s',
+                }}>
+                  <span style={{
+                    background: '#1a73e8', color: '#fff', borderRadius: 20,
+                    padding: '8px 20px', fontSize: 13, fontWeight: 700,
+                  }}>فتح الموقع ↗</span>
                 </div>
               </div>
               <div className="portfolio-project-info">
@@ -95,7 +111,7 @@ export default function PortfolioPage({ onViewChange }) {
                 <h3 className="portfolio-project-title">{project.title}</h3>
                 <p className="portfolio-project-desc">{project.description}</p>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       </div>
@@ -103,10 +119,19 @@ export default function PortfolioPage({ onViewChange }) {
       {/* Footer CTA */}
       <div className="portfolio-page-footer-cta">
         <h2>Have a project in mind?</h2>
-        <a href="/" className="portfolio-page-cta-btn">
+        <button onClick={() => onViewChange('start')} className="portfolio-page-cta-btn" style={{ border: 'none', cursor: 'pointer' }}>
           Start a Project →
-        </a>
+        </button>
       </div>
+
+      <style>{`
+        .portfolio-project-card:hover .portfolio-project-overlay { opacity: 1 !important; }
+        .portfolio-project-image { position: relative; overflow: hidden; }
+        @media (max-width: 768px) {
+          .portfolio-projects-grid { grid-template-columns: 1fr !important; }
+          .portfolio-page-hero { padding: 40px 16px !important; }
+        }
+      `}</style>
     </div>
   )
 }

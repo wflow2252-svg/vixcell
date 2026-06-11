@@ -10,11 +10,11 @@ import TasksList from './pages/TasksList';
 function App() {
   return (
     <Router>
-      <div className="flex h-screen bg-gray-50">
+      <div style={styles.appWrapper}>
         <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div style={styles.mainWrapper}>
           <Header />
-          <main className="flex-1 overflow-y-auto p-6">
+          <main style={styles.mainContent}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/projects" element={<ProjectsList />} />
@@ -28,5 +28,30 @@ function App() {
     </Router>
   );
 }
+
+const styles = {
+  appWrapper: {
+    display: 'flex',
+    height: '100vh',
+    width: '100vw',
+    backgroundColor: '#0c0c0e',
+    color: '#e8e8ed',
+    overflow: 'hidden',
+    direction: 'rtl',
+    fontFamily: "'Cairo', 'Outfit', sans-serif",
+  },
+  mainWrapper: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  mainContent: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '24px',
+    backgroundColor: '#0c0c0e',
+  }
+};
 
 export default App;

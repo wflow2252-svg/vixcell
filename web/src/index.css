@@ -5752,5 +5752,192 @@ section {
 
 
 
+/* ═══════════════════════════════════════════════════
+   GLOBAL MOBILE RESPONSIVE FIXES
+═══════════════════════════════════════════════════ */
 
+/* Fix Send/Submit button always visible */
+.magnetic-btn, button[type="submit"] {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1;
+  position: relative;
+  z-index: 1;
+}
+
+button[type="submit"]:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed;
+}
+
+/* Font: Cairo everywhere */
+*, body, input, textarea, button, select {
+  font-family: 'Cairo', 'Outfit', sans-serif;
+}
+
+/* Cairo for Arabic text specifically */
+[lang="ar"], .ar {
+  font-family: 'Cairo', sans-serif;
+  direction: rtl;
+}
+
+/* ── Mobile ≤ 768px ────────────────────────────── */
+@media (max-width: 768px) {
+  /* Navbar */
+  .nav-pill {
+    display: none;
+  }
+  .header-container {
+    padding: 0 1rem !important;
+  }
+
+  /* Hero */
+  .hero {
+    padding: 6rem 1.2rem 2rem !important;
+  }
+  .hero-grid {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .hero-left {
+    max-width: 100% !important;
+    padding-top: 0 !important;
+  }
+  .hero-cta {
+    align-self: flex-start;
+  }
+
+  /* Services */
+  .services-section {
+    padding: 4rem 0;
+  }
+  .services-section-title {
+    font-size: 2rem !important;
+  }
+  .services-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .service-grid-item {
+    min-height: 320px !important;
+  }
+
+  /* Portfolio */
+  .portfolio-banner-section {
+    padding: 2rem 0;
+  }
+  .portfolio-banner-img {
+    border-radius: 12px;
+  }
+  .portfolio-projects-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Media Gallery */
+  .media-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+  .media-gallery-section {
+    padding: 3rem 0;
+  }
+  .media-gallery-title {
+    font-size: 2rem !important;
+  }
+
+  /* Footer / Contact */
+  .footer-section {
+    padding: 3rem 0 1rem !important;
+  }
+  .footer-flex-container {
+    flex-direction: column !important;
+    gap: 2rem;
+  }
+  .footer-left, .footer-right {
+    width: 100% !important;
+  }
+  .footer-title {
+    font-size: 2rem !important;
+  }
+  .footer-form {
+    gap: 1rem;
+  }
+  .footer-input {
+    font-size: 1rem;
+  }
+  .footer-large-text {
+    font-size: 15vw !important;
+  }
+  .footer-bottom-links {
+    flex-direction: column !important;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  /* Submit button always full width on mobile */
+  .footer-form .magnetic-btn {
+    width: 100%;
+    justify-content: center;
+    margin-top: 1rem;
+  }
+
+  /* Mega menu */
+  .mega-menu {
+    display: none !important;
+  }
+
+  /* Container */
+  .container {
+    padding: 0 1rem;
+  }
+
+  /* General sections */
+  section {
+    padding: 3rem 0;
+  }
+
+  /* Admin Dashboard tabs */
+  .tab-bar, [style*="tabBar"] {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Meeting Room mobile */
+  .material-symbols-rounded {
+    font-size: 20px !important;
+  }
+}
+
+/* ── Tablet 768px – 1024px ─────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .hero {
+    padding: 6rem 2rem 3rem !important;
+  }
+  .hero-left {
+    max-width: 60% !important;
+  }
+  .services-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .footer-flex-container {
+    flex-direction: column !important;
+    gap: 3rem;
+  }
+  .footer-left, .footer-right {
+    width: 100% !important;
+  }
+  .container {
+    padding: 0 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .contact-send-btn {
+    width: 100% !important;
+    align-self: center !important;
+    margin-top: 1.5rem !important;
+  }
+  .client-projects-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
 

@@ -14,7 +14,7 @@ window.addEventListener('unhandledrejection', (e) => {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ErrorBoundary>
+    <ErrorBoundary fullPage={true}>
       <App />
     </ErrorBoundary>
   </React.StrictMode>,

@@ -196,9 +196,26 @@ export default function ContactFooter() {
 
                 <button
                   type="submit"
-                  className="magnetic-btn"
+                  className="magnetic-btn contact-send-btn"
                   disabled={busy}
-                  style={{ marginTop: '2rem', alignSelf: 'flex-start', opacity: busy ? 0.7 : 1, cursor: busy ? 'not-allowed' : 'pointer' }}
+                  style={{
+                    marginTop: '2rem',
+                    alignSelf: 'flex-start',
+                    opacity: busy ? 0.7 : 1,
+                    cursor: busy ? 'not-allowed' : 'pointer',
+                    background: '#ffffff',
+                    color: '#000000',
+                    fontWeight: '700',
+                    padding: '12px 32px',
+                    borderRadius: '30px',
+                    border: 'none',
+                    boxShadow: '0 4px 14px rgba(255, 255, 255, 0.15)',
+                    zIndex: 10,
+                    position: 'relative',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
                   {busy ? 'Sending…' : 'Send Message'}
                 </button>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import DotPixelIcon from './DotPixelIcon'
+import { supabase } from '../services/supabase'
 
 const megaMenuData = [
   { title: "Brand Strategy", count: "04", link: "#services", icon: "strategy", image: "https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=600&q=80" },
@@ -17,8 +18,25 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
   const [megaMenuOpen, setMegaMenuOpen] = useState(false)
   const [hoveredCard, setHoveredCard] = useState(null)
   const [isContactOpen, setIsContactOpen] = useState(false)
+  const [logoUrl, setLogoUrl] = useState('/logo.png')
 
   const closeTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    let active = true
+    async function loadLogo() {
+      try {
+        const { data } = await supabase.from('brand_config').select('logo_url').eq('id', true).maybeSingle()
+        if (active && data && data.logo_url) {
+          setLogoUrl(data.logo_url)
+        }
+      } catch (e) {
+        console.error('Failed to load logo:', e)
+      }
+    }
+    loadLogo()
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -85,7 +103,7 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
           {/* Left: Logo Column */}
           <div className="header-logo">
             <a href="#" onClick={(e) => handleLinkClick(e, '#')}>
-              <img src="/logo.png" alt="Vixcell Logo" style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
+              <img src={logoUrl} alt="Vixcell Logo" style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
             </a>
           </div>
           
@@ -116,20 +134,24 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
                   Portfolio
                 </a>
                 <a 
+                  href="/meeting"
+                  onMouseEnter={handleMouseLeaveMenu}
+                  className={currentView === 'meeting' ? 'active' : ''}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onViewChange('meeting');
+                  }}
+                >
+                  Meeting
+                </a>
+                <a 
                   href="#ai" 
                   onMouseEnter={handleMouseLeaveMenu}
                   onClick={(e) => handleLinkClick(e, '#ai')}
                 >
                   About
                 </a>
-                <a 
-                  href="#dashboard" 
-                  className={currentView === 'dashboard' ? 'active' : ''}
-                  onMouseEnter={handleMouseLeaveMenu}
-                  onClick={(e) => { e.preventDefault(); onStartProject && onStartProject() }}
-                >
-                  VIXCELL AI
-                </a>
+
                 <a
                   href="#contact"
                   onMouseEnter={handleMouseLeaveMenu}

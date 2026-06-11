@@ -1,42 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import { getTasks, createTask, updateTask, deleteTask, getProjects } from '../utils/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const TasksList = () => {
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  
+  const [searchParams] = useSearchParams();
+  const filterProjectId = searchParams.get('projectId');
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     status: 'todo',
     priority: 'medium',
     dueDate: '',
-    projectId: ''
+    projectId: filterProjectId || ''
   });
+  
   const [editingId, setEditingId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [tasksResponse, projectsResponse] = await Promise.all([
-          getTasks(),
-          getProjects()
-        ]);
-        setTasks(tasksResponse.data.tasks);
-        setProjects(projectsResponse.data.projects);
-      } catch (err) {
-        setError(err.message || 'Failed to fetch data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, []);
+  }, [filterProjectId]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const params = filterProjectId ? { projectId: filterProjectId } : {};
+      const [tasksResponse, projectsResponse] = await Promise.all([
+        getTasks(params),
+        getProjects()
+      ]);
+      setTasks(tasksResponse.data.tasks);
+      setProjects(projectsResponse.data.projects);
+    } catch (err) {
+      setError(err.message || 'Failed to fetch data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -58,10 +65,12 @@ const TasksList = () => {
         status: 'todo',
         priority: 'medium',
         dueDate: '',
-        projectId: ''
+        projectId: filterProjectId || ''
       });
+      setShowForm(false);
       // Refresh tasks
-      const response = await getTasks();
+      const params = filterProjectId ? { projectId: filterProjectId } : {};
+      const response = await getTasks(params);
       setTasks(response.data.tasks);
     } catch (err) {
       setError(err.message || 'Failed to save task');
@@ -78,14 +87,16 @@ const TasksList = () => {
       dueDate: task.dueDate || '',
       projectId: task.projectId
     });
+    setShowForm(true);
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
+    if (window.confirm('هل أنت متأكد من رغبتك في حذف هذه المهمة؟')) {
       try {
         await deleteTask(id);
         // Refresh tasks
-        const response = await getTasks();
+        const params = filterProjectId ? { projectId: filterProjectId } : {};
+        const response = await getTasks(params);
         setTasks(response.data.tasks);
       } catch (err) {
         setError(err.message || 'Failed to delete task');
@@ -95,208 +106,244 @@ const TasksList = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full border-4 border-t-white border-b-white h-12 w-12"></div>
+      <div style={styles.loadingContainer}>
+        <div style={styles.spinner}></div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-500/20 border border-red-500/50 text-red-500 rounded-lg p-4 mb-6">
-          <p>{error}</p>
-        </div>
-      </div>
-    );
-  }
+  // Get active project name if filtered
+  const activeFilterProjectName = filterProjectId 
+    ? projects.find(p => String(p.id) === String(filterProjectId))?.name 
+    : null;
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Tasks Management</h1>
+    <div style={styles.wrapper}>
+      {error && (
+        <div style={styles.errorBanner}>
+          <span className="material-symbols-rounded">warning</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div style={styles.headerSection}>
+        <div>
+          {filterProjectId && (
+            <button onClick={() => navigate('/tasks')} style={styles.clearFilterBtn}>
+              <span className="material-symbols-rounded">close</span>
+              <span>عرض جميع المهام (إلغاء التصفية)</span>
+            </button>
+          )}
+          <h2 style={styles.pageTitle}>
+            {activeFilterProjectName 
+              ? `مهام مشروع: ${activeFilterProjectName} (${tasks.length})` 
+              : `قائمة المهام (${tasks.length})`}
+          </h2>
+        </div>
         <button 
           onClick={() => {
-            setEditingId(null);
-            setFormData({
-              title: '',
-              description: '',
-              status: 'todo',
-              priority: 'medium',
-              dueDate: '',
-              projectId: ''
-            });
+            if (showForm && !editingId) {
+              setShowForm(false);
+            } else {
+              setEditingId(null);
+              setFormData({
+                title: '',
+                description: '',
+                status: 'todo',
+                priority: 'medium',
+                dueDate: '',
+                projectId: filterProjectId || ''
+              });
+              setShowForm(true);
+            }
           }}
-          className="glass-button hover:glass-button px-4 py-2 rounded-lg text-sm font-medium text-white"
+          className="glass-button"
+          style={{
+            ...styles.newButton,
+            backgroundColor: showForm && !editingId ? 'rgba(239, 68, 68, 0.15)' : 'var(--gold-dim)',
+            borderColor: showForm && !editingId ? '#ef4444' : 'var(--gold)',
+            color: showForm && !editingId ? '#ef4444' : 'var(--gold)'
+          }}
         >
-          New Task
+          <span className="material-symbols-rounded" style={{ fontSize: '18px' }}>
+            {showForm && !editingId ? 'close' : 'add'}
+          </span>
+          <span>{showForm && !editingId ? 'إغلاق النموذج' : 'مهمة جديدة'}</span>
         </button>
       </div>
 
       {/* Task Form */}
-      <div className="glass-panel p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">{editingId ? 'Edit Task' : 'Create New Task'}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">Task Title</label>
+      {showForm && (
+        <div className="glass-panel fade-in" style={styles.formCard}>
+          <h3 style={styles.formTitle}>
+            {editingId ? 'تعديل بيانات المهمة' : 'إنشاء مهمة جديدة'}
+          </h3>
+          <form onSubmit={handleSubmit} style={styles.form}>
+            <div style={styles.formRow}>
+              <div style={styles.formField}>
+                <label style={styles.label}>عنوان المهمة *</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  required
+                  placeholder="مثال: تصميم واجهة المستخدم"
+                  style={styles.input}
+                />
+              </div>
+              <div style={styles.formField}>
+                <label style={styles.label}>المشروع المرتبط *</label>
+                <select
+                  name="projectId"
+                  value={formData.projectId}
+                  onChange={handleChange}
+                  required
+                  style={styles.select}
+                >
+                  <option value="">اختار المشروع</option>
+                  {projects.map(project => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div style={styles.formRow}>
+              <div style={styles.formField}>
+                <label style={styles.label}>حالة المهمة *</label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  style={styles.select}
+                >
+                  <option value="todo">قيد الانتظار (To Do)</option>
+                  <option value="in progress">جاري العمل (In Progress)</option>
+                  <option value="review">مراجعة (Review)</option>
+                  <option value="done">مكتمل (Done)</option>
+                </select>
+              </div>
+              <div style={styles.formField}>
+                <label style={styles.label}>الأهمية / الأولية *</label>
+                <select
+                  name="priority"
+                  value={formData.priority}
+                  onChange={handleChange}
+                  style={styles.select}
+                >
+                  <option value="low">منخفضة (Low)</option>
+                  <option value="medium">متوسطة (Medium)</option>
+                  <option value="high">عالية (High)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={styles.formField}>
+              <label style={styles.label}>تاريخ الاستحقاق</label>
               <input
-                type="text"
-                name="title"
-                value={formData.title}
+                type="date"
+                name="dueDate"
+                value={formData.dueDate}
                 onChange={handleChange}
-                required
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
+                style={styles.input}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">Project</label>
-              <select
-                name="projectId"
-                value={formData.projectId}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
-              >
-                <option value="">Select Project</option>
-                {projects.map(project => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">Status</label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
-              >
-                <option value="todo">To Do</option>
-                <option value="in progress">In Progress</option>
-                <option value="review">Review</option>
-                <option value="done">Done</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">Priority</label>
-              <select
-                name="priority"
-                value={formData.priority}
-                onChange={handleChange}
-                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">Due Date</label>
-            <input
-              type="date"
-              name="dueDate"
-              value={formData.dueDate}
-              onChange={handleChange}
-              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
-            />
-          </div>
+            <div style={styles.formFieldFull}>
+              <label style={styles.label}>الوصف وتفاصيل المهمة</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows="3"
+                placeholder="تفاصيل ونقاط العمل الخاصة بالمهمة..."
+                style={styles.textarea}
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">Description</label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows="4"
-              className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/20 text-white"
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={() => {
-                setEditingId(null);
-                setFormData({
-                  title: '',
-                  description: '',
-                  status: 'todo',
-                  priority: 'medium',
-                  dueDate: '',
-                  projectId: ''
-                });
-              }}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white/70 text-sm transition-colors"
-            >
-              Cancel
-            </button>
-            <button type="submit" className="px-6 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white font-medium text-sm transition-colors">
-              {editingId ? 'Update Task' : 'Create Task'}
-            </button>
-          </div>
-        </form>
-      </div>
+            <div style={styles.formActions}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingId(null);
+                }}
+                className="glass-button"
+                style={styles.cancelButton}
+              >
+                إلغاء
+              </button>
+              <button type="submit" className="glass-button" style={styles.submitButton}>
+                {editingId ? 'تحديث المهمة' : 'إنشاء المهمة'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Tasks Table */}
-      <div className="glass-panel p-6">
-        <h2 className="text-xl font-semibold mb-4">Tasks List</h2>
+      <div className="glass-panel" style={styles.tableCard}>
         {tasks.length === 0 ? (
-          <p className="text-white/50 text-center py-8">No tasks found.</p>
+          <div style={styles.emptyState}>
+            <span className="material-symbols-rounded" style={styles.emptyIcon}>playlist_add_check</span>
+            <p>لا توجد مهام مضافة حالياً.</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table w-full whitespace-nowrap">
+          <div style={styles.tableWrapper}>
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th>Task Title</th>
-                  <th>Project</th>
-                  <th>Status</th>
-                  <th>Priority</th>
-                  <th>Due Date</th>
-                  <th>Actions</th>
+                  <th>عنوان المهمة</th>
+                  <th>المشروع</th>
+                  <th>الحالة</th>
+                  <th>الأهمية</th>
+                  <th>تاريخ الاستحقاق</th>
+                  <th>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
                 {tasks.map((task) => (
                   <tr key={task.id} className="fade-in">
-                    <td className="py-4">{task.title}</td>
-                    <td className="py-4">{task.project?.name || 'N/A'}</td>
+                    <td style={{ fontWeight: '600' }}>{task.title}</td>
+                    <td>{task.project?.name || '—'}</td>
                     <td>
                       <span className={`status-badge task-status-${task.status.toLowerCase().replace(' ', '-')}`}>
-                        {task.status}
+                        {task.status === 'todo' ? 'قيد الانتظار' :
+                         task.status === 'in progress' ? 'جاري العمل' :
+                         task.status === 'review' ? 'مراجعة' :
+                         task.status === 'done' ? 'مكتمل' : task.status}
                       </span>
                     </td>
                     <td>
                       <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>
-                        {task.priority}
+                        {task.priority === 'low' ? 'منخفضة' :
+                         task.priority === 'medium' ? 'متوسطة' :
+                         task.priority === 'high' ? 'عالية' : task.priority}
                       </span>
                     </td>
-                    <td className="py-4">{task.dueDate || 'N/A'}</td>
-                    <td className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(task)}
-                        className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-white/70 text-sm transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(task.id)}
-                        className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-white/70 text-sm transition-colors"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => navigate(`/tasks/${task.id}`)}
-                        className="px-3 py-1 bg-white/10 hover:bg-white/20 rounded text-white/70 text-sm transition-colors"
-                      >
-                        View
-                      </button>
+                    <td>{task.dueDate || '—'}</td>
+                    <td>
+                      <div style={styles.rowActions}>
+                        <button
+                          onClick={() => handleEdit(task)}
+                          className="glass-button"
+                          style={styles.editBtn}
+                          title="تعديل"
+                        >
+                          <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(task.id)}
+                          className="glass-button"
+                          style={styles.deleteBtn}
+                          title="حذف"
+                        >
+                          <span className="material-symbols-rounded" style={{ fontSize: '16px' }}>delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -307,6 +354,168 @@ const TasksList = () => {
       </div>
     </div>
   );
+};
+
+const styles = {
+  wrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
+    fontFamily: "'Cairo', 'Outfit', sans-serif",
+  },
+  loadingContainer: {
+    display: 'flex',
+    height: '60vh',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinner: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    border: '3px solid rgba(255, 255, 255, 0.05)',
+    borderTopColor: '#c8a35c',
+    animation: 'spin 1s linear infinite',
+  },
+  errorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+    color: '#ef4444',
+    padding: '12px 20px',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    fontSize: '14px',
+  },
+  headerSection: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  clearFilterBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    background: 'none',
+    border: 'none',
+    color: '#c8a35c',
+    cursor: 'pointer',
+    fontSize: '11px',
+    fontFamily: 'Cairo, sans-serif',
+    padding: '0 0 6px 0',
+    fontWeight: '600',
+  },
+  pageTitle: {
+    fontSize: '18px',
+    fontWeight: '700',
+    color: '#e8e8ed',
+    margin: 0,
+  },
+  newButton: {
+    padding: '10px 18px',
+    borderRadius: '10px',
+    fontSize: '13px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  formCard: {
+    padding: '24px',
+  },
+  formTitle: {
+    fontSize: '15px',
+    fontWeight: '700',
+    color: '#c8a35c',
+    marginBottom: '20px',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+    paddingBottom: '10px',
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+  },
+  formRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '16px',
+  },
+  formField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  formFieldFull: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  label: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#a8a8b3',
+  },
+  input: {
+    width: '100%',
+  },
+  select: {
+    width: '100%',
+  },
+  textarea: {
+    width: '100%',
+    resize: 'vertical',
+  },
+  formActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '10px',
+  },
+  cancelButton: {
+    padding: '10px 20px',
+    borderRadius: '8px',
+    fontSize: '13px',
+  },
+  submitButton: {
+    padding: '10px 24px',
+    borderRadius: '8px',
+    fontSize: '13px',
+    backgroundColor: 'var(--gold) !important',
+    color: '#000 !important',
+    border: 'none !important',
+  },
+  tableCard: {
+    padding: '16px 0',
+  },
+  tableWrapper: {
+    overflowX: 'auto',
+    width: '100%',
+  },
+  rowActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  editBtn: {
+    padding: '6px',
+    borderRadius: '6px',
+  },
+  deleteBtn: {
+    padding: '6px',
+    borderRadius: '6px',
+    backgroundColor: 'rgba(239, 68, 68, 0.1) !important',
+    color: '#ef4444 !important',
+  },
+  emptyState: {
+    textAlign: 'center',
+    padding: '60px 20px',
+    color: '#6b6b75',
+  },
+  emptyIcon: {
+    fontSize: '44px',
+    color: '#6b6b75',
+    marginBottom: '12px',
+  }
 };
 
 export default TasksList;
