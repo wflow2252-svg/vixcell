@@ -1863,7 +1863,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     }
   }
 
-  function compressImage(file, maxDimension = 800) {
+  function compressImage(file, maxDimension = 500) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -1885,7 +1885,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
           canvas.height = h
           const ctx = canvas.getContext('2d')
           ctx.drawImage(img, 0, 0, w, h)
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.6)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.5)
           resolve({ dataUrl, width: w, height: h })
         }
         img.onerror = reject
@@ -1910,22 +1910,31 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     const file = e.target.files[0]
     if (!file) return
     try {
-      const { dataUrl, width, height } = await compressImage(file)
+      const { dataUrl, width, height } = await compressImage(file, 500)
       
       const canvas = wbRef.current
       if (!canvas) return
       
       const containerRect = canvas.parentElement.getBoundingClientRect()
+      const dpr = window.devicePixelRatio || 1
+      const containerWidth = containerRect.width || (canvas.width / dpr) || 800
+      const containerHeight = containerRect.height || (canvas.height / dpr) || 600
       
       const wPercent = 40
       const imageAspect = width / height
       
-      const wPx = containerRect.width * (wPercent / 100)
+      const wPx = containerWidth * (wPercent / 100)
       const hPx = wPx / imageAspect
-      const hPercent = (hPx / containerRect.height) * 100
       
-      const xPercent = (100 - wPercent) / 2
-      const yPercent = (100 - hPercent) / 2
+      let hPercent = (hPx / containerHeight) * 100
+      if (isNaN(hPercent) || !isFinite(hPercent) || hPercent <= 0) {
+        hPercent = 40
+      }
+      
+      let xPercent = (100 - wPercent) / 2
+      let yPercent = (100 - hPercent) / 2
+      if (isNaN(xPercent)) xPercent = 30
+      if (isNaN(yPercent)) yPercent = 30
       
       const newImage = {
         id: 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
@@ -3501,7 +3510,7 @@ const rm = {
   },
   wbDiv: { width: 1, height: 20, background: C.border, margin: '0 2px' },
   colorBtn: { width: 18, height: 18, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0 },
-  wbCanvas: { flex: 1, cursor: 'crosshair', display: 'block', touchAction: 'none', width: '100%' },
+  wbCanvas: { flex: 1, cursor: 'crosshair', display: 'block', touchAction: 'none', width: '100%', height: '100%' },
   participantRow: {
     display: 'flex', alignItems: 'center', gap: 12,
     background: C.bg2, borderRadius: 12, padding: '12px 14px',
