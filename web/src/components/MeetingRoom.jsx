@@ -87,7 +87,7 @@ function fmtDur(s) {
 }
 
 function getMeetingUrl(meetingId) {
-  return `${window.location.origin}/meeting?code=${meetingId}`
+  return `${window.location.origin}/meeting?code=${meetingId}&role=client`
 }
 
 /* ─── AI helpers (local Ollama) ──────────────── */
@@ -200,7 +200,9 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
     if (isAdmin) return true
     const queryParams = new URLSearchParams(window.location.search)
     const role = queryParams.get('role') || chosenRole
+    if (role?.toLowerCase() === 'admin') return true
     if (role?.toLowerCase() === 'client' || role?.toLowerCase() === 'tablet') return false
+    if (queryParams.has('code') || queryParams.has('id')) return false
     return true
   })
 
@@ -344,6 +346,7 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
         onJoin={(name, code, cam, mic) => {
           setMeetingId(code.trim())
           setClientName(name)
+          setIsAdminMode(false)
           setScreen('waiting')   // → waiting room first
         }}
         onBack={() => onViewChange ? onViewChange('landing') : setScreen('lobby')}
