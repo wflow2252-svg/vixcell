@@ -1,5 +1,5 @@
 {
-  "buildCommand": "",
+  "buildCommand": "npm run build --prefix web",
   "outputDirectory": "web/dist",
   "routes": [
     {
