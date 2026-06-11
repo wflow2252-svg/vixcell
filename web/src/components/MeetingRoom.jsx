@@ -190,14 +190,40 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
     return (queryParams.get('code') || queryParams.get('id') || joinMeetingId || '').trim()
   })
 
+  const [isTabletMode, setIsTabletMode] = useState(() => {
+    const queryParams = new URLSearchParams(window.location.search)
+    const role = queryParams.get('role') || chosenRole
+    return role?.toLowerCase() === 'tablet'
+  })
+
+  const [isAdminMode, setIsAdminMode] = useState(() => {
+    if (isAdmin) return true
+    const queryParams = new URLSearchParams(window.location.search)
+    const role = queryParams.get('role') || chosenRole
+    if (role?.toLowerCase() === 'client' || role?.toLowerCase() === 'tablet') return false
+    return true
+  })
+
   const [screen, setScreen] = useState(() => {
+    const queryParams = new URLSearchParams(window.location.search)
+    const role = queryParams.get('role') || chosenRole
+    if (meetingId && role?.toLowerCase() === 'tablet') return 'room';
     if (meetingId && chosenRole) return 'room';
     return 'lobby';
   })
-  const [adminName, setAdminName]       = useState(chosenRole || 'حازم')
-  const [clientName, setClientName]     = useState('')
-  const [isAdminMode, setIsAdminMode]   = useState(isAdmin || (chosenRole && chosenRole !== 'client'))
-  const [isTabletMode, setIsTabletMode] = useState(chosenRole === 'Tablet')
+  
+  const [adminName, setAdminName]       = useState(() => {
+    const queryParams = new URLSearchParams(window.location.search)
+    const role = queryParams.get('role') || chosenRole
+    if (role?.toLowerCase() === 'tablet') return 'Tablet';
+    return chosenRole || 'حازم'
+  })
+  const [clientName, setClientName]     = useState(() => {
+    const queryParams = new URLSearchParams(window.location.search)
+    const role = queryParams.get('role') || chosenRole
+    if (role?.toLowerCase() === 'tablet') return 'Tablet';
+    return ''
+  })
   const [joinId, setJoinId]             = useState('')
   const [logoUrl, setLogoUrl]           = useState('/logo.png')
   
@@ -206,6 +232,23 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
   const localStreamRef = useRef(null)
   const [camOn, setCamOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
+
+  // Sync URL query params with active meeting room code
+  useEffect(() => {
+    if (meetingId && (screen === 'pre' || screen === 'room' || screen === 'waiting')) {
+      const currentUrl = new URL(window.location.href)
+      if (currentUrl.searchParams.get('code') !== meetingId) {
+        currentUrl.searchParams.set('code', meetingId)
+        window.history.pushState(null, '', currentUrl.pathname + currentUrl.search)
+      }
+    } else if (screen === 'lobby') {
+      const currentUrl = new URL(window.location.href)
+      if (currentUrl.searchParams.has('code')) {
+        currentUrl.searchParams.delete('code')
+        window.history.pushState(null, '', currentUrl.pathname + currentUrl.search)
+      }
+    }
+  }, [meetingId, screen])
 
   useEffect(() => {
     let active = true
@@ -365,15 +408,27 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
       clientName={clientName} setClientName={setClientName}
       joinId={joinId} setJoinId={setJoinId}
       isAdminMode={isAdminMode} setIsAdminMode={setIsAdminMode}
+      isTabletMode={isTabletMode} setIsTabletMode={setIsTabletMode}
       logoUrl={logoUrl}
       onViewChange={onViewChange}
       onCreateMeeting={() => {
         setMeetingId(uid())
-        setScreen('pre')
+        if (isTabletMode) {
+          setClientName('Tablet')
+          setScreen('room')
+        } else {
+          setScreen('pre')
+        }
       }}
       onJoinMeeting={() => {
-        setMeetingId(joinId.trim() || uid())
-        setScreen('pre')
+        const id = joinId.trim() || uid()
+        setMeetingId(id)
+        if (isTabletMode) {
+          setClientName('Tablet')
+          setScreen('room')
+        } else {
+          setScreen('pre')
+        }
       }}
       onOpenArchive={() => setScreen('archive')}
     />
@@ -384,7 +439,7 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
    ADMIN LOBBY
 ═══════════════════════════════════════════════ */
 function AdminLobby({ adminName, setAdminName, clientName, setClientName, joinId, setJoinId,
-                 isAdminMode, setIsAdminMode, onCreateMeeting, onJoinMeeting, onOpenArchive, logoUrl, onViewChange }) {
+                 isAdminMode, setIsAdminMode, isTabletMode, setIsTabletMode, onCreateMeeting, onJoinMeeting, onOpenArchive, logoUrl, onViewChange }) {
   const [tab, setTab] = useState('new')
 
   return (
@@ -420,20 +475,25 @@ function AdminLobby({ adminName, setAdminName, clientName, setClientName, joinId
 
         {/* Mode toggle */}
         <div style={lob.modeRow}>
-          <button onClick={() => setIsAdminMode(false)}
-            style={{ ...lob.modeBtn, ...((!isAdminMode) ? lob.modeBtnActive : {}) }}>
+          <button onClick={() => { setIsAdminMode(false); setIsTabletMode(false) }}
+            style={{ ...lob.modeBtn, ...((!isAdminMode && !isTabletMode) ? lob.modeBtnActive : {}) }}>
             <Icon name="person" size={18} />
             دخول كعميل
           </button>
-          <button onClick={() => setIsAdminMode(true)}
-            style={{ ...lob.modeBtn, ...(isAdminMode ? lob.modeBtnActive : {}) }}>
+          <button onClick={() => { setIsAdminMode(true); setIsTabletMode(false) }}
+            style={{ ...lob.modeBtn, ...((isAdminMode && !isTabletMode) ? lob.modeBtnActive : {}) }}>
             <Icon name="admin_panel_settings" size={18} />
             دخول كأدمن
+          </button>
+          <button onClick={() => { setIsAdminMode(false); setIsTabletMode(true) }}
+            style={{ ...lob.modeBtn, ...(isTabletMode ? lob.modeBtnActive : {}) }}>
+            <Icon name="tablet_mac" size={18} />
+            جهاز لوحي
           </button>
         </div>
 
         {/* Admin name */}
-        {isAdminMode && (
+        {isAdminMode && !isTabletMode && (
           <div style={lob.adminNameRow}>
             <div style={{ color: C.text2, fontSize: 12, marginBottom: 10, fontWeight: 600 }}>اختر اسمك في الاجتماع</div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -448,7 +508,7 @@ function AdminLobby({ adminName, setAdminName, clientName, setClientName, joinId
           </div>
         )}
 
-        {!isAdminMode && (
+        {!isAdminMode && !isTabletMode && (
           <div style={{ marginBottom: 20 }}>
             <label style={lob.label}>اسمك</label>
             <input value={clientName} onChange={e => setClientName(e.target.value)}
@@ -476,8 +536,8 @@ function AdminLobby({ adminName, setAdminName, clientName, setClientName, joinId
 
         <button
           onClick={tab === 'new' ? onCreateMeeting : onJoinMeeting}
-          style={{ ...lob.primaryBtn, opacity: (!isAdminMode && !clientName.trim()) ? 0.5 : 1 }}
-          disabled={!isAdminMode && !clientName.trim()}
+          style={{ ...lob.primaryBtn, opacity: (!isAdminMode && !isTabletMode && !clientName.trim()) ? 0.5 : 1 }}
+          disabled={!isAdminMode && !isTabletMode && !clientName.trim()}
         >
           <Icon name={tab === 'new' ? 'add_circle' : 'login'} size={20} />
           {tab === 'new' ? 'ابدأ اجتماع جديد' : 'انضم الآن'}
@@ -622,6 +682,28 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const [sharing, setSharing] = useState(false)
   const [screenStream, setScreenStream] = useState(null)
   const screenTrackRef = useRef(null)
+  const [whiteboardActive, setWhiteboardActive] = useState(false)
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false)
+
+  const toggleWhiteboard = useCallback((activeVal) => {
+    const next = activeVal !== undefined ? activeVal : !whiteboardActive
+    setWhiteboardActive(next)
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'whiteboard_status',
+        payload: { active: next }
+      }).catch(() => {})
+    }
+  }, [whiteboardActive])
+
+  const handleManualPlay = useCallback(() => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.play()
+        .then(() => setAutoplayBlocked(false))
+        .catch(e => console.error("Manual play failed:", e))
+    }
+  }, [])
 
   const recorderRef  = useRef(null)
   const recChunks    = useRef([])
@@ -873,6 +955,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
     ch.on('presence', { event: 'sync' }, handlePresenceSync)
     ch.on('broadcast', { event: 'signal' }, ({ payload }) => { handleSignal(payload) })
+    ch.on('broadcast', { event: 'whiteboard_status' }, ({ payload }) => {
+      setWhiteboardActive(payload.active)
+    })
 
     ch.on('broadcast', { event: 'draw' }, ({ payload }) => {
       const ctx = ctxRef.current
@@ -1028,13 +1113,13 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
   /* ── WB init ── */
   useEffect(() => {
-    if (panel !== 'whiteboard' || !wbRef.current) return
+    if (!whiteboardActive || !wbRef.current) return
     const c = wbRef.current
     c.width = c.offsetWidth; c.height = c.offsetHeight
     const ctx = c.getContext('2d')
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, c.width, c.height)
     ctxRef.current = ctx
-  }, [panel])
+  }, [whiteboardActive])
 
   /* ── Fullscreen ── */
   useEffect(() => {
@@ -1254,7 +1339,46 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
         {/* ── VIDEO AREA ── */}
         <div style={{ flex: 1, position: 'relative', background: '#000', overflow: 'hidden' }}>
-          {sharing && screenStream ? (
+          {whiteboardActive ? (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: C.bg, position: 'relative', zIndex: 10 }}>
+              <div style={rm.wbBar}>
+                {[{id:'pen',icon:'edit'},{id:'eraser',icon:'ink_eraser'}].map(t => (
+                  <button key={t.id} onClick={() => setWbTool(t.id)}
+                    style={{ ...rm.wbTool, background: wbTool===t.id ? 'rgba(26,115,232,0.2)' : 'transparent' }}>
+                    <Icon name={t.icon} size={18} style={{ color: wbTool===t.id ? C.blue : C.text2 }} />
+                  </button>
+                ))}
+                <div style={rm.wbDiv} />
+                {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
+                  <button key={col} onClick={() => { setWbColor(col); setWbTool('pen') }}
+                    style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none' }} />
+                ))}
+                <div style={rm.wbDiv} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Icon name="line_weight" size={16} style={{ color: C.text2 }} />
+                  <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
+                    style={{ width: 60, accentColor: C.blue }} />
+                </div>
+                <div style={rm.wbDiv} />
+                <button onClick={clearCanvas} style={rm.wbTool} title="مسح">
+                  <Icon name="delete_sweep" size={18} style={{ color: C.text2 }} />
+                </button>
+                <button onClick={() => { const a=document.createElement('a'); a.href=wbRef.current.toDataURL(); a.download='board.png'; a.click() }}
+                  style={rm.wbTool} title="حفظ">
+                  <Icon name="save" size={18} style={{ color: C.text2 }} />
+                </button>
+                {isAdminMode && (
+                  <button onClick={() => toggleWhiteboard(false)} style={{ ...rm.wbTool, marginRight: 'auto', background: C.red, color: '#fff', borderRadius: 8, padding: '4px 10px', height: 'auto', width: 'auto', display: 'flex', alignItems: 'center', gap: 4 }} title="إغلاق السبورة للجميع">
+                    <Icon name="close" size={16} style={{ color: '#fff' }} />
+                    <span style={{ fontSize: 11, fontFamily: FONT }}>إغلاق السبورة</span>
+                  </button>
+                )}
+              </div>
+              <canvas ref={wbRef} style={rm.wbCanvas}
+                onMouseDown={wbDown} onMouseMove={wbMove} onMouseUp={wbUp} onMouseLeave={wbUp}
+                onTouchStart={wbDown} onTouchMove={wbMove} onTouchEnd={wbUp} />
+            </div>
+          ) : sharing && screenStream ? (
             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
               <video
                 ref={el => { if (el && screenStream) el.srcObject = screenStream }}
@@ -1276,6 +1400,24 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 playsInline
                 style={{ ...rm.mainVideo, display: remoteStream ? 'block' : 'none' }}
               />
+              {autoplayBlocked && (
+                <button
+                  onClick={handleManualPlay}
+                  style={{
+                    position: 'absolute', inset: 0, margin: 'auto',
+                    width: 220, height: 50, borderRadius: 25,
+                    background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
+                    color: '#fff', border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 700, fontFamily: FONT,
+                    boxShadow: '0 8px 24px rgba(26,115,232,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    zIndex: 20,
+                  }}
+                >
+                  <Icon name="volume_up" size={20} />
+                  <span>تفعيل الصوت والفيديو</span>
+                </button>
+              )}
               {remoteStream && (
                 <div style={{
                   position: 'absolute', bottom: 20, left: 20,
@@ -1403,38 +1545,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
               </div>
             )}
 
-            {/* WHITEBOARD */}
-            {panel === 'whiteboard' && (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                <div style={rm.wbBar}>
-                  {[{id:'pen',icon:'edit'},{id:'eraser',icon:'ink_eraser'}].map(t => (
-                    <button key={t.id} onClick={() => setWbTool(t.id)}
-                      style={{ ...rm.wbTool, background: wbTool===t.id ? 'rgba(26,115,232,0.2)' : 'transparent' }}>
-                      <Icon name={t.icon} size={18} style={{ color: wbTool===t.id ? C.blue : C.text2 }} />
-                    </button>
-                  ))}
-                  <div style={rm.wbDiv} />
-                  {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
-                    <button key={col} onClick={() => { setWbColor(col); setWbTool('pen') }}
-                      style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none' }} />
-                  ))}
-                  <div style={rm.wbDiv} />
-                  <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
-                    style={{ width: 60, accentColor: C.blue }} />
-                  <div style={rm.wbDiv} />
-                  <button onClick={clearCanvas} style={rm.wbTool} title="مسح">
-                    <Icon name="delete_sweep" size={18} style={{ color: C.text2 }} />
-                  </button>
-                  <button onClick={() => { const a=document.createElement('a'); a.href=wbRef.current.toDataURL(); a.download='board.png'; a.click() }}
-                    style={rm.wbTool} title="حفظ">
-                    <Icon name="save" size={18} style={{ color: C.text2 }} />
-                  </button>
-                </div>
-                <canvas ref={wbRef} style={rm.wbCanvas}
-                  onMouseDown={wbDown} onMouseMove={wbMove} onMouseUp={wbUp} onMouseLeave={wbUp}
-                  onTouchStart={wbDown} onTouchMove={wbMove} onTouchEnd={wbUp} />
-              </div>
-            )}
+
 
             {/* PARTICIPANTS */}
             {panel === 'participants' && (
@@ -1507,7 +1618,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
           {isAdminMode && (
             <PanelBtn icon="record_voice_over" label="AI" active={panel==='transcript'} onClick={() => setPanel(p => p==='transcript'?null:'transcript')} />
           )}
-          <PanelBtn icon="draw" label="سبورة" active={panel==='whiteboard'} onClick={() => setPanel(p => p==='whiteboard'?null:'whiteboard')} />
+          <PanelBtn icon="draw" label="سبورة" active={whiteboardActive} onClick={() => toggleWhiteboard()} />
           <PanelBtn icon="group" label="المشاركون" active={panel==='participants'} onClick={() => setPanel(p => p==='participants'?null:'participants')} />
         </div>
       </div>
