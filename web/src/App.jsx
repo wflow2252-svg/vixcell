@@ -113,7 +113,11 @@ function App() {
   if (view === 'start')     return <StartProjectForm onViewChange={setView} />
   if (view === 'feedback')  return <FeedbackForm    onViewChange={setView} />
   if (view === 'admin')     return <AdminDashboard  onViewChange={setView} />
-  if (view === 'meeting')   return <MeetingRoom     isAdmin={false} onViewChange={setView} />
+  if (view === 'meeting') {
+    const queryParams = new URLSearchParams(window.location.search)
+    const isAdminRole = queryParams.get('role')?.toLowerCase() === 'admin'
+    return <MeetingRoom isAdmin={isAdminRole} onViewChange={setView} />
+  }
 
   // Landing
   return (
