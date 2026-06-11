@@ -619,6 +619,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const [remoteStream, setRemoteStream] = useState(null)
   const [remoteName, setRemoteName]     = useState('')
   const [pendingKnocks, setPendingKnocks] = useState([]) // ← طلبات الدخول
+  const [sharing, setSharing] = useState(false)
+  const [screenStream, setScreenStream] = useState(null)
+  const screenTrackRef = useRef(null)
 
   const recorderRef  = useRef(null)
   const recChunks    = useRef([])
@@ -1131,10 +1134,6 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       channelRef.current.send({ type: 'broadcast', event: 'chat', payload: newMsg })
     }
   }
-
-  const [sharing, setSharing] = useState(false)
-  const [screenStream, setScreenStream] = useState(null)
-  const screenTrackRef = useRef(null)
 
   async function toggleShare() {
     if (sharing) { stopShare(); return }
