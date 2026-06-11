@@ -13,5 +13,7 @@ const aiLimiter = rateLimit({
 router.post('/generate-demo', aiLimiter, aiController.generateDemo);
 router.get('/demos', protect, aiController.getDemos);
 router.get('/demos/:id', aiController.getDemoHtml);
+router.post('/ollama-analyze', aiController.ollamaAnalyze);
+router.post('/correct-handwriting', aiController.correctHandwriting);
 
 module.exports = router;

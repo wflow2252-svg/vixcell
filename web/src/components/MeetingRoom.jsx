@@ -13,6 +13,41 @@ const Icon = ({ name, size = 24, style = {} }) => (
   </span>
 )
 
+/* ─── Path Simplification (Douglas-Peucker) ────── */
+function simplifyPath(points, epsilon = 8) {
+  if (points.length <= 2) return points
+  
+  let dmax = 0
+  let index = 0
+  const end = points.length - 1
+  for (let i = 1; i < end; i++) {
+    const d = perpendicularDistance(points[i], points[0], points[end])
+    if (d > dmax) {
+      index = i
+      dmax = d
+    }
+  }
+  
+  if (dmax > epsilon) {
+    const results1 = simplifyPath(points.slice(0, index + 1), epsilon)
+    const results2 = simplifyPath(points.slice(index), epsilon)
+    return results1.slice(0, results1.length - 1).concat(results2)
+  } else {
+    return [points[0], points[end]]
+  }
+}
+
+function perpendicularDistance(p, lineStart, lineEnd) {
+  const dx = lineEnd.x - lineStart.x
+  const dy = lineEnd.y - lineStart.y
+  if (dx === 0 && dy === 0) {
+    return Math.sqrt(Math.pow(p.x - lineStart.x, 2) + Math.pow(p.y - lineStart.y, 2))
+  }
+  const numerator = Math.abs(dy * p.x - dx * p.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
+  const denominator = Math.sqrt(dx * dx + dy * dy)
+  return numerator / denominator
+}
+
 /* ─── Colors ────────────────────────────────────── */
 const C = {
   bg:     '#0f0f11',
@@ -93,16 +128,22 @@ function getMeetingUrl(meetingId) {
 /* ─── AI helpers (local Ollama) ──────────────── */
 async function askOllama(prompt) {
   try {
-    const r = await fetch('http://localhost:11434/api/generate', {
+    const r = await fetch('/api/ai/ollama-analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'llama3.2', prompt, stream: false }),
+      body: JSON.stringify({ prompt }),
       signal: AbortSignal.timeout(30000),
     })
     if (!r.ok) return null
-    const data = await r.json()
-    return data.response || null
-  } catch { return null }
+    const resData = await r.json()
+    if (resData.success && resData.data) {
+      return resData.data.response || null
+    }
+    return null
+  } catch (e) {
+    console.error('[Ollama Client Error]:', e)
+    return null
+  }
 }
 
 async function summarizeMeeting(transcript) {
@@ -187,16 +228,32 @@ async function leaveActiveMeeting(meetingId, displayName, isAdminMode) {
 export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeetingId = '', chosenRole = '' }) {
   const [meetingId, setMeetingId] = useState(() => {
     const queryParams = new URLSearchParams(window.location.search)
-    return (queryParams.get('code') || queryParams.get('id') || joinMeetingId || '').trim()
+    const urlCode = (queryParams.get('code') || queryParams.get('id') || joinMeetingId || '').trim()
+    const savedCode = sessionStorage.getItem('vixcell_meetingId')
+    if (urlCode && savedCode && urlCode !== savedCode) {
+      sessionStorage.removeItem('vixcell_meetingId')
+      sessionStorage.removeItem('vixcell_isTabletMode')
+      sessionStorage.removeItem('vixcell_isAdminMode')
+      sessionStorage.removeItem('vixcell_screen')
+      sessionStorage.removeItem('vixcell_adminName')
+      sessionStorage.removeItem('vixcell_clientName')
+      return urlCode
+    }
+    if (urlCode) return urlCode
+    return savedCode || ''
   })
 
   const [isTabletMode, setIsTabletMode] = useState(() => {
+    const saved = sessionStorage.getItem('vixcell_isTabletMode')
+    if (saved !== null) return saved === 'true'
     const queryParams = new URLSearchParams(window.location.search)
     const role = queryParams.get('role') || chosenRole
     return role?.toLowerCase() === 'tablet'
   })
 
   const [isAdminMode, setIsAdminMode] = useState(() => {
+    const saved = sessionStorage.getItem('vixcell_isAdminMode')
+    if (saved !== null) return saved === 'true'
     if (isAdmin) return true
     const queryParams = new URLSearchParams(window.location.search)
     const role = queryParams.get('role') || chosenRole
@@ -207,20 +264,27 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
   })
 
   const [screen, setScreen] = useState(() => {
+    const saved = sessionStorage.getItem('vixcell_screen')
+    if (saved) return saved
     const queryParams = new URLSearchParams(window.location.search)
     const role = queryParams.get('role') || chosenRole
-    if (meetingId && role?.toLowerCase() === 'tablet') return 'room';
-    if (meetingId && chosenRole) return 'room';
+    const tempMeetingId = (queryParams.get('code') || queryParams.get('id') || joinMeetingId || '').trim()
+    if (tempMeetingId && role?.toLowerCase() === 'tablet') return 'room';
+    if (tempMeetingId && chosenRole) return 'room';
     return 'lobby';
   })
   
   const [adminName, setAdminName]       = useState(() => {
+    const saved = sessionStorage.getItem('vixcell_adminName')
+    if (saved) return saved
     const queryParams = new URLSearchParams(window.location.search)
     const role = queryParams.get('role') || chosenRole
     if (role?.toLowerCase() === 'tablet') return 'Tablet';
     return chosenRole || 'حازم'
   })
   const [clientName, setClientName]     = useState(() => {
+    const saved = sessionStorage.getItem('vixcell_clientName')
+    if (saved) return saved
     const queryParams = new URLSearchParams(window.location.search)
     const role = queryParams.get('role') || chosenRole
     if (role?.toLowerCase() === 'tablet') return 'Tablet';
@@ -234,6 +298,60 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
   const localStreamRef = useRef(null)
   const [camOn, setCamOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
+
+  const clearSessionStorage = useCallback(() => {
+    sessionStorage.removeItem('vixcell_meetingId')
+    sessionStorage.removeItem('vixcell_isTabletMode')
+    sessionStorage.removeItem('vixcell_isAdminMode')
+    sessionStorage.removeItem('vixcell_screen')
+    sessionStorage.removeItem('vixcell_adminName')
+    sessionStorage.removeItem('vixcell_clientName')
+    
+    setMeetingId('')
+    setClientName('')
+    setScreen('lobby')
+  }, [])
+
+  // Sync state variables to sessionStorage
+  useEffect(() => {
+    if (meetingId) {
+      sessionStorage.setItem('vixcell_meetingId', meetingId)
+    } else {
+      sessionStorage.removeItem('vixcell_meetingId')
+    }
+  }, [meetingId])
+
+  useEffect(() => {
+    sessionStorage.setItem('vixcell_isTabletMode', String(isTabletMode))
+  }, [isTabletMode])
+
+  useEffect(() => {
+    sessionStorage.setItem('vixcell_isAdminMode', String(isAdminMode))
+  }, [isAdminMode])
+
+  useEffect(() => {
+    if (screen) {
+      sessionStorage.setItem('vixcell_screen', screen)
+    } else {
+      sessionStorage.removeItem('vixcell_screen')
+    }
+  }, [screen])
+
+  useEffect(() => {
+    if (adminName) {
+      sessionStorage.setItem('vixcell_adminName', adminName)
+    } else {
+      sessionStorage.removeItem('vixcell_adminName')
+    }
+  }, [adminName])
+
+  useEffect(() => {
+    if (clientName) {
+      sessionStorage.setItem('vixcell_clientName', clientName)
+    } else {
+      sessionStorage.removeItem('vixcell_clientName')
+    }
+  }, [clientName])
 
   const [activeMeetings, setActiveMeetings] = useState([])
 
@@ -384,13 +502,18 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
         micOn={micOn}
         toggleCam={toggleCam}
         toggleMic={toggleMic}
+        activeMeetings={activeMeetings}
         onJoin={(name, code, cam, mic) => {
           setMeetingId(code.trim())
           setClientName(name)
           setIsAdminMode(false)
           setScreen('waiting')   // → waiting room first
         }}
-        onBack={() => onViewChange ? onViewChange('landing') : setScreen('lobby')}
+        onBack={() => {
+          clearSessionStorage()
+          if (onViewChange) onViewChange('landing')
+          else setScreen('lobby')
+        }}
       />
     )
   }
@@ -402,7 +525,10 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
         displayName={clientName}
         logoUrl={logoUrl}
         onAdmitted={() => setScreen('room')}
-        onBack={() => setScreen('lobby')}
+        onBack={() => {
+          clearSessionStorage()
+          setScreen('lobby')
+        }}
       />
     )
   }
@@ -420,7 +546,10 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
         toggleCam={toggleCam}
         toggleMic={toggleMic}
         onEnter={() => setScreen('room')}
-        onBack={() => setScreen('lobby')}
+        onBack={() => {
+          clearSessionStorage()
+          setScreen('lobby')
+        }}
       />
     )
   }
@@ -438,6 +567,7 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
         toggleCam={toggleCam}
         toggleMic={toggleMic}
         onLeave={() => {
+          clearSessionStorage()
           if (!isAdmin && onViewChange) onViewChange('landing');
           else setScreen('lobby');
         }}
@@ -758,6 +888,21 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const [autoplayBlocked, setAutoplayBlocked] = useState(false)
   const [videoFit, setVideoFit] = useState('contain')
 
+  const firstPeer = peers[0]
+  const isReconnecting = firstPeer && (firstPeer.presenceOffline || firstPeer.conn === 'disconnected' || firstPeer.conn === 'failed')
+
+  const tools = [
+    { id: 'select', icon: 'near_me', label: 'تحديد وتحريك' },
+    { id: 'pen', icon: 'edit', label: 'قلم' },
+    { id: 'eraser', icon: 'ink_eraser', label: 'ممحاة' },
+    { id: 'rect', icon: 'rectangle', label: 'مستطيل' },
+    { id: 'circle', icon: 'circle', label: 'دائرة' },
+    { id: 'line', icon: 'horizontal_rule', label: 'مستقيم' },
+    { id: 'triangle', icon: 'change_history', label: 'مثلث' },
+    { id: 'correction', icon: 'gesture', label: 'تصحيح الأشكال' },
+    { id: 'text_ai', icon: 'spellcheck', label: 'تصحيح النصوص' }
+  ]
+
   const toggleWhiteboard = useCallback((activeVal) => {
     const next = activeVal !== undefined ? activeVal : !whiteboardActive
     setWhiteboardActive(next)
@@ -807,6 +952,18 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const [wbSize, setWbSize]   = useState(3)
   const [wbTool, setWbTool]   = useState('pen')
 
+  const startPos = useRef({ x: 0, y: 0 })
+  const savedImageData = useRef(null)
+  const strokePoints = useRef([])
+  const [isOCRProcessing, setIsOCRProcessing] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState('')
+  const [boardElements, setBoardElements] = useState([])
+  const boardElementsRef = useRef([])
+  useEffect(() => {
+    boardElementsRef.current = boardElements
+  }, [boardElements])
+
   const channelRef = useRef(null)
   const lobbyChannelRef = useRef(null)
   const peersMapRef = useRef(new Map())
@@ -829,6 +986,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       cam: p.meta?.cam !== false,
       sharing: !!p.meta?.sharing,
       conn: p.pc.connectionState,
+      presenceOffline: !!p.presenceOffline,
     }))
     setPeers(list)
 
@@ -993,12 +1151,41 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     const ids = Object.keys(state).filter(k => k !== myIdRef.current)
     ids.forEach(id => {
       const meta = (state[id] && state[id][0]) || {}
-      ensurePeer(id, { name: meta.name, mic: meta.mic, cam: meta.cam, sharing: meta.sharing })
+      // If a new peer joins, check if there's an existing offline peer with the same name and close it
+      if (!peersMapRef.current.has(id)) {
+        Array.from(peersMapRef.current.entries()).forEach(([oldId, oldP]) => {
+          if (oldP.presenceOffline && oldP.meta?.name === meta.name) {
+            console.log(`[Meet] Closing old offline peer ${oldId} since new peer ${id} with same name joined`);
+            closePeer(oldId)
+          }
+        })
+      }
+      const p = ensurePeer(id, { name: meta.name, mic: meta.mic, cam: meta.cam, sharing: meta.sharing })
+      if (p) {
+        p.presenceOffline = false
+      }
     })
     Array.from(peersMapRef.current.keys()).forEach(id => {
-      if (!ids.includes(id)) closePeer(id)
+      if (!ids.includes(id)) {
+        const p = peersMapRef.current.get(id)
+        if (p) {
+          if (!p.presenceOffline) {
+            p.presenceOffline = true
+            syncPeersState()
+            setTimeout(() => {
+              const currentP = peersMapRef.current.get(id)
+              if (currentP && currentP.presenceOffline) {
+                console.log(`[Meet] Cleaned up offline peer ${id} after timeout`);
+                closePeer(id)
+              }
+            }, 15000)
+          }
+        } else {
+          closePeer(id)
+        }
+      }
     })
-  }, [ensurePeer, closePeer])
+  }, [ensurePeer, closePeer, syncPeersState])
 
   // ── Init Active Meeting ──
   useEffect(() => {
@@ -1045,9 +1232,37 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       ctx.lineWidth   = payload.tool === 'eraser' ? payload.size * 5 : payload.size
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke()
     })
+    ch.on('broadcast', { event: 'element_add' }, ({ payload }) => {
+      setBoardElements(prev => {
+        if (prev.some(el => el.id === payload.id)) return prev
+        return [...prev, payload]
+      })
+    })
+    ch.on('broadcast', { event: 'element_update' }, ({ payload }) => {
+      setBoardElements(prev => prev.map(el => el.id === payload.id ? { ...el, ...payload } : el))
+    })
+    ch.on('broadcast', { event: 'element_delete' }, ({ payload }) => {
+      setBoardElements(prev => prev.filter(el => el.id !== payload.id))
+    })
+    ch.on('broadcast', { event: 'sync_wb_elements' }, ({ payload }) => {
+      setBoardElements(payload)
+    })
+    ch.on('broadcast', { event: 'request_wb_sync' }, () => {
+      if (boardElementsRef.current.length > 0 && channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'sync_wb_elements',
+          payload: boardElementsRef.current
+        })
+      }
+    })
     ch.on('broadcast', { event: 'clear' }, () => {
       const c = wbRef.current; const ctx = ctxRef.current
-      if (c && ctx) { ctx.fillStyle = C.bg; ctx.fillRect(0, 0, c.width, c.height) }
+      if (c && ctx) {
+        ctx.fillStyle = C.bg
+        ctx.fillRect(0, 0, c.width / (window.devicePixelRatio || 1), c.height / (window.devicePixelRatio || 1))
+      }
+      setBoardElements([])
     })
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
       setMessages(prev => prev.some(m => m.id === payload.id) ? prev : [...prev, payload])
@@ -1056,6 +1271,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     ch.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         trackPresence()
+        if (!isAdminMode) {
+          ch.send({ type: 'broadcast', event: 'request_wb_sync' })
+        }
       }
     })
 
@@ -1187,16 +1405,80 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
   useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  /* ── WB init ── */
+  /* ── WB init & Scroll Prevention ── */
+  useEffect(() => {
+    const isTablet = displayName === 'Tablet' || isTabletMode
+    const active = whiteboardActive || isTablet
+    if (active) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [whiteboardActive, displayName, isTabletMode])
+
   useEffect(() => {
     const isTablet = displayName === 'Tablet' || isTabletMode
     if ((!whiteboardActive && !isTablet) || !wbRef.current) return
     const c = wbRef.current
-    c.width = c.offsetWidth; c.height = c.offsetHeight
-    const ctx = c.getContext('2d')
-    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, c.width, c.height)
-    ctxRef.current = ctx
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (!entries || entries.length === 0) return
+      const rect = entries[0].contentRect
+      if (rect.width === 0 || rect.height === 0) return
+
+      let tempCanvas = null
+      if (c.width > 0 && c.height > 0) {
+        tempCanvas = document.createElement('canvas')
+        tempCanvas.width = c.width
+        tempCanvas.height = c.height
+        const tempCtx = tempCanvas.getContext('2d')
+        if (tempCtx) tempCtx.drawImage(c, 0, 0)
+      }
+
+      const dpr = window.devicePixelRatio || 1
+      const oldW = c.width
+      const oldH = c.height
+
+      c.width = rect.width * dpr
+      c.height = rect.height * dpr
+      const ctx = c.getContext('2d')
+      if (ctx) {
+        ctx.scale(dpr, dpr)
+        ctx.fillStyle = C.bg
+        ctx.fillRect(0, 0, rect.width, rect.height)
+        
+        if (tempCanvas && oldW > 0 && oldH > 0) {
+          ctx.drawImage(tempCanvas, 0, 0, oldW, oldH, 0, 0, rect.width * dpr, rect.height * dpr)
+        }
+        ctxRef.current = ctx
+      }
+    })
+
+    if (c.parentElement) {
+      resizeObserver.observe(c.parentElement)
+    }
+
+    return () => {
+      resizeObserver.disconnect()
+    }
   }, [whiteboardActive, displayName, isTabletMode])
+
+  useEffect(() => {
+    const canvas = wbRef.current
+    if (!canvas) return
+    const preventScroll = (e) => {
+      e.preventDefault()
+    }
+    canvas.addEventListener('wheel', preventScroll, { passive: false })
+    canvas.addEventListener('touchmove', preventScroll, { passive: false })
+    return () => {
+      canvas.removeEventListener('wheel', preventScroll)
+      canvas.removeEventListener('touchmove', preventScroll)
+    }
+  }, [whiteboardActive, isTabletMode, displayName])
 
   /* ── Fullscreen ── */
   useEffect(() => {
@@ -1259,32 +1541,435 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     const s = e.touches ? e.touches[0] : e
     return { x: s.clientX - r.left, y: s.clientY - r.top }
   }
-  function wbDown(e) { e.preventDefault(); drawing.current = true; lastPos.current = wbPos(e) }
+
+  function wbDown(e) {
+    if (wbTool === 'select') return
+    e.preventDefault()
+    drawing.current = true
+    const pos = wbPos(e)
+    lastPos.current = pos
+    startPos.current = pos
+    strokePoints.current = [pos]
+
+    const c = wbRef.current
+    const ctx = ctxRef.current
+    if (c && ctx) {
+      savedImageData.current = ctx.getImageData(0, 0, c.width, c.height)
+    }
+  }
+
   function wbMove(e) {
+    if (wbTool === 'select') return
     e.preventDefault()
     if (!drawing.current) return
-    const ctx = ctxRef.current, pos = wbPos(e)
-    ctx.beginPath(); ctx.moveTo(lastPos.current.x, lastPos.current.y)
-    ctx.lineTo(pos.x, pos.y)
-    ctx.strokeStyle = wbTool === 'eraser' ? C.bg : wbColor
-    ctx.lineWidth   = wbTool === 'eraser' ? wbSize * 5 : wbSize
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke()
+    const pos = wbPos(e)
+    const ctx = ctxRef.current
+    if (!ctx) return
 
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast', event: 'draw',
-        payload: { x0: lastPos.current.x, y0: lastPos.current.y, x1: pos.x, y1: pos.y, color: wbColor, size: wbSize, tool: wbTool }
-      })
+    strokePoints.current.push(pos)
+
+    const isShapeTool = ['rect', 'circle', 'line', 'triangle'].includes(wbTool)
+
+    if (isShapeTool) {
+      if (savedImageData.current) {
+        ctx.putImageData(savedImageData.current, 0, 0)
+      }
+      ctx.beginPath()
+      ctx.strokeStyle = wbColor
+      ctx.lineWidth = wbSize
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+
+      if (wbTool === 'rect') {
+        ctx.rect(startPos.current.x, startPos.current.y, pos.x - startPos.current.x, pos.y - startPos.current.y)
+      } else if (wbTool === 'circle') {
+        const radius = Math.sqrt(Math.pow(pos.x - startPos.current.x, 2) + Math.pow(pos.y - startPos.current.y, 2))
+        ctx.arc(startPos.current.x, startPos.current.y, radius, 0, 2 * Math.PI)
+      } else if (wbTool === 'line') {
+        ctx.moveTo(startPos.current.x, startPos.current.y)
+        ctx.lineTo(pos.x, pos.y)
+      } else if (wbTool === 'triangle') {
+        ctx.moveTo((startPos.current.x + pos.x) / 2, startPos.current.y)
+        ctx.lineTo(pos.x, pos.y)
+        ctx.lineTo(startPos.current.x, pos.y)
+        ctx.closePath()
+      }
+      ctx.stroke()
+    } else {
+      ctx.beginPath()
+      ctx.moveTo(lastPos.current.x, lastPos.current.y)
+      ctx.lineTo(pos.x, pos.y)
+      ctx.strokeStyle = wbTool === 'eraser' ? C.bg : wbColor
+      ctx.lineWidth   = wbTool === 'eraser' ? wbSize * 5 : wbSize
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke()
+
+      // Do NOT broadcast raw drawings to remote peer for post-processing AI tools
+      if (channelRef.current && !['correction', 'text_ai'].includes(wbTool)) {
+        channelRef.current.send({
+          type: 'broadcast', event: 'draw',
+          payload: { x0: lastPos.current.x, y0: lastPos.current.y, x1: pos.x, y1: pos.y, color: wbColor, size: wbSize, tool: wbTool }
+        })
+      }
     }
     lastPos.current = pos
   }
-  function wbUp() { drawing.current = false }
+
+  async function wbUp() {
+    if (!drawing.current) return
+    drawing.current = false
+    const ctx = ctxRef.current
+    const c = wbRef.current
+    if (!ctx || !c) return
+
+    const endPos = lastPos.current
+    const isShapeTool = ['rect', 'circle', 'line', 'triangle'].includes(wbTool)
+
+    if (isShapeTool) {
+      if (savedImageData.current) {
+        ctx.putImageData(savedImageData.current, 0, 0)
+      }
+
+      const containerRect = c.parentElement.getBoundingClientRect()
+      const x0 = startPos.current.x
+      const y0 = startPos.current.y
+      const x1 = endPos.x
+      const y1 = endPos.y
+
+      const left = Math.min(x0, x1)
+      const top = Math.min(y0, y1)
+      const width = Math.max(10, Math.abs(x1 - x0))
+      const height = Math.max(10, Math.abs(y1 - y0))
+
+      const xPercent = (left / containerRect.width) * 100
+      const yPercent = (top / containerRect.height) * 100
+      const wPercent = (width / containerRect.width) * 100
+      const hPercent = (height / containerRect.height) * 100
+
+      const flipX = x1 < x0
+      const flipY = y1 < y0
+
+      const newShape = {
+        id: 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        type: 'shape',
+        tool: wbTool,
+        x: xPercent,
+        y: yPercent,
+        w: wPercent,
+        h: hPercent,
+        flipX,
+        flipY,
+        color: wbColor,
+        size: wbSize
+      }
+
+      setBoardElements(prev => [...prev, newShape])
+      setWbTool('select')
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'element_add',
+          payload: newShape
+        })
+      }
+    } else if (wbTool === 'correction') {
+      const points = strokePoints.current
+      if (points.length < 5) return
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+      points.forEach(p => {
+        if (p.x < minX) minX = p.x
+        if (p.x > maxX) maxX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.y > maxY) maxY = p.y
+      })
+
+      const W = maxX - minX
+      const H = maxY - minY
+      if (W < 10 || H < 10) return
+
+      const start = points[0]
+      const end = points[points.length - 1]
+      const distStartEnd = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2))
+
+      let pathLength = 0
+      for (let i = 1; i < points.length; i++) {
+        pathLength += Math.sqrt(Math.pow(points[i].x - points[i-1].x, 2) + Math.pow(points[i].y - points[i-1].y, 2))
+      }
+
+      if (savedImageData.current) {
+        ctx.putImageData(savedImageData.current, 0, 0)
+      }
+
+      const simplified = simplifyPath(points, 12)
+      const numVertices = simplified.length
+
+      let correctedTool = 'rect'
+      let x0 = minX, y0 = minY, x1 = maxX, y1 = maxY
+
+      if (distStartEnd > 40 && pathLength < 1.35 * distStartEnd) {
+        correctedTool = 'line'
+        x0 = start.x
+        y0 = start.y
+        x1 = end.x
+        y1 = end.y
+      } else {
+        const isClosed = distStartEnd < 0.3 * pathLength || distStartEnd < 50
+        if (isClosed) {
+          if (numVertices <= 4) {
+            correctedTool = 'triangle'
+          } else {
+            const ratio = Math.abs(W - H) / Math.max(W, H)
+            if (ratio < 0.3) {
+              correctedTool = 'circle'
+            } else {
+              correctedTool = 'rect'
+            }
+          }
+        } else {
+          correctedTool = 'line'
+          x0 = start.x
+          y0 = start.y
+          x1 = end.x
+          y1 = end.y
+        }
+      }
+
+      const containerRect = c.parentElement.getBoundingClientRect()
+      const left = Math.min(x0, x1)
+      const top = Math.min(y0, y1)
+      const width = Math.max(10, Math.abs(x1 - x0))
+      const height = Math.max(10, Math.abs(y1 - y0))
+
+      const xPercent = (left / containerRect.width) * 100
+      const yPercent = (top / containerRect.height) * 100
+      const wPercent = (width / containerRect.width) * 100
+      const hPercent = (height / containerRect.height) * 100
+
+      const flipX = x1 < x0
+      const flipY = y1 < y0
+
+      const newShape = {
+        id: 'shape_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        type: 'shape',
+        tool: correctedTool,
+        x: xPercent,
+        y: yPercent,
+        w: wPercent,
+        h: hPercent,
+        flipX,
+        flipY,
+        color: wbColor,
+        size: wbSize
+      }
+
+      setBoardElements(prev => [...prev, newShape])
+      setWbTool('select')
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'element_add',
+          payload: newShape
+        })
+      }
+    } else if (wbTool === 'text_ai') {
+      const points = strokePoints.current
+      if (points.length < 5) return
+
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+      points.forEach(p => {
+        if (p.x < minX) minX = p.x
+        if (p.x > maxX) maxX = p.x
+        if (p.y < minY) minY = p.y
+        if (p.y > maxY) maxY = p.y
+      })
+
+      const W = maxX - minX
+      const H = maxY - minY
+      if (W < 10 || H < 10) return
+
+      if (savedImageData.current) {
+        ctx.putImageData(savedImageData.current, 0, 0)
+      }
+
+      setIsOCRProcessing(true)
+
+      const dpr = window.devicePixelRatio || 1
+      const pad = 10
+      const sx = Math.max(0, (minX - pad) * dpr)
+      const sy = Math.max(0, (minY - pad) * dpr)
+      const sw = Math.min(c.width - sx, (W + pad * 2) * dpr)
+      const sh = Math.min(c.height - sy, (H + pad * 2) * dpr)
+
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = sw
+      tempCanvas.height = sh
+      const tempCtx = tempCanvas.getContext('2d')
+      tempCtx.drawImage(c, sx, sy, sw, sh, 0, 0, sw, sh)
+      const croppedBase64 = tempCanvas.toDataURL('image/png')
+
+      try {
+        const response = await fetch('/api/ai/correct-handwriting', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: croppedBase64
+          })
+        })
+        const resJson = await response.json()
+        if (resJson.success && resJson.data && resJson.data.text) {
+          const correctedText = resJson.data.text.trim().replace(/^"|"$/g, '')
+          
+          const containerRect = c.parentElement.getBoundingClientRect()
+          const charsCount = correctedText.length
+          const estWidthPx = Math.max(120, charsCount * 15)
+          const estHeightPx = 48
+          
+          const wPercent = Math.min(90, (estWidthPx / containerRect.width) * 100)
+          const hPercent = Math.min(30, (estHeightPx / containerRect.height) * 100)
+          
+          const xPercent = (minX / containerRect.width) * 100
+          const yPercent = (minY / containerRect.height) * 100
+
+          const newText = {
+            id: 'text_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            type: 'text',
+            text: correctedText,
+            x: xPercent,
+            y: yPercent,
+            w: wPercent,
+            h: hPercent,
+            color: wbColor,
+            size: wbSize
+          }
+
+          setBoardElements(prev => [...prev, newText])
+          setWbTool('select')
+
+          if (channelRef.current) {
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'element_add',
+              payload: newText
+            })
+          }
+        }
+      } catch (err) {
+        console.error('Failed to correct handwriting via AI:', err)
+      } finally {
+        setIsOCRProcessing(false)
+      }
+    }
+  }
+
+  function compressImage(file, maxDimension = 800) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let w = img.width
+          let h = img.height
+          if (w > maxDimension || h > maxDimension) {
+            if (w > h) {
+              h = Math.round((h * maxDimension) / w)
+              w = maxDimension
+            } else {
+              w = Math.round((w * maxDimension) / h)
+              h = maxDimension
+            }
+          }
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, w, h)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6)
+          resolve({ dataUrl, width: w, height: h })
+        }
+        img.onerror = reject
+        img.src = e.target.result
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
 
   function clearCanvas() {
     const c = wbRef.current; const ctx = ctxRef.current
     if (c && ctx) {
-      ctx.fillStyle = C.bg; ctx.fillRect(0, 0, c.width, c.height)
+      ctx.fillStyle = C.bg
+      ctx.fillRect(0, 0, c.width / (window.devicePixelRatio || 1), c.height / (window.devicePixelRatio || 1))
+      setBoardElements([])
       if (channelRef.current) channelRef.current.send({ type: 'broadcast', event: 'clear' })
+    }
+  }
+
+  async function handleImageUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      const { dataUrl, width, height } = await compressImage(file)
+      
+      const canvas = wbRef.current
+      if (!canvas) return
+      
+      const containerRect = canvas.parentElement.getBoundingClientRect()
+      
+      const wPercent = 40
+      const imageAspect = width / height
+      
+      const wPx = containerRect.width * (wPercent / 100)
+      const hPx = wPx / imageAspect
+      const hPercent = (hPx / containerRect.height) * 100
+      
+      const xPercent = (100 - wPercent) / 2
+      const yPercent = (100 - hPercent) / 2
+      
+      const newImage = {
+        id: 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        type: 'image',
+        dataUrl,
+        x: xPercent,
+        y: yPercent,
+        w: wPercent,
+        h: hPercent
+      }
+      
+      setBoardElements(prev => [...prev, newImage])
+      setWbTool('select')
+      
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'element_add',
+          payload: newImage
+        })
+      }
+    } catch (err) {
+      console.error('Failed to compress/upload image:', err)
+    }
+  }
+
+  async function handleAIAnalysis() {
+    if (transcript.length === 0) return
+    setAnalyzing(true)
+    setAnalysisResult('')
+    try {
+      const text = transcript.map(t => `${t.speaker}: ${t.text}`).join('\n')
+      const prompt = `أنت مساعد ذكي ومحلل اجتماعات خبير. قم بتحليل هذا الاجتماع بشكل كامل ودقيق باللغة العربية:\n\n${text}\n\nاكتب تقريراً منسقاً يحتوي على:\n1. ملخص تنفيذي ذكي للاجتماع.\n2. أهم النقاط والقرارات التي تم الاتفاق عليها.\n3. المهام المطلوبة ومَن المسؤول عن كل مهمة.`
+      const result = await askOllama(prompt)
+      if (result) {
+        setAnalysisResult(result)
+        setSummary(result)
+      } else {
+        setAnalysisResult('فشلت عملية التحليل من أولاما. يرجى التأكد من تشغيل Ollama محلياً على منفذ 11434.')
+      }
+    } catch (e) {
+      setAnalysisResult('حدث خطأ أثناء محاولة الاتصال بالذكاء الاصطناعي Ollama.')
+    } finally {
+      setAnalyzing(false)
     }
   }
 
@@ -1345,6 +2030,10 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         wbTool={wbTool} setWbTool={setWbTool}
         wbPos={wbPos} wbDown={wbDown} wbMove={wbMove} wbUp={wbUp}
         clearCanvas={clearCanvas}
+        handleImageUpload={handleImageUpload}
+        isOCRProcessing={isOCRProcessing}
+        boardElements={boardElements}
+        setBoardElements={setBoardElements}
       />
     )
   }
@@ -1418,25 +2107,53 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         <div style={{ flex: 1, position: 'relative', background: '#000', overflow: 'hidden' }}>
           {whiteboardActive ? (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: C.bg, position: 'relative', zIndex: 10 }}>
-              <div style={rm.wbBar}>
-                {[{id:'pen',icon:'edit'},{id:'eraser',icon:'ink_eraser'}].map(t => (
+              <div style={{ ...rm.wbBar, flexWrap: 'wrap', height: 'auto', minHeight: 48, padding: '8px 16px', gap: 6 }}>
+                {tools.map(t => (
                   <button key={t.id} onClick={() => setWbTool(t.id)}
-                    style={{ ...rm.wbTool, background: wbTool===t.id ? 'rgba(26,115,232,0.2)' : 'transparent' }}>
-                    <Icon name={t.icon} size={18} style={{ color: wbTool===t.id ? C.blue : C.text2 }} />
+                    title={t.label}
+                    style={{
+                      ...rm.wbTool,
+                      background: wbTool===t.id ? 'rgba(26,115,232,0.15)' : 'transparent',
+                      border: wbTool===t.id ? `1px solid rgba(26,115,232,0.25)` : '1px solid transparent',
+                      borderRadius: 6, padding: '4px 8px', height: 32, width: 'auto',
+                      display: 'flex', alignItems: 'center', gap: 4
+                    }}>
+                    <Icon name={t.icon} size={16} style={{ color: wbTool===t.id ? C.blue : C.text2 }} />
+                    <span style={{ fontSize: 10, fontWeight: 600, color: wbTool===t.id ? C.blue : C.text2, fontFamily: FONT }}>{t.label}</span>
                   </button>
                 ))}
+                
                 <div style={rm.wbDiv} />
-                {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
-                  <button key={col} onClick={() => { setWbColor(col); setWbTool('pen') }}
-                    style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none' }} />
-                ))}
+                
+                <input type="file" accept="image/*" id="desktop-wb-image-upload" onChange={handleImageUpload} style={{ display: 'none' }} />
+                <button onClick={() => document.getElementById('desktop-wb-image-upload')?.click()} style={{
+                  ...rm.wbTool,
+                  border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px',
+                  display: 'flex', alignItems: 'center', gap: 4, height: 32, cursor: 'pointer'
+                }} title="رفع صورة">
+                  <Icon name="image" size={16} style={{ color: C.text2 }} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: C.text2, fontFamily: FONT }}>صورة</span>
+                </button>
+
                 <div style={rm.wbDiv} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
+                    <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
+                      style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 18, height: 18 }} />
+                  ))}
+                </div>
+
+                <div style={rm.wbDiv} />
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Icon name="line_weight" size={16} style={{ color: C.text2 }} />
                   <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
                     style={{ width: 60, accentColor: C.blue }} />
                 </div>
+
                 <div style={rm.wbDiv} />
+
                 <button onClick={clearCanvas} style={rm.wbTool} title="مسح">
                   <Icon name="delete_sweep" size={18} style={{ color: C.text2 }} />
                 </button>
@@ -1451,9 +2168,59 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                   </button>
                 )}
               </div>
-              <canvas ref={wbRef} style={rm.wbCanvas}
-                onMouseDown={wbDown} onMouseMove={wbMove} onMouseUp={wbUp} onMouseLeave={wbUp}
-                onTouchStart={wbDown} onTouchMove={wbMove} onTouchEnd={wbUp} />
+              <div style={{ flex: 1, position: 'relative', background: C.bg }}>
+                {isOCRProcessing && (
+                  <div style={{
+                    position: 'absolute', inset: 0, margin: 'auto',
+                    width: 200, height: 50, borderRadius: 10,
+                    background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)',
+                    border: `1px solid rgba(26,115,232,0.2)`,
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 10, zIndex: 100, fontSize: 12, fontFamily: FONT, fontWeight: 600,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                  }}>
+                    <div style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.1)',
+                      borderTop: `2px solid ${C.blue}`,
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                    <span>جاري تصحيح النص...</span>
+                  </div>
+                )}
+                <canvas ref={wbRef} style={rm.wbCanvas}
+                  onMouseDown={wbDown} onMouseMove={wbMove} onMouseUp={wbUp} onMouseLeave={wbUp}
+                  onTouchStart={wbDown} onTouchMove={wbMove} onTouchEnd={wbUp} />
+                
+                {boardElements.map(img => (
+                  <BoardElement
+                    key={img.id}
+                    img={img}
+                    containerRef={wbRef}
+                    disabled={wbTool !== 'select'}
+                    onUpdate={(updated) => {
+                      setBoardElements(prev => prev.map(i => i.id === img.id ? { ...i, ...updated } : i))
+                      if (channelRef.current) {
+                        channelRef.current.send({
+                          type: 'broadcast',
+                          event: 'element_update',
+                          payload: { id: img.id, ...updated }
+                        })
+                      }
+                    }}
+                    onDelete={() => {
+                      setBoardElements(prev => prev.filter(i => i.id !== img.id))
+                      if (channelRef.current) {
+                        channelRef.current.send({
+                          type: 'broadcast',
+                          event: 'element_delete',
+                          payload: { id: img.id }
+                        })
+                      }
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           ) : sharing && screenStream ? (
             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -1478,6 +2245,54 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 onDoubleClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
                 style={{ ...rm.mainVideo, objectFit: videoFit, display: remoteStream ? 'block' : 'none', cursor: 'pointer' }}
               />
+              {remoteStream && isReconnecting && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 20,
+                  color: '#fff',
+                  fontFamily: FONT,
+                  zIndex: 15,
+                  borderRadius: 12,
+                  animation: 'fadeIn 0.3s ease-in-out',
+                  padding: 24,
+                  textAlign: 'center'
+                }}>
+                  <style>{`
+                    @keyframes spin {
+                      0% { transform: rotate(0deg); }
+                      100% { transform: rotate(360deg); }
+                    }
+                    @keyframes fadeIn {
+                      from { opacity: 0; }
+                      to { opacity: 1; }
+                    }
+                  `}</style>
+                  <div style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    border: '4px solid rgba(255, 255, 255, 0.1)',
+                    borderTop: `4px solid ${C.blue || '#1a73e8'}`,
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+                      انقطع الاتصال مؤقتاً
+                    </h4>
+                    <p style={{ margin: '8px 0 0 0', fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>
+                      جاري إعادة الاتصال تلقائياً، يرجى الانتظار...
+                    </p>
+                  </div>
+                </div>
+              )}
               {autoplayBlocked && (
                 <button
                   onClick={handleManualPlay}
@@ -1612,6 +2427,56 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                         </button>
                       )}
                     </div>
+                    {transcript.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        <button
+                          onClick={handleAIAnalysis}
+                          disabled={analyzing}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            background: C.blue,
+                            color: '#fff',
+                            border: 'none',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: analyzing ? 'not-allowed' : 'pointer',
+                            opacity: analyzing ? 0.7 : 1,
+                            fontFamily: FONT
+                          }}
+                        >
+                          <Icon name="auto_awesome" size={14} />
+                          {analyzing ? 'جاري التحليل من أولاما...' : 'تحليل الاجتماع بالكامل بالذكاء الاصطناعي'}
+                        </button>
+                        
+                        {analysisResult && (
+                          <div style={{
+                            background: 'rgba(26, 115, 232, 0.08)',
+                            border: `1px solid rgba(26, 115, 232, 0.15)`,
+                            borderRadius: 8,
+                            padding: 12,
+                            fontSize: 12,
+                            lineHeight: 1.6,
+                            color: C.text,
+                            maxHeight: 200,
+                            overflowY: 'auto',
+                            fontFamily: FONT
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <span style={{ fontWeight: 700, color: C.blue }}>تحليل أولاما الذكي:</span>
+                              <button onClick={() => setAnalysisResult('')} style={{ background: 'none', border: 'none', color: C.text2, cursor: 'pointer' }}>
+                                <Icon name="close" size={14} />
+                              </button>
+                            </div>
+                            <div style={{ whiteSpace: 'pre-wrap' }}>{analysisResult}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div style={rm.transcriptList}>
                       {transcript.length === 0
                         ? <p style={rm.emptyTxt}>الكلام سيظهر هنا تلقائياً...</p>
@@ -2102,7 +2967,59 @@ function MeetingArchive({ onBack }) {
 /* ═══════════════════════════════════════════════
    TABLET WHITEBOARD
 ═══════════════════════════════════════════════ */
-function TabletWhiteboard({ meetingId, onLeave, channelRef, wbRef, ctxRef, wbColor, setWbColor, wbSize, setWbSize, wbTool, setWbTool, wbPos, wbDown, wbMove, wbUp, clearCanvas }) {
+function TabletWhiteboard({
+  meetingId,
+  onLeave,
+  channelRef,
+  wbRef,
+  ctxRef,
+  wbColor,
+  setWbColor,
+  wbSize,
+  setWbSize,
+  wbTool,
+  setWbTool,
+  wbPos,
+  wbDown,
+  wbMove,
+  wbUp,
+  clearCanvas,
+  handleImageUpload,
+  isOCRProcessing,
+  boardElements,
+  setBoardElements
+}) {
+  const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement)
+  const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`)
+      })
+    } else {
+      document.exitFullscreen().catch(() => {})
+    }
+  }
+
+  const tools = [
+    { id: 'select', icon: 'near_me', label: 'تحديد وتحريك' },
+    { id: 'pen', icon: 'edit', label: 'قلم' },
+    { id: 'eraser', icon: 'ink_eraser', label: 'ممحاة' },
+    { id: 'rect', icon: 'rectangle', label: 'مستطيل' },
+    { id: 'circle', icon: 'circle', label: 'دائرة' },
+    { id: 'line', icon: 'horizontal_rule', label: 'مستقيم' },
+    { id: 'triangle', icon: 'change_history', label: 'مثلث' },
+    { id: 'correction', icon: 'gesture', label: 'تصحيح الأشكال' },
+    { id: 'text_ai', icon: 'spellcheck', label: 'تصحيح النصوص' }
+  ]
+
   return (
     <div style={tabWb.root}>
       <div style={tabWb.header}>
@@ -2113,7 +3030,19 @@ function TabletWhiteboard({ meetingId, onLeave, channelRef, wbRef, ctxRef, wbCol
             <span>Tablet Mode — الرسم المشترك</span>
           </div>
           <span style={{ color: C.text2, fontSize: 12 }}>كود: {meetingId}</span>
+          
+          <button onClick={handleToggleFullscreen} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'rgba(255,255,255,0.06)', border: `1px solid ${C.border}`,
+            color: C.text, padding: '6px 12px', borderRadius: 8,
+            cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: FONT,
+            transition: 'all 0.2s'
+          }}>
+            <Icon name={isFullscreen ? "fullscreen_exit" : "fullscreen"} size={16} />
+            <span>{isFullscreen ? "الخروج من ملء الشاشة" : "ملء الشاشة"}</span>
+          </button>
         </div>
+        
         <button onClick={onLeave} style={tabWb.leaveBtn}>
           <Icon name="call_end" size={20} />
           إنهاء الرسم والخروج
@@ -2121,31 +3050,109 @@ function TabletWhiteboard({ meetingId, onLeave, channelRef, wbRef, ctxRef, wbCol
       </div>
 
       <div style={tabWb.canvasContainer}>
-        <canvas ref={wbRef} style={tabWb.canvas}
+        {isOCRProcessing && (
+          <div style={{
+            position: 'absolute', inset: 0, margin: 'auto',
+            width: 220, height: 60, borderRadius: 12,
+            background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)',
+            border: `1px solid rgba(26,115,232,0.2)`,
+            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 12, zIndex: 100, fontSize: 13, fontFamily: FONT, fontWeight: 600,
+            boxShadow: '0 12px 36px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{
+              width: 20, height: 20, borderRadius: '50%',
+              border: '2px solid rgba(255,255,255,0.1)',
+              borderTop: `2px solid ${C.blue}`,
+              animation: 'spin 1s linear infinite'
+            }} />
+            <span>جاري تصحيح النص بالـ AI...</span>
+          </div>
+        )}
+        <canvas ref={wbRef} style={{ ...tabWb.canvas, touchAction: 'none' }}
           onMouseDown={wbDown} onMouseMove={wbMove} onMouseUp={wbUp} onMouseLeave={wbUp}
           onTouchStart={wbDown} onTouchMove={wbMove} onTouchEnd={wbUp} />
+
+        {boardElements && boardElements.map(img => (
+          <BoardElement
+            key={img.id}
+            img={img}
+            containerRef={wbRef}
+            disabled={wbTool !== 'select'}
+            onUpdate={(updated) => {
+              setBoardElements(prev => prev.map(i => i.id === img.id ? { ...i, ...updated } : i))
+              if (channelRef.current) {
+                channelRef.current.send({
+                  type: 'broadcast',
+                  event: 'element_update',
+                  payload: { id: img.id, ...updated }
+                })
+              }
+            }}
+            onDelete={() => {
+              setBoardElements(prev => prev.filter(i => i.id !== img.id))
+              if (channelRef.current) {
+                channelRef.current.send({
+                  type: 'broadcast',
+                  event: 'element_delete',
+                  payload: { id: img.id }
+                })
+              }
+            }}
+          />
+        ))}
       </div>
 
-      <div style={tabWb.toolbar}>
-        {[{id:'pen',icon:'edit'},{id:'eraser',icon:'ink_eraser'}].map(t => (
-          <button key={t.id} onClick={() => setWbTool(t.id)}
-            style={{ ...tabWb.toolBtn, background: wbTool===t.id ? 'rgba(26,115,232,0.2)' : 'transparent' }}>
-            <Icon name={t.icon} size={22} style={{ color: wbTool===t.id ? C.blue : C.text2 }} />
-          </button>
-        ))}
+      <div style={{ ...tabWb.toolbar, flexWrap: 'wrap', gap: 6, padding: '12px 20px', height: 'auto', minHeight: 60 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {tools.map(t => (
+            <button key={t.id} onClick={() => setWbTool(t.id)}
+              title={t.label}
+              style={{
+                ...tabWb.toolBtn,
+                background: wbTool === t.id ? 'rgba(26,115,232,0.15)' : 'transparent',
+                border: wbTool === t.id ? `1px solid rgba(26,115,232,0.25)` : '1px solid transparent',
+                borderRadius: 8, padding: '6px 10px', height: 38, width: 'auto',
+                display: 'flex', alignItems: 'center', gap: 4
+              }}>
+              <Icon name={t.icon} size={20} style={{ color: wbTool === t.id ? C.blue : C.text2 }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: wbTool === t.id ? C.blue : C.text2, fontFamily: FONT }}>{t.label}</span>
+            </button>
+          ))}
+        </div>
+        
         <div style={tabWb.divider} />
-        {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
-          <button key={col} onClick={() => { setWbColor(col); setWbTool('pen') }}
-            style={{ ...tabWb.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none' }} />
-        ))}
+        
+        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} style={{ display: 'none' }} />
+        <button onClick={() => fileInputRef.current?.click()} style={{
+          ...tabWb.toolBtn,
+          border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px',
+          display: 'flex', alignItems: 'center', gap: 6, height: 38, cursor: 'pointer'
+        }}>
+          <Icon name="image" size={20} style={{ color: C.text2 }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: C.text2, fontFamily: FONT }}>صورة</span>
+        </button>
+
         <div style={tabWb.divider} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
+            <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
+              style={{ ...tabWb.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 24, height: 24 }} />
+          ))}
+        </div>
+
+        <div style={tabWb.divider} />
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="line_weight" size={18} style={{ color: C.text2 }} />
           <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
             style={{ width: 80, accentColor: C.blue }} />
         </div>
+
         <div style={tabWb.divider} />
-        <button onClick={clearCanvas} style={tabWb.actionBtn} title="مسح الكل">
+
+        <button onClick={clearCanvas} style={{ ...tabWb.actionBtn, height: 38 }} title="مسح الكل">
           <Icon name="delete_sweep" size={22} style={{ color: C.text2 }} />
         </button>
       </div>
@@ -2682,4 +3689,309 @@ if (typeof document !== 'undefined' && !document.getElementById('vx-meet-kf')) {
     input:focus { border-color: rgba(26,115,232,0.5) !important; box-shadow: 0 0 0 3px rgba(26,115,232,0.1) !important; }
   `
   document.head.appendChild(s)
+}
+
+function BoardElement({ img, onUpdate, onDelete, disabled, containerRef }) {
+  const [isHovered, setIsHovered] = React.useState(false)
+  const dragStart = React.useRef(null)
+  const resizeStart = React.useRef(null)
+
+  const handlePointerDown = (e) => {
+    if (disabled) return
+    e.stopPropagation()
+    if (e.target.closest('.delete-btn')) return
+    if (e.target.closest('.resize-handle')) return
+
+    e.target.setPointerCapture(e.pointerId)
+    const container = containerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    dragStart.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      origX: img.x,
+      origY: img.y,
+      rect
+    }
+  }
+
+  const handlePointerMove = (e) => {
+    if (!dragStart.current) return
+    e.stopPropagation()
+    const { pointerX, pointerY, origX, origY, rect } = dragStart.current
+    const dx = e.clientX - pointerX
+    const dy = e.clientY - pointerY
+
+    const dxPercent = (dx / rect.width) * 100
+    const dyPercent = (dy / rect.height) * 100
+
+    let newX = origX + dxPercent
+    let newY = origY + dyPercent
+
+    newX = Math.max(-img.w + 2, Math.min(100 - 2, newX))
+    newY = Math.max(-img.h + 2, Math.min(100 - 2, newY))
+
+    onUpdate({ x: newX, y: newY })
+  }
+
+  const handlePointerUp = (e) => {
+    if (!dragStart.current) return
+    e.stopPropagation()
+    e.target.releasePointerCapture(e.pointerId)
+    dragStart.current = null
+  }
+
+  const handleResizeDown = (e) => {
+    if (disabled) return
+    e.stopPropagation()
+    e.target.setPointerCapture(e.pointerId)
+    const container = containerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    resizeStart.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      origW: img.w,
+      origH: img.h,
+      rect
+    }
+  }
+
+  const handleResizeMove = (e) => {
+    if (!resizeStart.current) return
+    e.stopPropagation()
+    const { pointerX, pointerY, origW, origH, rect } = resizeStart.current
+    const dx = e.clientX - pointerX
+    const dy = e.clientY - pointerY
+
+    const dwPercent = (dx / rect.width) * 100
+    const dhPercent = (dy / rect.height) * 100
+
+    let newW = Math.max(5, origW + dwPercent)
+    let newH = Math.max(5, origH + dhPercent)
+
+    onUpdate({ w: newW, h: newH })
+  }
+
+  const handleResizeUp = (e) => {
+    if (!resizeStart.current) return
+    e.stopPropagation()
+    e.target.releasePointerCapture(e.pointerId)
+    resizeStart.current = null
+  }
+
+  const borderStyle = isHovered && !disabled
+    ? '2px solid #1a73e8'
+    : '2px dashed transparent'
+
+  const container = containerRef.current
+  const containerHeight = container ? container.getBoundingClientRect().height : 400
+  const fontSize = Math.max(12, Math.round(containerHeight * (img.h / 100) * 0.55))
+
+  const renderContent = () => {
+    if (img.type === 'image') {
+      return (
+        <img
+          src={img.dataUrl}
+          alt="whiteboard-upload"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            pointerEvents: 'none'
+          }}
+        />
+      )
+    }
+
+    if (img.type === 'text') {
+      return (
+        <div
+          style={{
+            color: img.color || C.text,
+            fontSize: `${fontSize}px`,
+            fontFamily: 'Cairo, sans-serif',
+            fontWeight: 600,
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+            textAlign: 'center',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            userSelect: 'none',
+            pointerEvents: 'none'
+          }}
+        >
+          {img.text}
+        </div>
+      )
+    }
+
+    if (img.type === 'shape') {
+      const size = img.size || 3
+      const color = img.color || '#1a73e8'
+
+      if (img.tool === 'rect') {
+        return (
+          <svg width="100%" height="100%" style={{ overflow: 'visible', pointerEvents: 'none' }}>
+            <rect
+              x={size / 2}
+              y={size / 2}
+              width={`calc(100% - ${size}px)`}
+              height={`calc(100% - ${size}px)`}
+              fill="none"
+              stroke={color}
+              strokeWidth={size}
+            />
+          </svg>
+        )
+      }
+
+      if (img.tool === 'circle') {
+        return (
+          <svg width="100%" height="100%" style={{ overflow: 'visible', pointerEvents: 'none' }}>
+            <ellipse
+              cx="50%"
+              cy="50%"
+              rx={`calc(50% - ${size / 2}px)`}
+              ry={`calc(50% - ${size / 2}px)`}
+              fill="none"
+              stroke={color}
+              strokeWidth={size}
+            />
+          </svg>
+        )
+      }
+
+      if (img.tool === 'line') {
+        return (
+          <svg width="100%" height="100%" style={{ overflow: 'visible', pointerEvents: 'none' }}>
+            <line
+              x1={img.flipX ? "100%" : "0%"}
+              y1={img.flipY ? "100%" : "0%"}
+              x2={img.flipX ? "0%" : "100%"}
+              y2={img.flipY ? "0%" : "100%"}
+              stroke={color}
+              strokeWidth={size}
+              strokeLinecap="round"
+            />
+          </svg>
+        )
+      }
+
+      if (img.tool === 'triangle') {
+        return (
+          <svg width="100%" height="100%" style={{ overflow: 'visible', pointerEvents: 'none' }}>
+            <polygon
+              points={`50%,${size / 2} calc(100% - ${size / 2}px),calc(100% - ${size / 2}px) ${size / 2},calc(100% - ${size / 2}px)`}
+              fill="none"
+              stroke={color}
+              strokeWidth={size}
+              strokeLinejoin="round"
+            />
+          </svg>
+        )
+      }
+    }
+
+    return null
+  }
+
+  return (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      style={{
+        position: 'absolute',
+        left: `${img.x}%`,
+        top: `${img.y}%`,
+        width: `${img.w}%`,
+        height: `${img.h}%`,
+        border: borderStyle,
+        cursor: disabled ? 'default' : 'move',
+        pointerEvents: disabled ? 'none' : 'auto',
+        userSelect: 'none',
+        touchAction: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 5
+      }}
+    >
+      {renderContent()}
+
+      {isHovered && !disabled && (
+        <>
+          <button
+            className="delete-btn"
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            style={{
+              position: 'absolute',
+              top: -12,
+              right: -12,
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              background: '#ea4335',
+              border: '1px solid #fff',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              padding: 0,
+              zIndex: 10
+            }}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: 16 }}>close</span>
+          </button>
+
+          <div
+            className="resize-handle"
+            onPointerDown={handleResizeDown}
+            onPointerMove={handleResizeMove}
+            onPointerUp={handleResizeUp}
+            style={{
+              position: 'absolute',
+              bottom: -6,
+              left: -6,
+              width: 14,
+              height: 14,
+              background: '#1a73e8',
+              border: '2px solid #fff',
+              borderRadius: '50%',
+              cursor: 'nesw-resize',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              zIndex: 10
+            }}
+          />
+          <div
+            className="resize-handle"
+            onPointerDown={handleResizeDown}
+            onPointerMove={handleResizeMove}
+            onPointerUp={handleResizeUp}
+            style={{
+              position: 'absolute',
+              bottom: -6,
+              right: -6,
+              width: 14,
+              height: 14,
+              background: '#1a73e8',
+              border: '2px solid #fff',
+              borderRadius: '50%',
+              cursor: 'nwse-resize',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              zIndex: 10
+            }}
+          />
+        </>
+      )}
+    </div>
+  )
 }

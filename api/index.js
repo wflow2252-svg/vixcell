@@ -11,7 +11,9 @@ try {
   app.use(express.json());
   
   const vixAiRoutes = require('../backend/src/routes/vixAi.routes');
+  const aiRoutes = require('../backend/src/routes/ai.routes');
   app.use('/api/vix-ai', vixAiRoutes);
+  app.use('/api/ai', aiRoutes);
   
   // Mock projects data
   const projects = [
