@@ -1340,40 +1340,23 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   useEffect(() => {
     const firstPeer = Array.from(peersMapRef.current.values())[0]
     if (firstPeer) {
-      const stream = firstPeer.remoteStream
-      setRemoteStream(stream)
+      setRemoteStream(firstPeer.remoteStream)
       if (remoteVideoRef.current) {
-        const isDifferentStream = remoteVideoRef.current.srcObject !== stream
-        if (isDifferentStream) {
-          remoteVideoRef.current.srcObject = stream
-          remoteVideoRef.current.play()
-            .then(() => setAutoplayBlocked(false))
-            .catch(e => {
-              console.warn("Remote video play failed:", e)
-              setAutoplayBlocked(true)
-            })
-        }
+        // Force refresh srcObject to handle track replacement
+        remoteVideoRef.current.srcObject = null
+        remoteVideoRef.current.srcObject = firstPeer.remoteStream
+        remoteVideoRef.current.play()
+          .then(() => setAutoplayBlocked(false))
+          .catch(e => {
+            console.warn("Remote video play failed:", e)
+            setAutoplayBlocked(true)
+          })
       }
     } else {
       setRemoteStream(null)
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null
     }
-  }, [peers])
-
-  // Force play/refresh remote video when stream tracks are updated/unmuted (e.g. screen share toggled)
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      const currentStream = remoteVideoRef.current.srcObject
-      remoteVideoRef.current.srcObject = null
-      remoteVideoRef.current.srcObject = currentStream
-      remoteVideoRef.current.play()
-        .then(() => setAutoplayBlocked(false))
-        .catch(e => {
-          console.warn("Remote video play failed on track update:", e)
-          setAutoplayBlocked(true)
-        })
-    }
-  }, [streamVersion])
+  }, [peers, streamVersion])
 
   /* ── AUTO RECORDING (Admin only) ── */
   useEffect(() => {
