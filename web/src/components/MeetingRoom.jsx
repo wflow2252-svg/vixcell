@@ -2136,266 +2136,288 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
         {/* ── VIDEO AREA ── */}
         <div style={{ flex: 1, position: 'relative', background: '#000', overflow: 'hidden' }}>
-          {/* 1. Whiteboard Container */}
-          <div style={{ display: whiteboardActive ? 'flex' : 'none', flexDirection: 'column', height: '100%', width: '100%', background: C.bg, position: 'relative', zIndex: 10 }}>
-            <div style={{ ...rm.wbBar, flexWrap: 'wrap', height: 'auto', minHeight: 48, padding: '8px 16px', gap: 6 }}>
-              {tools.map(t => (
-                <button key={t.id} onClick={() => setWbTool(t.id)}
-                  title={t.label}
-                  style={{
-                    ...rm.wbTool,
-                    background: wbTool===t.id ? 'rgba(26,115,232,0.15)' : 'transparent',
-                    border: wbTool===t.id ? `1px solid rgba(26,115,232,0.25)` : '1px solid transparent',
-                    borderRadius: 6, padding: '4px 8px', height: 32, width: 'auto',
-                    display: 'flex', alignItems: 'center', gap: 4
-                  }}>
-                  <Icon name={t.icon} size={16} style={{ color: wbTool===t.id ? C.blue : C.text2 }} />
-                  <span style={{ fontSize: 10, fontWeight: 600, color: wbTool===t.id ? C.blue : C.text2, fontFamily: FONT }}>{t.label}</span>
-                </button>
-              ))}
-              
-              <div style={rm.wbDiv} />
-              
-              <input type="file" accept="image/*" id="desktop-wb-image-upload" onChange={handleImageUpload} style={{ display: 'none' }} />
-              <button onClick={() => document.getElementById('desktop-wb-image-upload')?.click()} style={{
-                ...rm.wbTool,
-                border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px',
-                display: 'flex', alignItems: 'center', gap: 4, height: 32, cursor: 'pointer'
-              }} title="رفع صورة">
-                <Icon name="image" size={16} style={{ color: C.text2 }} />
-                <span style={{ fontSize: 10, fontWeight: 600, color: C.text2, fontFamily: FONT }}>صورة</span>
-              </button>
-
-              <div style={rm.wbDiv} />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
-                  <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
-                    style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 18, height: 18 }} />
+          {whiteboardActive ? (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: C.bg, position: 'relative', zIndex: 10 }}>
+              <div style={{ ...rm.wbBar, flexWrap: 'wrap', height: 'auto', minHeight: 48, padding: '8px 16px', gap: 6 }}>
+                {tools.map(t => (
+                  <button key={t.id} onClick={() => setWbTool(t.id)}
+                    title={t.label}
+                    style={{
+                      ...rm.wbTool,
+                      background: wbTool===t.id ? 'rgba(26,115,232,0.15)' : 'transparent',
+                      border: wbTool===t.id ? `1px solid rgba(26,115,232,0.25)` : '1px solid transparent',
+                      borderRadius: 6, padding: '4px 8px', height: 32, width: 'auto',
+                      display: 'flex', alignItems: 'center', gap: 4
+                    }}>
+                    <Icon name={t.icon} size={16} style={{ color: wbTool===t.id ? C.blue : C.text2 }} />
+                    <span style={{ fontSize: 10, fontWeight: 600, color: wbTool===t.id ? C.blue : C.text2, fontFamily: FONT }}>{t.label}</span>
+                  </button>
                 ))}
-              </div>
-
-              <div style={rm.wbDiv} />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Icon name="line_weight" size={16} style={{ color: C.text2 }} />
-                <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
-                  style={{ width: 60, accentColor: C.blue }} />
-              </div>
-
-              <div style={rm.wbDiv} />
-
-              <button onClick={clearCanvas} style={rm.wbTool} title="مسح">
-                <Icon name="delete_sweep" size={18} style={{ color: C.text2 }} />
-              </button>
-              <button onClick={() => { const a=document.createElement('a'); a.href=wbRef.current.toDataURL(); a.download='board.png'; a.click() }}
-                style={rm.wbTool} title="حفظ">
-                <Icon name="save" size={18} style={{ color: C.text2 }} />
-              </button>
-              {isAdminMode && (
-                <button onClick={() => toggleWhiteboard(false)} style={{ ...rm.wbTool, marginRight: 'auto', background: C.red, color: '#fff', borderRadius: 8, padding: '4px 10px', height: 'auto', width: 'auto', display: 'flex', alignItems: 'center', gap: 4 }} title="إغلاق السبورة للجميع">
-                  <Icon name="close" size={16} style={{ color: '#fff' }} />
-                  <span style={{ fontSize: 11, fontFamily: FONT }}>إغلاق السبورة</span>
+                
+                <div style={rm.wbDiv} />
+                
+                <input type="file" accept="image/*" id="desktop-wb-image-upload" onChange={handleImageUpload} style={{ display: 'none' }} />
+                <button onClick={() => document.getElementById('desktop-wb-image-upload')?.click()} style={{
+                  ...rm.wbTool,
+                  border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px',
+                  display: 'flex', alignItems: 'center', gap: 4, height: 32, cursor: 'pointer'
+                }} title="رفع صورة">
+                  <Icon name="image" size={16} style={{ color: C.text2 }} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: C.text2, fontFamily: FONT }}>صورة</span>
                 </button>
-              )}
-            </div>
-            <div style={{ flex: 1, position: 'relative', background: C.bg }}>
-              {isOCRProcessing && (
-                <div style={{
-                  position: 'absolute', inset: 0, margin: 'auto',
-                  width: 200, height: 50, borderRadius: 10,
-                  background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)',
-                  border: `1px solid rgba(26,115,232,0.2)`,
-                  color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  gap: 10, zIndex: 100, fontSize: 12, fontFamily: FONT, fontWeight: 600,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
-                }}>
-                  <div style={{
-                    width: 16, height: 16, borderRadius: '50%',
-                    border: '2px solid rgba(255,255,255,0.1)',
-                    borderTop: `2px solid ${C.blue}`,
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                  <span>جاري تصحيح النص...</span>
-                </div>
-              )}
-              <canvas ref={wbRef} style={rm.wbCanvas}
-                onMouseDown={wbDown} onMouseMove={wbMove} onMouseUp={wbUp} onMouseLeave={wbUp}
-                onTouchStart={wbDown} onTouchMove={wbMove} onTouchEnd={wbUp} />
-              
-              {boardElements.map(img => (
-                <BoardElement
-                  key={img.id}
-                  img={img}
-                  containerRef={wbRef}
-                  disabled={wbTool !== 'select'}
-                  onUpdate={(updated) => {
-                    setBoardElements(prev => prev.map(i => i.id === img.id ? { ...i, ...updated } : i))
-                    if (channelRef.current) {
-                      channelRef.current.send({
-                        type: 'broadcast',
-                        event: 'element_update',
-                        payload: { id: img.id, ...updated }
-                      })
-                    }
-                  }}
-                  onDelete={() => {
-                    setBoardElements(prev => prev.filter(i => i.id !== img.id))
-                    if (channelRef.current) {
-                      channelRef.current.send({
-                        type: 'broadcast',
-                        event: 'element_delete',
-                        payload: { id: img.id }
-                      })
-                    }
-                  }}
-                />
-              ))}
-            </div>
-          </div>
 
-          {/* 2. Local Screen Share Container */}
-          <div style={{ display: (!whiteboardActive && sharing && screenStream) ? 'block' : 'none', width: '100%', height: '100%', position: 'relative' }}>
-            <video
-              ref={el => { if (el && screenStream) el.srcObject = screenStream }}
-              autoPlay
-              playsInline
-              muted
-              style={rm.mainVideo}
-            />
-            <div style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(0,0,0,0.7)', padding: '6px 12px', borderRadius: 8, fontSize: 12, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.blue }} />
-              <span>أنت تشارك شاشتك حالياً للجميع</span>
-            </div>
-          </div>
+                <div style={rm.wbDiv} />
 
-          {/* 3. Remote Video Container */}
-          <div style={{ display: (!whiteboardActive && !(sharing && screenStream)) ? 'block' : 'none', width: '100%', height: '100%', position: 'relative' }}>
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              onDoubleClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
-              style={{ ...rm.mainVideo, objectFit: videoFit, display: remoteStream ? 'block' : 'none', cursor: 'pointer' }}
-            />
-            {remoteStream && isReconnecting && (
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'rgba(15, 23, 42, 0.75)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 20,
-                color: '#fff',
-                fontFamily: FONT,
-                zIndex: 15,
-                borderRadius: 12,
-                animation: 'fadeIn 0.3s ease-in-out',
-                padding: 24,
-                textAlign: 'center'
-              }}>
-                <style>{`
-                  @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                  }
-                  @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                  }
-                `}</style>
-                <div style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: '50%',
-                  border: '4px solid rgba(255, 255, 255, 0.1)',
-                  borderTop: `4px solid ${C.blue || '#1a73e8'}`,
-                  animation: 'spin 1s linear infinite'
-                }} />
-                <div>
-                  <h4 style={{ margin: 0, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: '#f8fafc' }}>
-                    انقطع الاتصال مؤقتاً
-                  </h4>
-                  <p style={{ margin: '8px 0 0 0', fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>
-                    جاري إعادة الاتصال تلقائياً، يرجى الانتظار...
-                  </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
+                    <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
+                      style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 18, height: 18 }} />
+                  ))}
                 </div>
-              </div>
-            )}
-            {autoplayBlocked && (
-              <button
-                onClick={handleManualPlay}
-                style={{
-                  position: 'absolute', inset: 0, margin: 'auto',
-                  width: 220, height: 50, borderRadius: 25,
-                  background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
-                  color: '#fff', border: 'none', cursor: 'pointer',
-                  fontSize: 13, fontWeight: 700, fontFamily: FONT,
-                  boxShadow: '0 8px 24px rgba(26,115,232,0.4)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  zIndex: 20,
-                }}
-              >
-                <Icon name="volume_up" size={20} />
-                <span>تفعيل الصوت والفيديو</span>
-              </button>
-            )}
-            {remoteStream && (
-              <button
-                onClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
-                style={{
-                  position: 'absolute', top: 20, left: 20,
-                  background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.1)',
-                  padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
-                  color: '#fff', cursor: 'pointer', fontFamily: FONT,
-                  display: 'flex', alignItems: 'center', gap: 6, zIndex: 10,
-                  transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
-                }}
-              >
-                <Icon name={videoFit === 'contain' ? 'zoom_in' : 'zoom_out'} size={16} />
-                <span>{videoFit === 'contain' ? 'ملء الشاشة (تكبير)' : 'ملاءمة الشاشة (تصغير)'}</span>
-              </button>
-            )}
-            {remoteStream && (
-              <div style={{
-                position: 'absolute', bottom: 20, left: 20,
-                background: 'rgba(0,0,0,0.6)', padding: '4px 10px',
-                borderRadius: 6, fontSize: 12, color: '#fff',
-                fontFamily: FONT, zIndex: 5
-              }}>
-                {remoteName || 'مشارك خارجي'}
-              </div>
-            )}
-            {!remoteStream && (
-              <div style={rm.mainPlaceholder}>
-                <div style={rm.waitingPulse}>
-                  <Icon name="groups" size={64} style={{ color: 'rgba(255,255,255,0.12)' }} />
+
+                <div style={rm.wbDiv} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Icon name="line_weight" size={16} style={{ color: C.text2 }} />
+                  <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
+                    style={{ width: 60, accentColor: C.blue }} />
                 </div>
-                <p style={{ color: C.text3, marginTop: 16, fontFamily: FONT, fontSize: 15 }}>
-                  {isAdminMode ? 'شارك الرابط مع العميل لبدء الاجتماع' : 'في انتظار بدء الاجتماع...'}
-                </p>
+
+                <div style={rm.wbDiv} />
+
+                <button onClick={clearCanvas} style={rm.wbTool} title="مسح">
+                  <Icon name="delete_sweep" size={18} style={{ color: C.text2 }} />
+                </button>
+                <button onClick={() => { const a=document.createElement('a'); a.href=wbRef.current.toDataURL(); a.download='board.png'; a.click() }}
+                  style={rm.wbTool} title="حفظ">
+                  <Icon name="save" size={18} style={{ color: C.text2 }} />
+                </button>
                 {isAdminMode && (
-                  <button onClick={copyInvite} style={rm.waitingCopyBtn}>
-                    <Icon name={inviteCopied ? 'check_circle' : 'link'} size={18} />
-                    {inviteCopied ? 'تم نسخ الرابط!' : 'نسخ رابط الاجتماع للعميل'}
+                  <button onClick={() => toggleWhiteboard(false)} style={{ ...rm.wbTool, marginRight: 'auto', background: C.red, color: '#fff', borderRadius: 8, padding: '4px 10px', height: 'auto', width: 'auto', display: 'flex', alignItems: 'center', gap: 4 }} title="إغلاق السبورة للجميع">
+                    <Icon name="close" size={16} style={{ color: '#fff' }} />
+                    <span style={{ fontSize: 11, fontFamily: FONT }}>إغلاق السبورة</span>
                   </button>
                 )}
               </div>
-            )}
-          </div>
+              <div style={{ flex: 1, position: 'relative', background: C.bg }}>
+                {isOCRProcessing && (
+                  <div style={{
+                    position: 'absolute', inset: 0, margin: 'auto',
+                    width: 200, height: 50, borderRadius: 10,
+                    background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)',
+                    border: `1px solid rgba(26,115,232,0.2)`,
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 10, zIndex: 100, fontSize: 12, fontFamily: FONT, fontWeight: 600,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                  }}>
+                    <div style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.1)',
+                      borderTop: `2px solid ${C.blue}`,
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                    <span>جاري تصحيح النص...</span>
+                  </div>
+                )}
+                <canvas ref={wbRef} style={rm.wbCanvas}
+                  onMouseDown={wbDown} onMouseMove={wbMove} onMouseUp={wbUp} onMouseLeave={wbUp}
+                  onTouchStart={wbDown} onTouchMove={wbMove} onTouchEnd={wbUp} />
+                
+                {boardElements.map(img => (
+                  <BoardElement
+                    key={img.id}
+                    img={img}
+                    containerRef={wbRef}
+                    disabled={wbTool !== 'select'}
+                    onUpdate={(updated) => {
+                      setBoardElements(prev => prev.map(i => i.id === img.id ? { ...i, ...updated } : i))
+                      if (channelRef.current) {
+                        channelRef.current.send({
+                          type: 'broadcast',
+                          event: 'element_update',
+                          payload: { id: img.id, ...updated }
+                        })
+                      }
+                    }}
+                    onDelete={() => {
+                      setBoardElements(prev => prev.filter(i => i.id !== img.id))
+                      if (channelRef.current) {
+                        channelRef.current.send({
+                          type: 'broadcast',
+                          event: 'element_delete',
+                          payload: { id: img.id }
+                        })
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : sharing && screenStream ? (
+            <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+              <video
+                ref={el => { if (el && screenStream) el.srcObject = screenStream }}
+                autoPlay
+                playsInline
+                muted
+                style={rm.mainVideo}
+              />
+              <div style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(0,0,0,0.7)', padding: '6px 12px', borderRadius: 8, fontSize: 12, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.blue }} />
+                <span>أنت تشارك شاشتك حالياً للجميع</span>
+              </div>
+            </div>
+          ) : (
+            <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+              <video
+                ref={el => {
+                  remoteVideoRef.current = el;
+                  if (el && remoteStream) {
+                    if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                    el.play()
+                      .then(() => setAutoplayBlocked(false))
+                      .catch(e => {
+                        console.warn("Remote video play failed on callback ref:", e);
+                        setAutoplayBlocked(true);
+                      });
+                  }
+                }}
+                autoPlay
+                playsInline
+                onDoubleClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
+                style={{ ...rm.mainVideo, objectFit: videoFit, display: remoteStream ? 'block' : 'none', cursor: 'pointer' }}
+              />
+              {remoteStream && isReconnecting && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'rgba(15, 23, 42, 0.75)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 20,
+                  color: '#fff',
+                  fontFamily: FONT,
+                  zIndex: 15,
+                  borderRadius: 12,
+                  animation: 'fadeIn 0.3s ease-in-out',
+                  padding: 24,
+                  textAlign: 'center'
+                }}>
+                  <style>{`
+                    @keyframes spin {
+                      0% { transform: rotate(0deg); }
+                      100% { transform: rotate(360deg); }
+                    }
+                    @keyframes fadeIn {
+                      from { opacity: 0; }
+                      to { opacity: 1; }
+                    }
+                  `}</style>
+                  <div style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: '50%',
+                    border: '4px solid rgba(255, 255, 255, 0.1)',
+                    borderTop: `4px solid ${C.blue || '#1a73e8'}`,
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: '#f8fafc' }}>
+                      انقطع الاتصال مؤقتاً
+                    </h4>
+                    <p style={{ margin: '8px 0 0 0', fontSize: 14, color: '#94a3b8', lineHeight: 1.5 }}>
+                      جاري إعادة الاتصال تلقائياً، يرجى الانتظار...
+                    </p>
+                  </div>
+                </div>
+              )}
+              {autoplayBlocked && (
+                <button
+                  onClick={handleManualPlay}
+                  style={{
+                    position: 'absolute', inset: 0, margin: 'auto',
+                    width: 220, height: 50, borderRadius: 25,
+                    background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
+                    color: '#fff', border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 700, fontFamily: FONT,
+                    boxShadow: '0 8px 24px rgba(26,115,232,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    zIndex: 20,
+                  }}
+                >
+                  <Icon name="volume_up" size={20} />
+                  <span>تفعيل الصوت والفيديو</span>
+                </button>
+              )}
+              {remoteStream && (
+                <button
+                  onClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
+                  style={{
+                    position: 'absolute', top: 20, left: 20,
+                    background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.1)',
+                    padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                    color: '#fff', cursor: 'pointer', fontFamily: FONT,
+                    display: 'flex', alignItems: 'center', gap: 6, zIndex: 10,
+                    transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                  }}
+                >
+                  <Icon name={videoFit === 'contain' ? 'zoom_in' : 'zoom_out'} size={16} />
+                  <span>{videoFit === 'contain' ? 'ملء الشاشة (تكبير)' : 'ملاءمة الشاشة (تصغير)'}</span>
+                </button>
+              )}
+              {remoteStream && (
+                <div style={{
+                  position: 'absolute', bottom: 20, left: 20,
+                  background: 'rgba(0,0,0,0.6)', padding: '4px 10px',
+                  borderRadius: 6, fontSize: 12, color: '#fff',
+                  fontFamily: FONT, zIndex: 5
+                }}>
+                  {remoteName || 'مشارك خارجي'}
+                </div>
+              )}
+              {!remoteStream && (
+                <div style={rm.mainPlaceholder}>
+                  <div style={rm.waitingPulse}>
+                    <Icon name="groups" size={64} style={{ color: 'rgba(255,255,255,0.12)' }} />
+                  </div>
+                  <p style={{ color: C.text3, marginTop: 16, fontFamily: FONT, fontSize: 15 }}>
+                    {isAdminMode ? 'شارك الرابط مع العميل لبدء الاجتماع' : 'في انتظار بدء الاجتماع...'}
+                  </p>
+                  {isAdminMode && (
+                    <button onClick={copyInvite} style={rm.waitingCopyBtn}>
+                      <Icon name={inviteCopied ? 'check_circle' : 'link'} size={18} />
+                      {inviteCopied ? 'تم نسخ الرابط!' : 'نسخ رابط الاجتماع للعميل'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* PiP */}
-          <div style={rm.pip}>
-            {camOn && localStream
-              ? <video ref={localVideoRef} autoPlay muted playsInline style={rm.pipVideo} />
-              : <div style={rm.pipOff}><Icon name="videocam_off" size={24} style={{ color: C.text3 }} /></div>
-            }
-            <div style={rm.pipLabel}>{displayName}</div>
-          </div>
+        {/* PiP */}
+        <div style={rm.pip}>
+          {camOn && localStream ? (
+            <video
+              ref={el => {
+                localVideoRef.current = el;
+                if (el && localStream) {
+                  el.srcObject = localStream;
+                }
+              }}
+              autoPlay
+              muted
+              playsInline
+              style={rm.pipVideo}
+            />
+          ) : (
+            <div style={rm.pipOff}><Icon name="videocam_off" size={24} style={{ color: C.text3 }} /></div>
+          )}
+          <div style={rm.pipLabel}>{displayName}</div>
+        </div>
         </div>
 
         {/* ── SIDE PANEL ── */}
