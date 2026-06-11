@@ -877,6 +877,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         const offerCollision = desc.type === 'offer' && (p.makingOffer || pc.signalingState !== 'stable')
         p.ignoreOffer = !p.polite && offerCollision
         if (p.ignoreOffer) return
+        if (offerCollision) {
+          await pc.setLocalDescription({ type: 'rollback' })
+        }
         await pc.setRemoteDescription(desc)
         for (const c of p.pendingIce.splice(0)) {
           try { await pc.addIceCandidate(c) } catch {}
