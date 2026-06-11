@@ -741,7 +741,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     p.audioSender = aTx.sender
 
     const ls = localStream
-    const vt = ls && ls.getVideoTracks()[0]
+    const vt = (sharing && screenTrackRef.current) ? screenTrackRef.current : (ls && ls.getVideoTracks()[0])
     const at = ls && ls.getAudioTracks()[0]
     if (vt) vTx.sender.replaceTrack(vt).catch(() => {})
     if (at) aTx.sender.replaceTrack(at).catch(() => {})
@@ -780,7 +780,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     map.set(id, p)
     syncPeersState()
     return p
-  }, [localStream, sendSignal, syncPeersState, bumpStreams])
+  }, [localStream, sendSignal, syncPeersState, bumpStreams, sharing])
 
   const handleSignal = useCallback(async (payload) => {
     if (!payload || payload.to !== myIdRef.current) return
@@ -952,17 +952,19 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     const at = localStream.getAudioTracks()[0]
     
     peersMapRef.current.forEach(p => {
-      if (vt && p.videoSender) p.videoSender.replaceTrack(vt).catch(e => console.warn("Failed to replace video track:", e))
+      if (!sharing && vt && p.videoSender) p.videoSender.replaceTrack(vt).catch(e => console.warn("Failed to replace video track:", e))
       if (at && p.audioSender) p.audioSender.replaceTrack(at).catch(e => console.warn("Failed to replace audio track:", e))
     })
-  }, [localStream])
+  }, [localStream, sharing])
 
   // Attach first remote stream to main video
   useEffect(() => {
     const firstPeer = Array.from(peersMapRef.current.values())[0]
     if (firstPeer) {
       setRemoteStream(firstPeer.remoteStream)
-      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== firstPeer.remoteStream) {
+      if (remoteVideoRef.current) {
+        // Force refresh srcObject to handle track replacement
+        remoteVideoRef.current.srcObject = null
         remoteVideoRef.current.srcObject = firstPeer.remoteStream
         remoteVideoRef.current.play().catch(e => console.warn("Remote video play failed:", e))
       }
