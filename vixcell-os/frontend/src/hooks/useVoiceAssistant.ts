@@ -76,10 +76,15 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
   const [state, setState] = useState<VoiceState>('idle')
   const [transcript, setTranscript] = useState('')
   const [reply, setReply] = useState('')
+  const [level, setLevel] = useState(0) // live mic loudness 0..1 (drives the waveform)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const stateRef = useRef<VoiceState>('idle')
   stateRef.current = state
+  // Voice-activity detection: stop on silence, cancel if no speech at all
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const rafRef = useRef<number>(0)
+  const cancelledRef = useRef(false)
 
   // Chrome loads voices async — warm the list so the first speak() finds Arabic
   useEffect(() => { window.speechSynthesis?.getVoices() }, [])
@@ -285,19 +290,27 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
   }, [])
 
   const startRecording = useCallback(async () => {
-    stopSpeaking() // user pressed mic — assistant yields immediately
+    stopSpeaking() // user starts talking — assistant yields immediately
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      })
       chunksRef.current = []
+      cancelledRef.current = false
       const rec = new MediaRecorder(stream, { mimeType: 'audio/webm' })
       recorderRef.current = rec
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       rec.onstop = async () => {
+        cancelAnimationFrame(rafRef.current)
+        if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null }
+        setLevel(0)
         stream.getTracks().forEach(t => t.stop())
+        // Cancelled = the user never actually spoke — don't bother the backend
+        if (cancelledRef.current) { setState('idle'); return }
         setState('processing')
         try {
           const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-          if (blob.size < 1000) { setState('idle'); return }
+          if (blob.size < 1200) { setState('idle'); return }
           const tr = await voiceAPI.transcribe(blob)
           const text = tr.data.text
           setTranscript(text)
@@ -313,10 +326,43 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
       setTranscript('')
       setReply('')
       setState('recording')
+
+      // ── Dynamic listening: live level + auto-stop on silence ────────────────
+      const ctx = new AudioContext()
+      audioCtxRef.current = ctx
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 1024
+      ctx.createMediaStreamSource(stream).connect(analyser)
+      const buf = new Uint8Array(analyser.fftSize)
+
+      const SPEAK = 0.035        // RMS above this counts as speech
+      const SILENCE_MS = 1100    // stop this long after the last word
+      const NO_SPEECH_MS = 4000  // give up if nothing is ever said
+      const MAX_MS = 20000       // hard cap
+      const startedAt = performance.now()
+      let sawSpeech = false
+      let lastVoiceAt = startedAt
+
+      const loop = () => {
+        if (stateRef.current !== 'recording' || !audioCtxRef.current) return
+        analyser.getByteTimeDomainData(buf)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
+        const rms = Math.sqrt(sum / buf.length)
+        setLevel(Math.min(1, rms * 4.5))
+        const now = performance.now()
+        if (rms > SPEAK) { sawSpeech = true; lastVoiceAt = now }
+
+        if (sawSpeech && now - lastVoiceAt > SILENCE_MS) { stopRecording(); return }      // finished → submit
+        if (!sawSpeech && now - startedAt > NO_SPEECH_MS) { cancelledRef.current = true; stopRecording(); return } // not talking to me
+        if (now - startedAt > MAX_MS) { stopRecording(); return }
+        rafRef.current = requestAnimationFrame(loop)
+      }
+      rafRef.current = requestAnimationFrame(loop)
     } catch {
       toast.error(isAr ? 'مفيش صلاحية مايك — اسمح بالميكروفون' : 'Microphone permission denied')
     }
-  }, [execute, say, isAr])
+  }, [execute, say, isAr, stopRecording])
 
   const toggle = useCallback(() => {
     if (stateRef.current === 'recording') stopRecording()
@@ -331,5 +377,5 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
 
   const clear = useCallback(() => { setTranscript(''); setReply('') }, [])
 
-  return { state, transcript, reply, toggle, startRecording, stopRecording, clear }
+  return { state, transcript, reply, level, toggle, startRecording, stopRecording, clear }
 }

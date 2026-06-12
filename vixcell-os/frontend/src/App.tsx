@@ -46,7 +46,23 @@ export default function App() {
     document.documentElement.setAttribute('lang', language)
   }, [language])
 
+  // The floating voice bar is its own Electron window (#/bar). Render it
+  // immediately and independently of the app's loading/setup/login flow —
+  // otherwise the tiny bar window would show the loading spinner or the setup
+  // wizard instead of the bar (this is why it appeared "not working").
+  const isBarWindow = typeof window !== 'undefined' && window.location.hash.startsWith('#/bar')
+
   useEffect(() => {
+    if (!isBarWindow) return
+    // Make sure the bar can run commands even if it opened before the main
+    // window signed in (shared localStorage token).
+    if (!localStorage.getItem('access_token')) {
+      autoLogin().catch(() => {})
+    }
+  }, [isBarWindow, autoLogin])
+
+  useEffect(() => {
+    if (isBarWindow) return // the bar window skips the app's auth/setup flow
     const init = async () => {
       try {
         const res = await authAPI.wizardStatus()
@@ -77,6 +93,16 @@ export default function App() {
     }
     init()
   }, [])
+
+  // All hooks are above this line — safe to branch now.
+  if (isBarWindow) {
+    return (
+      <>
+        <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a35', color: '#e2e8f0', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '12px' } }} />
+        <AssistantBar />
+      </>
+    )
+  }
 
   if (status === 'loading') {
     return (

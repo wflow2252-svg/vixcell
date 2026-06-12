@@ -19,7 +19,7 @@ export default function AssistantBar() {
   const [clapOn, setClapOn] = useState(true)
   const [justWoke, setJustWoke] = useState(false)
 
-  const { state, transcript, reply, toggle, clear } = useVoiceAssistant({
+  const { state, transcript, reply, level, toggle, clear } = useVoiceAssistant({
     navigate: (path: string) => eAPI()?.barNavigate?.(path),
     isAr,
   })
@@ -68,7 +68,7 @@ export default function AssistantBar() {
             : 'rgba(8, 8, 12, 0.96)',
           border: active ? '1px solid rgba(248,113,113,0.5)' : '1px solid rgba(120,120,140,0.18)',
           boxShadow: active
-            ? '0 8px 30px rgba(239,68,68,0.35)'
+            ? `0 8px ${22 + level * 34}px rgba(239,68,68,${0.3 + level * 0.45})`
             : justWoke
             ? '0 8px 30px rgba(99,102,241,0.5)'
             : '0 6px 22px rgba(0,0,0,0.5)',
@@ -80,10 +80,13 @@ export default function AssistantBar() {
           {processing ? (
             <span className="w-5 h-5 border-2 border-white/25 border-t-white rounded-full animate-spin" />
           ) : active ? (
-            <span className="relative flex h-5 w-5 items-center justify-center">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60 animate-ping" />
-              <Icon name="mic" size={18} filled className="relative text-white" />
-            </span>
+            // Live waveform — bars react to the user's actual voice level
+            <div className="flex items-center gap-[2px] h-6 w-7 justify-center">
+              {[0.55, 0.85, 1, 0.7, 0.9].map((m, i) => (
+                <span key={i} className="w-[3px] rounded-full bg-red-400"
+                  style={{ height: `${Math.max(3, Math.min(22, level * 26 * m + (i % 2 ? 3 : 1)))}px`, transition: 'height 70ms linear' }} />
+              ))}
+            </div>
           ) : speaking ? (
             <div className="flex items-end gap-[2px] h-5">
               {[0, 1, 2, 3].map((i) => (
