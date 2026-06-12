@@ -13,4 +13,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // External links
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
+  // Meeting window (vixcell.com room as a desktop window, admin role)
+  openMeeting: (url) => ipcRenderer.invoke('open-meeting', url),
+
+  // Floating assistant bar
+  barToggle: () => ipcRenderer.invoke('bar-toggle'),
+  barHide: () => ipcRenderer.send('bar-hide'),
+  barSetExpanded: (expanded) => ipcRenderer.send('bar-set-height', expanded),
+  barNavigate: (route) => ipcRenderer.send('bar-navigate', route),
+  onBarPushToTalk: (cb) => {
+    const handler = () => cb()
+    ipcRenderer.on('bar-ptt', handler)
+    return () => ipcRenderer.removeListener('bar-ptt', handler)
+  },
+  onAssistantNavigate: (cb) => {
+    const handler = (_e, route) => cb(route)
+    ipcRenderer.on('assistant-navigate', handler)
+    return () => ipcRenderer.removeListener('assistant-navigate', handler)
+  },
 })

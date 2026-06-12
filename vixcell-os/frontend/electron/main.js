@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, session, globalShortcut, screen } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 const crypto = require('crypto')
@@ -16,6 +16,8 @@ const INTERNAL_API_KEY = isDev
 let backendPort = 8000
 let backendProcess = null
 let mainWindow = null
+let barWindow = null
+let meetingWindow = null
 
 // ─── Storage Root Auto-Detection ─────────────────────────────────────────────
 function getStorageRoot() {
@@ -127,6 +129,105 @@ ipcMain.handle('open-external', (_, url) => shell.openExternal(url))
 
 ipcMain.handle('get-storage-root', () => getStorageRoot())
 
+// ─── Floating Assistant Bar ───────────────────────────────────────────────────
+// A slim always-on-top voice bar pinned to the top of the screen, available
+// over every app on the machine (toggled with Ctrl+Shift+Space).
+const BAR_WIDTH = 480
+const BAR_HEIGHT = 72
+const BAR_EXPANDED = 220
+
+function createBarWindow() {
+  if (barWindow && !barWindow.isDestroyed()) return barWindow
+  const { width: screenW } = screen.getPrimaryDisplay().workAreaSize
+  barWindow = new BrowserWindow({
+    width: BAR_WIDTH,
+    height: BAR_HEIGHT,
+    x: Math.round((screenW - BAR_WIDTH) / 2),
+    y: 8,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    focusable: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: !isDev,
+    },
+  })
+  // Above fullscreen apps too
+  barWindow.setAlwaysOnTop(true, 'screen-saver')
+  barWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  if (isDev) barWindow.loadURL('http://localhost:5173/#/bar')
+  else barWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), { hash: '/bar' })
+
+  barWindow.on('closed', () => { barWindow = null })
+  return barWindow
+}
+
+function toggleBar(forceShow = false) {
+  const win = createBarWindow()
+  if (win.isVisible() && !forceShow) {
+    win.hide()
+  } else {
+    win.show()
+    win.focus()
+  }
+  return win.isVisible()
+}
+
+ipcMain.handle('bar-toggle', () => toggleBar())
+ipcMain.on('bar-hide', () => { if (barWindow && !barWindow.isDestroyed()) barWindow.hide() })
+ipcMain.on('bar-set-height', (_e, expanded) => {
+  if (!barWindow || barWindow.isDestroyed()) return
+  const b = barWindow.getBounds()
+  barWindow.setBounds({ ...b, height: expanded ? BAR_EXPANDED : BAR_HEIGHT })
+})
+
+// Bar → main app navigation (bar lives in its own window)
+ipcMain.on('bar-navigate', (_e, route) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send('assistant-navigate', route)
+  }
+})
+
+// ─── Meeting Window ───────────────────────────────────────────────────────────
+// Opens the vixcell.com meeting room as a dedicated desktop window (admin),
+// with camera/microphone allowed — no browser needed.
+ipcMain.handle('open-meeting', (_e, url) => {
+  if (meetingWindow && !meetingWindow.isDestroyed()) {
+    meetingWindow.focus()
+    meetingWindow.loadURL(url)
+    return true
+  }
+  meetingWindow = new BrowserWindow({
+    width: 1280,
+    height: 820,
+    backgroundColor: '#0f0f1a',
+    autoHideMenuBar: true,
+    title: 'Vixcell Meeting',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      partition: 'persist:meeting', // own session keeps site login/devices
+    },
+  })
+  // Camera + mic for the meeting session only
+  meetingWindow.webContents.session.setPermissionRequestHandler((_wc, permission, cb) => {
+    cb(['media', 'audioCapture', 'videoCapture', 'display-capture'].includes(permission))
+  })
+  meetingWindow.loadURL(url)
+  meetingWindow.on('closed', () => { meetingWindow = null })
+  return true
+})
+
 // ─── Create Main Window ───────────────────────────────────────────────────────
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -155,6 +256,14 @@ async function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     mainWindow.focus()
+  })
+
+  // Closing the main app takes the floating bar and meeting window with it —
+  // otherwise the hidden bar keeps the process alive forever
+  mainWindow.on('closed', () => {
+    mainWindow = null
+    if (barWindow && !barWindow.isDestroyed()) barWindow.destroy()
+    if (meetingWindow && !meetingWindow.isDestroyed()) meetingWindow.destroy()
   })
 
   // Failsafe: never leave the user with an invisible app if ready-to-show
@@ -211,12 +320,27 @@ app.whenReady().then(async () => {
   }
   await createWindow()
 
+  // Floating voice bar over the whole desktop, ready from launch
+  createBarWindow()
+  toggleBar(true)
+
+  // Global push-to-talk: works from ANY app — shows the bar and toggles the mic
+  globalShortcut.register('Control+Shift+Space', () => {
+    const win = createBarWindow()
+    win.show()
+    win.focus()
+    win.webContents.send('bar-ptt')
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
+app.on('will-quit', () => globalShortcut.unregisterAll())
+
 app.on('window-all-closed', () => {
+  // The hidden bar window must not keep a "closed" app alive
   if (backendProcess) {
     backendProcess.kill('SIGTERM')
     backendProcess = null

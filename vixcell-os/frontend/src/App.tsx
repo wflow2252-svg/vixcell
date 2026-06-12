@@ -6,6 +6,7 @@ import { useAuthStore, useAppStore } from '@/store'
 import { authAPI } from '@/api/client'
 
 import Layout from '@/components/Layout'
+import AssistantBar from '@/components/AssistantBar'
 import LoginPage from '@/pages/LoginPage'
 import SetupWizardPage from '@/pages/SetupWizardPage'
 import DashboardPage from '@/pages/DashboardPage'
@@ -18,6 +19,19 @@ import SettingsPage from '@/pages/SettingsPage'
 import AIModelsPage from '@/pages/AIModelsPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import FlowBuilderPage from '@/pages/FlowBuilderPage'
+import TasksPage from '@/pages/TasksPage'
+
+// Shown in the floating bar window before the user logs into the main app
+function BarLocked() {
+  return (
+    <div className="h-screen w-screen flex items-center justify-center p-1.5">
+      <div className="w-full h-[58px] rounded-2xl border border-line flex items-center justify-center gap-2 text-xs text-slate-400"
+        style={{ background: 'rgba(15,15,26,0.92)', backdropFilter: 'blur(14px)' }}>
+        سجّل الدخول من تطبيق Vixcell الأول عشان البار يشتغل
+      </div>
+    </div>
+  )
+}
 
 type AppStatus = 'loading' | 'setup' | 'login' | 'ready'
 
@@ -96,26 +110,32 @@ export default function App() {
 
         {status === 'login' && (
           <>
+            <Route path="/bar" element={<BarLocked />} />
             <Route path="/login" element={<LoginPage onLogin={() => setStatus('ready')} />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         )}
 
         {status === 'ready' && (
-          <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/leads" element={<LeadsPage />} />
-            <Route path="/crm" element={<CRMPage />} />
-            <Route path="/social" element={<SocialPage />} />
-            <Route path="/content" element={<ContentPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/knowledge" element={<KnowledgePage />} />
-            <Route path="/flows" element={<FlowBuilderPage />} />
-            <Route path="/ai-models" element={<AIModelsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Route>
+          <>
+            {/* Floating system-wide voice bar — its own Electron window (#/bar) */}
+            <Route path="/bar" element={<AssistantBar />} />
+            <Route element={<Layout />}>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/leads" element={<LeadsPage />} />
+              <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/crm" element={<CRMPage />} />
+              <Route path="/social" element={<SocialPage />} />
+              <Route path="/content" element={<ContentPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/knowledge" element={<KnowledgePage />} />
+              <Route path="/flows" element={<FlowBuilderPage />} />
+              <Route path="/ai-models" element={<AIModelsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Route>
+          </>
         )}
       </Routes>
     </HashRouter>

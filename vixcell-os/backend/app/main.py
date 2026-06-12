@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.database import engine, Base
-from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice
+from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice, system, website, memory
 import logging
 
 # Initialize Logging
@@ -85,6 +85,9 @@ app.include_router(crm.router, prefix=f"{settings.API_V1_STR}/crm", tags=["CRM"]
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_STR}/dashboard", tags=["Dashboard"])
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai", tags=["AI Engine"])
 app.include_router(voice.router, prefix=f"{settings.API_V1_STR}/voice", tags=["Voice AI"])
+app.include_router(system.router, prefix=f"{settings.API_V1_STR}/system", tags=["System Control"])
+app.include_router(website.router, prefix=f"{settings.API_V1_STR}/website", tags=["Website Bridge"])
+app.include_router(memory.router, prefix=f"{settings.API_V1_STR}/memory", tags=["Assistant Memory"])
 
 
 @app.on_event("startup")
@@ -97,9 +100,14 @@ def warm_engines():
     # Tests spin the app up dozens of times — don't download/load models there
     if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("VIXCELL_SKIP_WARMUP"):
         return
-    from app.services import voice_engine, ai_engine
+    from app.services import voice_engine, ai_engine, system_control
     voice_engine.preload_model_async()
     ai_engine.warm_preferred_model_async()
+    # App catalog scan (Get-StartApps) takes a couple of seconds — do it now
+    # so the first "افتحلي ..." answers instantly
+    import threading
+    threading.Thread(target=lambda: system_control.list_apps(),
+                     daemon=True, name="apps-scan").start()
 
 
 @app.get("/health")

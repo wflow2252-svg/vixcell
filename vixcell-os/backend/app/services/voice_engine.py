@@ -22,6 +22,14 @@ _model_lock = threading.Lock()
 _model_error: Optional[str] = None
 
 WHISPER_SIZE = "small"  # good Arabic/English balance on modest hardware
+ALLOWED_WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
+
+# Domain vocabulary the recognizer should be biased towards (mixed ar/en —
+# brand names and app terms Whisper otherwise mangles).
+HOTWORDS = (
+    "Vixcell فيكسيل ميتنج تاسك تاسكات ليدز Claude Code كلود كود "
+    "واتساب فيسبوك انستجرام CRM داشبورد"
+)
 
 
 def whisper_available() -> bool:
@@ -30,6 +38,26 @@ def whisper_available() -> bool:
         return True
     except ImportError:
         return False
+
+
+def configured_model_size() -> str:
+    """env override > saved settings.json WHISPER_MODEL > default."""
+    import os
+    env = os.getenv("VIXCELL_WHISPER_MODEL")
+    if env:
+        return env
+    try:
+        import json
+        app_data = Path(os.getenv("APPDATA", os.path.expanduser("~\\AppData\\Roaming")))
+        cfg_file = app_data / "VixcellAI" / "settings.json"
+        if cfg_file.exists():
+            with open(cfg_file, "r", encoding="utf-8-sig") as f:
+                saved = json.load(f).get("WHISPER_MODEL")
+            if saved in ALLOWED_WHISPER_MODELS:
+                return saved
+    except Exception as e:
+        logger.warning(f"Could not read WHISPER_MODEL from settings.json: {e}")
+    return WHISPER_SIZE
 
 
 def get_model():
@@ -43,7 +71,7 @@ def get_model():
         import os
         from faster_whisper import WhisperModel
         download_root = str(Path(settings.MODEL_PATH) / "whisper")
-        size = os.getenv("VIXCELL_WHISPER_MODEL", WHISPER_SIZE)
+        size = configured_model_size()
         # CPU int8 by default: CUDA needs system cuBLAS/cuDNN DLLs that most
         # machines lack, and the failure only surfaces at first encode.
         # Opt in to GPU with VIXCELL_WHISPER_DEVICE=cuda.
@@ -90,6 +118,7 @@ def transcribe(audio_path: str, language: Optional[str] = None) -> dict:
         beam_size=1,
         vad_filter=True,            # trim silence — much faster on push-to-talk clips
         condition_on_previous_text=False,  # avoids repetition loops, slightly faster
+        hotwords=HOTWORDS,          # bias brand/app vocabulary (ar + en)
     )
     text = " ".join(s.text.strip() for s in segments).strip()
     return {
@@ -129,6 +158,15 @@ SEARCH_LEAD_TRIGGERS = ["دور على عميل", "دورلي على عميل", 
 EXPORT_TRIGGERS = ["صدر العملاء", "صدّر العملاء", "تصدير العملاء", "نزل العملاء", "نزلي العملاء", "طلع ملف العملاء", "export leads", "download leads"]
 HELP_TRIGGERS = ["مساعدة", "ساعدني", "بتعرف تعمل ايه", "تعمل ايه", "تقدر تعمل ايه", "الاوامر", "اوامر", "ايه الاوامر", "help", "what can you do", "commands"]
 STOP_TRIGGERS = ["اسكت", "اخرس", "كفاية", "بس كده", "خلاص", "وقف الكلام", "stop talking", "be quiet", "shut up"]
+MEETING_TRIGGERS = ["الميتنج", "ميتنج", "الاجتماع", "اجتماع", "غرفة الاجتماعات", "meeting"]
+TASKS_TRIGGERS = ["التاسكات", "تاسكات", "التاسك", "تاسك", "المهام", "مهامي", "مهام الموقع", "الشغل المطلوب", "tasks", "my tasks", "todo"]
+REMEMBER_TRIGGERS = ["افتكر", "احفظ ان", "احفظ معلومة", "خزن ان", "سجل ان", "اعرف ان", "remember that", "remember this", "note that"]
+RECALL_TRIGGERS = ["عارف ايه عني", "فاكر ايه عني", "انت فاكر ايه", "تعرف ايه عني", "المعلومات اللي عندك عني", "what do you know about me", "what do you remember"]
+OPEN_APP_RE = re.compile(
+    r"^(?:افتحلي|افتح لي|افتح|شغللي|شغل لي|شغل|ابدا|open|launch|run|start)\s+"
+    r"(?:برنامج\s+|تطبيق\s+|app\s+)?(.+)$"
+)
+SEARCH_WEB_HINTS = ["جوجل", "قوقل", "النت", "الانترنت", "الويب", "google", "the web", "internet"]
 CONTENT_TRIGGERS = ["اكتب", "اكتبلي", "اعمل", "اعملي", "أنشئ", "انشئ", "جهز", "جهزلي", "write", "create", "generate"]
 CONTENT_TYPES = {
     "facebook_post":     ["منشور فيس", "بوست فيس", "منشور", "بوست", "facebook", "post"],
@@ -154,7 +192,8 @@ PAGE_ALIASES = {p: [_normalize(a) for a in al] for p, al in PAGE_ALIASES.items()
 CONTENT_TYPES = {k: [_normalize(a) for a in v] for k, v in CONTENT_TYPES.items()}
 for _lst in (NAV_TRIGGERS, STATS_TRIGGERS, LEAD_TRIGGERS, FIND_LEADS_TRIGGERS,
              SEARCH_LEAD_TRIGGERS, EXPORT_TRIGGERS, HELP_TRIGGERS, STOP_TRIGGERS,
-             CONTENT_TRIGGERS):
+             CONTENT_TRIGGERS, MEETING_TRIGGERS, TASKS_TRIGGERS, REMEMBER_TRIGGERS,
+             RECALL_TRIGGERS, SEARCH_WEB_HINTS):
     _lst[:] = [_normalize(t) for t in _lst]
 
 
@@ -168,19 +207,40 @@ def parse_intent(text: str) -> dict:
     if not norm:
         return {"action": "unknown", "params": {}, "speech": "لم أسمع شيئًا، حاول مرة أخرى"}
 
-    # 0. Stop / help — instant control commands
+    # 0. Stop / memory / help — instant control commands
     if any(t in norm for t in STOP_TRIGGERS) and len(norm.split()) <= 3:
         return {"action": "stop", "params": {}, "speech": None}
+    if any(t in norm for t in RECALL_TRIGGERS):
+        return {"action": "recall_memory", "params": {}, "speech": None}
+    if any(t in norm for t in REMEMBER_TRIGGERS):
+        mem_m = re.search(
+            r"(?:افتكر|احفظ|خزن|سجل|اعرف|remember|note)\s+(?:ان|انى|اني|معلومة|that|this)?\s*(.+)$", norm)
+        content = mem_m.group(1).strip() if mem_m else ""
+        return {
+            "action": "remember",
+            "params": {"content": content} if content else {},
+            "speech": None if content else "قولي المعلومة اللي عايزني أفتكرها",
+        }
     if any(t in norm for t in HELP_TRIGGERS):
         return {
             "action": "help", "params": {},
-            "speech": "أقدر أفتحلك أي صفحة، أقرالك الإحصائيات، أضيف عميل، أدورلك على عملاء جداد — "
-                      "قول مثلًا: هاتلي عملاء مطاعم في القاهرة. وكمان أكتبلك منشور أو إعلان، وأصدّرلك العملاء في ملف.",
+            "speech": "أقدر أفتحلك أي صفحة أو برنامج على الجهاز، أفتح الميتنج، أقرالك التاسكات والإحصائيات، "
+                      "أدورلك على عملاء جداد، أكتبلك محتوى، وأفتكر معلومات تقولهالي. "
+                      "جرب: افتحلي كلود كود، أو هاتلي عملاء مطاعم في القاهرة، أو وريني التاسكات.",
         }
 
     # 1. Stats / summary readout
     if any(t in norm for t in STATS_TRIGGERS):
         return {"action": "read_stats", "params": {}, "speech": None}
+
+    # 1.2 Meeting room (admin) — opened from the desktop app
+    if any(t in norm for t in MEETING_TRIGGERS):
+        return {"action": "open_meeting", "params": {},
+                "speech": "تمام، بفتحلك غرفة الميتنج كأدمن"}
+
+    # 1.3 Website tasks readout
+    if any(t in norm for t in TASKS_TRIGGERS):
+        return {"action": "read_tasks", "params": {}, "speech": None}
 
     # 1.5 Lead discovery — "هاتلي عملاء مطاعم في القاهرة"
     if any(t in norm for t in FIND_LEADS_TRIGGERS):
@@ -253,6 +313,24 @@ def parse_intent(text: str) -> dict:
             if any(t in norm for t in NAV_TRIGGERS) or len(norm.split()) <= 4:
                 return {"action": "navigate", "params": {"path": path}, "speech": None}
 
+    # 5. Web search — needs both a search verb and an explicit web/Google hint
+    if any(h in norm for h in SEARCH_WEB_HINTS) and \
+       any(v in norm for v in ("دور", "ابحث", "سرش", "search", "google")):
+        qm = re.search(r"(?:عن|على|for)\s+(.+)$", norm)
+        query = qm.group(1).strip() if qm else ""
+        query = re.sub(r"\s*(?:في|على|on)?\s*(?:جوجل|قوقل|النت|الانترنت|الويب|google|the web|internet)\s*$", "", query).strip()
+        if query:
+            return {"action": "search_web", "params": {"query": query},
+                    "speech": f"بدور لك على {query} في جوجل"}
+
+    # 6. Open an installed app / known website ("افتحلي كلود كود")
+    # Last text rule: navigation above already claimed in-app page names.
+    app_m = OPEN_APP_RE.match(norm)
+    if app_m:
+        target = app_m.group(1).strip()
+        if target:
+            return {"action": "open_app", "params": {"target": target}, "speech": None}
+
     return {"action": "unknown", "params": {"text": text}, "speech": None}
 
 
@@ -285,12 +363,17 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
 
     system = (
         "You convert voice commands (Arabic, Egyptian Arabic, or English) into JSON. "
-        'Output ONLY JSON: {"action": "navigate|read_stats|create_lead|find_leads|export_leads|search_leads|generate_content|unknown", "params": {}}. '
+        'Output ONLY JSON: {"action": "navigate|read_stats|create_lead|find_leads|export_leads|search_leads|generate_content|open_app|search_web|open_meeting|read_tasks|remember|unknown", "params": {}}. '
         'navigate params: {"path": one of /dashboard /leads /crm /social /content /analytics /knowledge /flows /ai-models /settings}. '
         'create_lead params: {"name": "...", "phone": "..."} (only if mentioned). '
         'find_leads = user wants NEW potential clients found for them; params: {"what": business type, "where": city/area} (omit missing). '
         'search_leads params: {"query": "..."}. '
-        'generate_content params: {"content_type": "facebook_post|instagram_caption|tiktok_script|ad_copy|email|blog_article", "topic": "..."}.'
+        'generate_content params: {"content_type": "facebook_post|instagram_caption|tiktok_script|ad_copy|email|blog_article", "topic": "..."}. '
+        'open_app = open a program/website on the computer; params: {"target": app or site name}. '
+        'search_web params: {"query": "..."}. '
+        'open_meeting = open the video meeting room. '
+        'read_tasks = show/read the work tasks. '
+        'remember = store a fact about the user; params: {"content": the fact}.'
     )
     try:
         raw = ai_engine.chat(model=model, prompt=text, system=system,
@@ -300,7 +383,9 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
             return None
         data = json.loads(m.group(0))
         if data.get("action") in {"navigate", "read_stats", "create_lead", "find_leads",
-                                  "export_leads", "search_leads", "generate_content"}:
+                                  "export_leads", "search_leads", "generate_content",
+                                  "open_app", "search_web", "open_meeting", "read_tasks",
+                                  "remember"}:
             data.setdefault("params", {})
             data["speech"] = None
             return data
@@ -309,10 +394,11 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
     return None
 
 
-def llm_chat_answer(text: str) -> Optional[str]:
+def llm_chat_answer(text: str, memories: Optional[list] = None) -> Optional[str]:
     """
     Conversational fallback: when the transcript is not a command, answer
     it briefly in Egyptian Arabic so the assistant always responds usefully.
+    `memories` = saved facts about the user, injected for personal answers.
     Returns None when no local model is available.
     """
     from app.services import ai_engine
@@ -325,6 +411,10 @@ def llm_chat_answer(text: str) -> Optional[str]:
         "رد على المستخدم باللهجة المصرية، إجابة مفيدة ومختصرة جدًا (جملة لجملتين)، "
         "من غير مقدمات ولا تكرار للسؤال. لو طلب حاجة النظام مش بيعملها، اقترح أقرب حاجة بيعرف يعملها."
     )
+    if memories:
+        facts = "؛ ".join(m.strip() for m in memories[:25] if m and m.strip())
+        if facts:
+            system += f" معلومات محفوظة عن المستخدم استخدمها لو ليها علاقة: {facts}."
     try:
         answer = ai_engine.chat(model=model, prompt=text, system=system,
                                 temperature=0.4, max_tokens=160, timeout=60.0)

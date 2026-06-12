@@ -80,6 +80,8 @@ export const settingsAPI = {
   integrations: () => api.get('/settings/integrations'),
   updateIntegration: (provider: string, data: { enabled: boolean; config: Record<string, any> }) =>
     api.put(`/settings/integrations/${provider}`, data),
+  voiceSettings: () => api.get('/settings/voice'),
+  updateVoiceSettings: (whisper_model: string) => api.put('/settings/voice', { whisper_model }),
 }
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
@@ -128,6 +130,30 @@ export const voiceAPI = {
   command: (text: string) => api.post('/voice/command', { text }, { timeout: 90000 }),
   speak: (text: string, opts?: { gender?: string; language?: string }) =>
     api.post('/voice/speak', { text, ...opts }, { responseType: 'arraybuffer', timeout: 30000 }),
+}
+
+// ── System Control (open apps / sites / folders on the machine) ──────────────
+export const systemAPI = {
+  apps: (q?: string) => api.get('/system/apps', { params: q ? { q } : undefined }),
+  open: (kind: 'app' | 'url' | 'folder' | 'search', target: string) =>
+    api.post('/system/open', { kind, target }),
+}
+
+// ── Website bridge (vixcell.com tasks / projects / meeting) ──────────────────
+export const websiteAPI = {
+  status: () => api.get('/website/status'),
+  meetingUrl: (role = 'admin') => api.get('/website/meeting', { params: { role } }),
+  tasks: (status?: string) => api.get('/website/tasks', { params: status ? { status } : undefined }),
+  taskStats: () => api.get('/website/tasks/stats'),
+  projects: () => api.get('/website/projects'),
+  updateTask: (id: string | number, data: any) => api.put(`/website/tasks/${id}`, data),
+}
+
+// ── Assistant memory ──────────────────────────────────────────────────────────
+export const memoryAPI = {
+  list: () => api.get('/memory/'),
+  add: (content: string) => api.post('/memory/', { content, source: 'manual' }),
+  delete: (id: string) => api.delete(`/memory/${id}`),
 }
 
 // ── AI Engine ─────────────────────────────────────────────────────────────────

@@ -41,6 +41,33 @@ export default function SettingsPage() {
   const [intSaving, setIntSaving] = useState(false)
   const [engines, setEngines] = useState<{ ollama?: any; voice?: any } | null>(null)
 
+  // Voice accuracy (Whisper model size)
+  const [voiceModel, setVoiceModel] = useState('')
+  const [voiceAllowed, setVoiceAllowed] = useState<string[]>([])
+  const [voiceSaving, setVoiceSaving] = useState(false)
+
+  useEffect(() => {
+    if (activeTab !== 'general') return
+    settingsAPI.voiceSettings()
+      .then(res => { setVoiceModel(res.data.whisper_model); setVoiceAllowed(res.data.allowed) })
+      .catch(() => {})
+  }, [activeTab])
+
+  const saveVoiceModel = async (model: string) => {
+    setVoiceModel(model)
+    setVoiceSaving(true)
+    try {
+      await settingsAPI.updateVoiceSettings(model)
+      toast.success(language === 'ar'
+        ? 'تم الحفظ — اقفل البرنامج وافتحه عشان يطبق (أول مرة هينزّل الموديل الجديد)'
+        : 'Saved — restart the app to apply (first run downloads the new model)')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Save failed')
+    } finally {
+      setVoiceSaving(false)
+    }
+  }
+
   useEffect(() => {
     if (activeTab !== 'integrations') return
     setIntLoading(true)
@@ -138,6 +165,34 @@ export default function SettingsPage() {
                 </div>
               </div>
               <button className="btn-primary flex items-center gap-2 text-sm"><Save size={14}/>Save Changes</button>
+
+              {/* Voice recognition accuracy */}
+              <div className="pt-4 border-t border-line space-y-3">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Mic size={15} className="text-brand-400" />
+                  Voice Recognition / دقة التعرف على الصوت
+                </h3>
+                <p className="text-xs text-slate-400">
+                  الموديل الأكبر = فهم أدق للعربي والإنجليزي، بس أبطأ شوية وبيحتاج تنزيل أول مرة.
+                  المقترح: <span className="font-mono">medium</span> لو الجهاز كويس.
+                </p>
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <div>
+                    <label className="text-xs text-slate-400 mb-1.5 block">Whisper Model</label>
+                    <select className="input-field" value={voiceModel} disabled={voiceSaving || !voiceAllowed.length}
+                      onChange={e => saveVoiceModel(e.target.value)}>
+                      {(voiceAllowed.length ? voiceAllowed : [voiceModel]).map(m => (
+                        <option key={m} value={m}>
+                          {m}{m === 'small' ? ' (سريع — الافتراضي)' : m === 'medium' ? ' (أدق — مقترح)' : m.startsWith('large') ? ' (الأدق — أبطأ)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-[11px] text-slate-500 pb-2">
+                    بيتطبق بعد إعادة تشغيل البرنامج
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 

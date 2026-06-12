@@ -1,11 +1,25 @@
 import { NavLink } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { useAppStore, useAuthStore } from '@/store'
+import { websiteAPI } from '@/api/client'
 import Icon from './Icon'
 import clsx from 'clsx'
+
+async function openAdminMeeting() {
+  try {
+    const res = await websiteAPI.meetingUrl('admin')
+    const eAPI = (window as any).electronAPI
+    if (eAPI?.openMeeting) eAPI.openMeeting(res.data.url)
+    else window.open(res.data.url, '_blank')
+  } catch (err: any) {
+    toast.error(err?.response?.data?.detail || 'Could not get meeting link')
+  }
+}
 
 const navItems = [
   { label: 'Dashboard', labelAr: 'لوحة التحكم',      icon: 'dashboard',     path: '/dashboard' },
   { label: 'Leads',     labelAr: 'العملاء المحتملون', icon: 'person_search', path: '/leads' },
+  { label: 'Tasks',     labelAr: 'مهام الموقع',      icon: 'task_alt',      path: '/tasks' },
   { label: 'CRM',       labelAr: 'إدارة العلاقات',   icon: 'handshake',     path: '/crm' },
   { label: 'Social',    labelAr: 'التواصل الاجتماعي', icon: 'share',         path: '/social' },
   { label: 'Content',   labelAr: 'إنشاء المحتوى',    icon: 'edit_square',   path: '/content' },
@@ -95,8 +109,17 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom: Settings + user */}
+      {/* Bottom: Meeting + Settings + user */}
       <div className="border-t border-line p-2 space-y-0.5">
+        <button
+          onClick={openAdminMeeting}
+          className={clsx('sidebar-item w-full', !sidebarOpen && 'justify-center px-0')}
+          title={isAr ? 'افتح الميتنج (أدمن)' : 'Open Meeting (admin)'}
+        >
+          <Icon name="videocam" size={20} className="text-brand-400" />
+          {sidebarOpen && <span className="text-sm">{isAr ? 'الميتنج (أدمن)' : 'Meeting (admin)'}</span>}
+        </button>
+
         <NavLink
           to="/settings"
           className={({ isActive }) =>

@@ -9,6 +9,7 @@ from app.models.knowledge import KnowledgeBase, DocumentChunk
 from app.models.workflow import Workflow
 from app.models.voice import VoiceLog
 from app.models.integration import IntegrationConfig
+from app.models.memory import AssistantMemory
 
 # Expose metadata for alembic migrations
 metadata = Base.metadata

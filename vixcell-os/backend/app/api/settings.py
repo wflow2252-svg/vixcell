@@ -23,6 +23,15 @@ logger = logging.getLogger(__name__)
 # Catalog of connectable services. `fields` drives the frontend form so
 # users always know exactly what to paste and where it goes.
 INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
+    "vixcell_website": {
+        "label": "Vixcell Website (vixcell.com)",
+        "icon": "🌐",
+        "help": "ربط النظام بموقعكم — التاسكات والمشاريع والميتنج. سيب القيم الافتراضية لو الموقع vixcell.com",
+        "fields": [
+            {"key": "site_url", "label": "Site URL (default: https://vixcell.com)", "secret": False},
+            {"key": "api_base", "label": "API Base (default: <site>/api)", "secret": False},
+        ],
+    },
     "whatsapp": {
         "label": "WhatsApp Business API",
         "icon": "💬",
@@ -213,6 +222,53 @@ def update_paths(
         BACKUP_PATH=current_config.get("BACKUP_PATH", settings.BACKUP_PATH),
         LOG_PATH=current_config.get("LOG_PATH", settings.LOG_PATH)
     )
+
+
+class VoiceSettingsIn(BaseModel):
+    whisper_model: str
+
+
+@router.get("/voice")
+def get_voice_settings(current_user: User = Depends(admin_only)):
+    """Current speech-recognition model + the choices (bigger = more accurate, slower)."""
+    from app.services import voice_engine
+    return {
+        "whisper_model": voice_engine.configured_model_size(),
+        "allowed": voice_engine.ALLOWED_WHISPER_MODELS,
+    }
+
+
+@router.put("/voice")
+def update_voice_settings(
+    body: VoiceSettingsIn,
+    current_user: User = Depends(admin_only),
+):
+    """Persists the Whisper model size to settings.json. Applies after restart."""
+    from app.services import voice_engine
+    if body.whisper_model not in voice_engine.ALLOWED_WHISPER_MODELS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"whisper_model must be one of {voice_engine.ALLOWED_WHISPER_MODELS}",
+        )
+    app_data = Path(os.getenv("APPDATA", os.path.expanduser("~\\AppData\\Roaming"))) if os.name == "nt" else Path(os.path.expanduser("~/.config"))
+    config_file = app_data / "VixcellAI" / "settings.json"
+    current_config = {}
+    if config_file.exists():
+        try:
+            with open(config_file, "r", encoding="utf-8-sig") as f:
+                current_config = json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Failed to read settings.json: {e}")
+    current_config["WHISPER_MODEL"] = body.whisper_model
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(current_config, f, indent=4)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Failed to write settings.json: {e}")
+    return {"whisper_model": body.whisper_model, "restart_required": True}
 
 
 @router.post("/backup")

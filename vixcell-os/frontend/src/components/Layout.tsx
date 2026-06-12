@@ -1,9 +1,19 @@
-import { Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
 import TitleBar from './TitleBar'
 import Sidebar from './Sidebar'
 import VoiceAssistant from './VoiceAssistant'
 
 export default function Layout() {
+  const navigate = useNavigate()
+
+  // The floating assistant bar (separate window) drives this window over IPC
+  useEffect(() => {
+    const eAPI = (window as any).electronAPI
+    const off = eAPI?.onAssistantNavigate?.((route: string) => navigate(route))
+    return () => { off?.() }
+  }, [navigate])
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-surface-900">
       {/* Custom Electron titlebar */}

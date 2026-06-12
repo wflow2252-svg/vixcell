@@ -112,10 +112,32 @@ def parse_command(
         if llm_intent:
             intent = llm_intent
 
+    # Memory intents complete server-side: the client only has to speak the reply
+    if intent["action"] == "remember" and intent["params"].get("content"):
+        from app.models.memory import AssistantMemory
+        try:
+            db.add(AssistantMemory(tenant_id=current_user.tenant_id,
+                                   content=intent["params"]["content"], source="voice"))
+            db.commit()
+            intent["speech"] = "تمام، حفظتها — هفضل فاكرها"
+        except Exception:
+            db.rollback()
+            intent["speech"] = "معلش، معرفتش أحفظها — جرب تاني"
+
+    elif intent["action"] == "recall_memory":
+        from app.api.memory import recent_memory_texts
+        facts = recent_memory_texts(db, current_user.tenant_id, limit=6)
+        intent["speech"] = (
+            "أنا فاكر إن: " + "؛ ".join(facts)
+            if facts else "لسه معرفش حاجة عنك — قولي: افتكر إن... وأنا هحفظها"
+        )
+
     # Still not a command? Answer conversationally instead of "didn't get it" —
     # the assistant should always respond with something useful.
     if intent["action"] == "unknown" and body.use_llm_fallback:
-        answer = voice_engine.llm_chat_answer(body.text)
+        from app.api.memory import recent_memory_texts
+        facts = recent_memory_texts(db, current_user.tenant_id, limit=25)
+        answer = voice_engine.llm_chat_answer(body.text, memories=facts)
         if answer:
             intent = {"action": "chat", "params": {}, "speech": answer}
 
