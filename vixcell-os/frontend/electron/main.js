@@ -238,10 +238,16 @@ ipcMain.handle('open-meeting', (_e, url) => {
       partition: 'persist:meeting', // own session keeps site login/devices
     },
   })
-  // Camera + mic for the meeting session only
+  // Camera + mic + clipboard for the meeting session. Clipboard is what lets
+  // "copy invite link" work — without it the admin can't share the link and
+  // the client never joins (so no audio/video ever flows).
+  const meetingPerms = ['media', 'audioCapture', 'videoCapture', 'display-capture',
+                        'clipboard-read', 'clipboard-sanitized-write']
   meetingWindow.webContents.session.setPermissionRequestHandler((_wc, permission, cb) => {
-    cb(['media', 'audioCapture', 'videoCapture', 'display-capture'].includes(permission))
+    cb(meetingPerms.includes(permission))
   })
+  meetingWindow.webContents.session.setPermissionCheckHandler((_wc, permission) =>
+    meetingPerms.includes(permission) || permission === 'clipboard-read')
   meetingWindow.once('ready-to-show', () => meetingWindow.show())
 
   // If the room URL can't load (site offline / wrong API base), show a clear
