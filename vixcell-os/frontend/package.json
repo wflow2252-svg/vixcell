@@ -83,6 +83,10 @@
           "!.pytest_cache/**/*",
           "!tests/**/*"
         ]
+      },
+      {
+        "from": "public/icon.ico",
+        "to": "icon.ico"
       }
     ]
   }

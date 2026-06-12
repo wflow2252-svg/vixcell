@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from app.api.dependencies import get_current_active_user
 from app.models.user import User
-from app.services import system_control
+from app.services import system_control, system_info
 from app.services.system_control import SystemControlError
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,21 @@ router = APIRouter()
 class OpenIn(BaseModel):
     kind: str            # app | url | folder | search
     target: str
+
+
+@router.get("/info")
+def machine_info(current_user: User = Depends(get_current_active_user)):
+    """Full machine knowledge: OS, CPU, RAM, GPU, disks, battery, network."""
+    return system_info.device_overview()
+
+
+@router.get("/info/speak")
+def machine_info_spoken(
+    topic: str = Query("overview", description="overview|ram|disk|cpu|battery|gpu"),
+    current_user: User = Depends(get_current_active_user),
+):
+    """A ready-to-speak Arabic sentence about the machine."""
+    return {"topic": topic, "text": system_info.spoken_summary(topic)}
 
 
 @router.get("/apps")

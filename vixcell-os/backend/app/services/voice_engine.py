@@ -162,6 +162,18 @@ MEETING_TRIGGERS = ["الميتنج", "ميتنج", "الاجتماع", "اجت�
 TASKS_TRIGGERS = ["التاسكات", "تاسكات", "التاسك", "تاسك", "المهام", "مهامي", "مهام الموقع", "الشغل المطلوب", "tasks", "my tasks", "todo"]
 REMEMBER_TRIGGERS = ["افتكر", "احفظ ان", "احفظ معلومة", "خزن ان", "سجل ان", "اعرف ان", "remember that", "remember this", "note that"]
 RECALL_TRIGGERS = ["عارف ايه عني", "فاكر ايه عني", "انت فاكر ايه", "تعرف ايه عني", "المعلومات اللي عندك عني", "what do you know about me", "what do you remember"]
+SYSINFO_TRIGGERS = [
+    "مواصفات", "مواصفات الجهاز", "الجهاز عامل ايه", "حالة الجهاز", "معلومات الجهاز",
+    "جهازي", "اللابتوب", "الكمبيوتر", "الموارد", "system info", "specs", "device info", "pc info",
+]
+# Sub-topics → only answer what was asked
+SYSINFO_TOPICS = {
+    "ram": ["رام", "الرام", "الذاكرة", "ميموري", "ram", "memory"],
+    "disk": ["مساحة", "المساحة", "الهارد", "القرص", "ديسك", "تخزين", "disk", "storage", "space"],
+    "cpu": ["معالج", "المعالج", "بروسيسور", "السي بي يو", "cpu", "processor"],
+    "battery": ["بطارية", "البطارية", "الشحن", "battery", "charge"],
+    "gpu": ["كارت الشاشة", "كارت شاشة", "الجرافيك", "كروت", "gpu", "graphics", "vga"],
+}
 OPEN_APP_RE = re.compile(
     r"^(?:افتحلي|افتح لي|افتح|شغللي|شغل لي|شغل|ابدا|open|launch|run|start)\s+"
     r"(?:برنامج\s+|تطبيق\s+|app\s+)?(.+)$"
@@ -190,10 +202,11 @@ def _normalize(text: str) -> str:
 # (الإعدادات vs الاعدادات) always match the normalized transcript.
 PAGE_ALIASES = {p: [_normalize(a) for a in al] for p, al in PAGE_ALIASES.items()}
 CONTENT_TYPES = {k: [_normalize(a) for a in v] for k, v in CONTENT_TYPES.items()}
+SYSINFO_TOPICS = {k: [_normalize(a) for a in v] for k, v in SYSINFO_TOPICS.items()}
 for _lst in (NAV_TRIGGERS, STATS_TRIGGERS, LEAD_TRIGGERS, FIND_LEADS_TRIGGERS,
              SEARCH_LEAD_TRIGGERS, EXPORT_TRIGGERS, HELP_TRIGGERS, STOP_TRIGGERS,
              CONTENT_TRIGGERS, MEETING_TRIGGERS, TASKS_TRIGGERS, REMEMBER_TRIGGERS,
-             RECALL_TRIGGERS, SEARCH_WEB_HINTS):
+             RECALL_TRIGGERS, SEARCH_WEB_HINTS, SYSINFO_TRIGGERS):
     _lst[:] = [_normalize(t) for t in _lst]
 
 
@@ -226,12 +239,27 @@ def parse_intent(text: str) -> dict:
             "action": "help", "params": {},
             "speech": "أقدر أفتحلك أي صفحة أو برنامج على الجهاز، أفتح الميتنج، أقرالك التاسكات والإحصائيات، "
                       "أدورلك على عملاء جداد، أكتبلك محتوى، وأفتكر معلومات تقولهالي. "
-                      "جرب: افتحلي كلود كود، أو هاتلي عملاء مطاعم في القاهرة، أو وريني التاسكات.",
+                      "وكمان أقولك حالة جهازك ومواصفاته. "
+                      "جرب: افتحلي كلود كود، أو مواصفات الجهاز، أو كام رام فاضية، أو وريني التاسكات.",
         }
 
     # 1. Stats / summary readout
     if any(t in norm for t in STATS_TRIGGERS):
         return {"action": "read_stats", "params": {}, "speech": None}
+
+    # 1.15 Machine info — "كام رام؟", "مواصفات الجهاز", "المساحة فاضية قد إيه؟"
+    topic = next((k for k, aliases in SYSINFO_TOPICS.items() if any(a in norm for a in aliases)), None)
+    asking = any(t in norm for t in SYSINFO_TRIGGERS) or topic is not None
+    # Guard: a topic word alone (e.g. "المساحة") only counts as a question with
+    # an asking verb or a short utterance — avoids hijacking unrelated phrases.
+    if asking and (topic or any(t in norm for t in SYSINFO_TRIGGERS)):
+        if topic and not any(t in norm for t in SYSINFO_TRIGGERS):
+            q_words = ("كام", "قد ايه", "ايه", "فاضي", "فاضية", "حالة", "اقرا", "قولي", "عامل", "how", "what")
+            if not (any(w in norm for w in q_words) or len(norm.split()) <= 4):
+                topic = None
+                asking = False
+        if asking:
+            return {"action": "system_info", "params": {"topic": topic or "overview"}, "speech": None}
 
     # 1.2 Meeting room (admin) — opened from the desktop app
     if any(t in norm for t in MEETING_TRIGGERS):
@@ -373,6 +401,7 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
         'search_web params: {"query": "..."}. '
         'open_meeting = open the video meeting room. '
         'read_tasks = show/read the work tasks. '
+        'system_info = user asks about THIS machine (specs, ram, disk, cpu, battery, gpu); params: {"topic": "overview|ram|disk|cpu|battery|gpu"}. '
         'remember = store a fact about the user; params: {"content": the fact}.'
     )
     try:
@@ -385,7 +414,7 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
         if data.get("action") in {"navigate", "read_stats", "create_lead", "find_leads",
                                   "export_leads", "search_leads", "generate_content",
                                   "open_app", "search_web", "open_meeting", "read_tasks",
-                                  "remember"}:
+                                  "system_info", "remember"}:
             data.setdefault("params", {})
             data["speech"] = None
             return data

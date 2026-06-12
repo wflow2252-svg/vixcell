@@ -127,6 +127,16 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
       return
     }
 
+    if (action === 'system_info') {
+      try {
+        const res = await systemAPI.infoSpeak(params?.topic || 'overview')
+        await say(res.data.text)
+      } catch {
+        await say('معرفتش أقرا حالة الجهاز دلوقتي')
+      }
+      return
+    }
+
     if (action === 'search_web' && params?.query) {
       try {
         await systemAPI.open('search', params.query)

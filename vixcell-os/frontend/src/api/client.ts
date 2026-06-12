@@ -143,6 +143,8 @@ export const systemAPI = {
   apps: (q?: string) => api.get('/system/apps', { params: q ? { q } : undefined }),
   open: (kind: 'app' | 'url' | 'folder' | 'search', target: string) =>
     api.post('/system/open', { kind, target }),
+  info: () => api.get('/system/info'),
+  infoSpeak: (topic = 'overview') => api.get('/system/info/speak', { params: { topic } }),
 }
 
 // ── Website bridge (vixcell.com tasks / projects / meeting) ──────────────────

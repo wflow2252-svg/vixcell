@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session, globalShortcut, screen } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, session, globalShortcut, screen, Tray, Menu, nativeImage } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 const crypto = require('crypto')
@@ -18,6 +18,17 @@ let backendProcess = null
 let mainWindow = null
 let barWindow = null
 let meetingWindow = null
+let tray = null
+let isQuitting = false  // true only when the user really exits (tray → Quit)
+
+function getIconPath() {
+  const candidates = [
+    path.join(__dirname, '..', 'public', 'icon.ico'),       // dev
+    path.join(process.resourcesPath || '', 'icon.ico'),      // packaged (extraResources)
+    path.join(__dirname, '..', 'dist', 'icon.ico'),
+  ]
+  return candidates.find(p => { try { return fs.existsSync(p) } catch { return false } }) || candidates[0]
+}
 
 // ─── Storage Root Auto-Detection ─────────────────────────────────────────────
 function getStorageRoot() {
@@ -282,13 +293,66 @@ async function createWindow() {
     await mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
   }
 
+  // Closing the main window hides it to the tray instead of quitting —
+  // the assistant (bar + backend + global shortcut) keeps running.
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault()
+      mainWindow.hide()
+      return false
+    }
+  })
+
   // Custom window controls via IPC
   ipcMain.on('window-minimize', () => mainWindow?.minimize())
   ipcMain.on('window-maximize', () => {
     if (mainWindow?.isMaximized()) mainWindow.unmaximize()
     else mainWindow?.maximize()
   })
-  ipcMain.on('window-close', () => mainWindow?.close())
+  ipcMain.on('window-close', () => mainWindow?.hide()) // X = hide to tray
+}
+
+// ─── System Tray (keeps the assistant alive in the background) ────────────────
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) { createWindow(); return }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function buildTrayMenu() {
+  const openAtLogin = app.getLoginItemSettings().openAtLogin
+  return Menu.buildFromTemplate([
+    { label: 'افتح Vixcell', click: showMainWindow },
+    { label: 'إظهار/إخفاء الشريط', click: () => toggleBar() },
+    { type: 'separator' },
+    {
+      label: 'يفتح مع تشغيل الويندوز',
+      type: 'checkbox',
+      checked: openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({ openAtLogin: item.checked, openAsHidden: false })
+        if (tray) tray.setContextMenu(buildTrayMenu())
+      },
+    },
+    { type: 'separator' },
+    { label: 'خروج تام', click: () => { isQuitting = true; app.quit() } },
+  ])
+}
+
+function createTray() {
+  if (tray) return tray
+  let img = nativeImage.createFromPath(getIconPath())
+  if (!img.isEmpty()) img = img.resize({ width: 16, height: 16 })
+  tray = new Tray(img.isEmpty() ? getIconPath() : img)
+  tray.setToolTip('Vixcell AI OS — شغّال في الخلفية')
+  tray.setContextMenu(buildTrayMenu())
+  // Left-click toggles the main window
+  tray.on('click', () => {
+    if (mainWindow && mainWindow.isVisible() && !mainWindow.isMinimized()) mainWindow.hide()
+    else showMainWindow()
+  })
+  return tray
 }
 
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
@@ -320,6 +384,13 @@ app.whenReady().then(async () => {
   }
   await createWindow()
 
+  // Live in the system tray and start with Windows — the assistant is
+  // meant to stay open and available, not close when you hit X.
+  createTray()
+  if (app.getLoginItemSettings().openAtLogin !== true) {
+    app.setLoginItemSettings({ openAtLogin: true, openAsHidden: false })
+  }
+
   // Floating voice bar over the whole desktop, ready from launch
   createBarWindow()
   toggleBar(true)
@@ -334,22 +405,22 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    else showMainWindow()
   })
 })
 
 app.on('will-quit', () => globalShortcut.unregisterAll())
 
+// With the tray, the app intentionally keeps running when every window is
+// hidden/closed. Only actually exit when the user chose Quit.
 app.on('window-all-closed', () => {
-  // The hidden bar window must not keep a "closed" app alive
-  if (backendProcess) {
-    backendProcess.kill('SIGTERM')
-    backendProcess = null
+  if (isQuitting && process.platform !== 'darwin') {
+    if (backendProcess) { backendProcess.kill('SIGTERM'); backendProcess = null }
+    app.quit()
   }
-  if (process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', () => {
-  if (backendProcess) {
-    backendProcess.kill('SIGTERM')
-  }
+  isQuitting = true
+  if (backendProcess) backendProcess.kill('SIGTERM')
 })
