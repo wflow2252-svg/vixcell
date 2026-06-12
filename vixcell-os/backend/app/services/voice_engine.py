@@ -21,7 +21,7 @@ _model = None
 _model_lock = threading.Lock()
 _model_error: Optional[str] = None
 
-WHISPER_SIZE = "small"  # good Arabic/English balance on modest hardware
+WHISPER_SIZE = "medium"  # markedly better Egyptian Arabic + English than small
 ALLOWED_WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
 
 # Domain vocabulary the recognizer should be biased towards (mixed ar/en —
@@ -110,16 +110,27 @@ def transcribe(audio_path: str, language: Optional[str] = None) -> dict:
     binary needed). Auto-detects Arabic/English unless language is forced.
     """
     model = get_model()
-    segments, info = model.transcribe(
-        audio_path,
-        language=language,          # None = auto-detect
-        # Greedy decode: ~2-3x faster than beam 5 on CPU and accurate enough
-        # for short push-to-talk commands.
-        beam_size=1,
-        vad_filter=True,            # trim silence — much faster on push-to-talk clips
-        condition_on_previous_text=False,  # avoids repetition loops, slightly faster
-        hotwords=HOTWORDS,          # bias brand/app vocabulary (ar + en)
-    )
+
+    def _run(lang):
+        return model.transcribe(
+            audio_path,
+            language=lang,              # None = auto-detect
+            # beam 2: meaningful accuracy gain over greedy at a small cost —
+            # the model upgrade (medium) is the main quality jump.
+            beam_size=2,
+            vad_filter=True,            # trim silence — much faster on push-to-talk clips
+            condition_on_previous_text=False,  # avoids repetition loops, slightly faster
+            hotwords=HOTWORDS,          # bias brand/app vocabulary (ar + en)
+        )
+
+    segments, info = _run(language)
+    # Short Egyptian clips sometimes mis-detect as Farsi/Urdu/etc. and come
+    # out as garbage. The user only ever speaks Arabic or English — force a
+    # re-run in Arabic when detection lands anywhere else.
+    if language is None and info.language not in ("ar", "en"):
+        logger.info(f"Re-running transcription: detected '{info.language}' → forcing ar")
+        segments, info = _run("ar")
+
     text = " ".join(s.text.strip() for s in segments).strip()
     return {
         "text": text,

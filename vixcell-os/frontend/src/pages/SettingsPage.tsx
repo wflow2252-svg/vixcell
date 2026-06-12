@@ -191,7 +191,7 @@ export default function SettingsPage() {
                       onChange={e => saveVoiceModel(e.target.value)}>
                       {(voiceAllowed.length ? voiceAllowed : [voiceModel]).map(m => (
                         <option key={m} value={m}>
-                          {m}{m === 'small' ? ' (سريع — الافتراضي)' : m === 'medium' ? ' (أدق — مقترح)' : m.startsWith('large') ? ' (الأدق — أبطأ)' : ''}
+                          {m}{m === 'small' ? ' (أسرع — دقة أقل)' : m === 'medium' ? ' (الافتراضي — دقة عالية)' : m.startsWith('large') ? ' (الأدق — أبطأ)' : ''}
                         </option>
                       ))}
                     </select>

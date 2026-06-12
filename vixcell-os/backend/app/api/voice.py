@@ -39,7 +39,7 @@ def voice_status(current_user: User = Depends(get_current_active_user)):
         "stt_available": voice_engine.whisper_available(),
         "tts_available": tts_engine.engine_available(),
         "default_voice": tts_engine.DEFAULT_VOICE_AR_MALE,
-        "model_size": voice_engine.WHISPER_SIZE,
+        "model_size": voice_engine.configured_model_size(),
         "model_storage": str(Path(settings.MODEL_PATH) / "whisper"),
     }
 
