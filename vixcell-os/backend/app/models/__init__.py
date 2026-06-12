@@ -8,6 +8,7 @@ from app.models.social import SocialMediaAccount, ScheduledPost
 from app.models.knowledge import KnowledgeBase, DocumentChunk
 from app.models.workflow import Workflow
 from app.models.voice import VoiceLog
+from app.models.integration import IntegrationConfig
 
 # Expose metadata for alembic migrations
 metadata = Base.metadata

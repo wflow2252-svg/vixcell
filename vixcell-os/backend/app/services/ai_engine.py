@@ -116,6 +116,32 @@ def pull_progress(name: str) -> dict:
         return _pull_status.get(name, {"status": "unknown", "done": False, "error": None})
 
 
+def warm_preferred_model_async() -> None:
+    """
+    Loads the preferred local model into memory in the background so the
+    first voice/content request doesn't pay the cold-load cost. No-op when
+    Ollama isn't running or no preferred model is installed.
+    """
+    def _warm():
+        try:
+            if not is_running():
+                return
+            installed = {m["name"] for m in list_local_models()}
+            model = next((m for m in PREFERRED_MODELS if m in installed), None)
+            if not model:
+                return
+            httpx.post(
+                f"{OLLAMA_BASE}/api/generate",
+                json={"model": model, "prompt": "", "keep_alive": "30m"},
+                timeout=120,
+            )
+            logger.info(f"Warmed Ollama model {model}")
+        except Exception as e:
+            logger.debug(f"Ollama warmup skipped: {e}")
+
+    threading.Thread(target=_warm, daemon=True, name="ollama-warmup").start()
+
+
 def _strip_think(text: str) -> str:
     """Removes <think>...</think> reasoning blocks some models emit inline."""
     if "</think>" in text:

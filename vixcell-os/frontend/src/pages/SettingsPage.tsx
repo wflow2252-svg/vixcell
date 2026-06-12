@@ -1,9 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { useAuthStore, useAppStore } from '@/store'
+import { settingsAPI, voiceAPI, aiAPI } from '@/api/client'
 import {
   Settings, HardDrive, Globe, Shield, Bell,
-  Building2, Users, Key, Database, FolderOpen, Save
+  Building2, Users, Key, Database, FolderOpen, Save,
+  Cpu, Mic, Volume2, CheckCircle2, XCircle, ChevronDown, ExternalLink
 } from 'lucide-react'
+
+interface IntegrationItem {
+  provider: string
+  label: string
+  icon: string
+  help: string
+  fields: { key: string; label: string; secret: boolean }[]
+  enabled: boolean
+  configured: boolean
+  config: Record<string, any>
+}
 
 const tabs = [
   { id:'general',  label:'General',     icon:Settings },
@@ -18,6 +32,58 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general')
   const { language, setLanguage } = useAppStore()
   const { user } = useAuthStore()
+
+  // ── Integrations (real, persisted) ──────────────────────────────────────────
+  const [integrations, setIntegrations] = useState<IntegrationItem[]>([])
+  const [intLoading, setIntLoading] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [intForm, setIntForm] = useState<Record<string, string>>({})
+  const [intSaving, setIntSaving] = useState(false)
+  const [engines, setEngines] = useState<{ ollama?: any; voice?: any } | null>(null)
+
+  useEffect(() => {
+    if (activeTab !== 'integrations') return
+    setIntLoading(true)
+    settingsAPI.integrations()
+      .then(res => setIntegrations(res.data.items))
+      .catch(err => toast.error(err?.response?.data?.detail || 'Failed to load integrations'))
+      .finally(() => setIntLoading(false))
+    // Engine status is best-effort — each card just shows unavailable on failure
+    voiceAPI.status()
+      .then(res => setEngines(e => ({ ...e, voice: res.data })))
+      .catch(() => setEngines(e => ({ ...e, voice: null })))
+    aiAPI.status()
+      .then(res => setEngines(e => ({ ...e, ollama: res.data })))
+      .catch(() => setEngines(e => ({ ...e, ollama: null })))
+  }, [activeTab])
+
+  const openIntegration = (item: IntegrationItem) => {
+    if (expanded === item.provider) { setExpanded(null); return }
+    setExpanded(item.provider)
+    const initial: Record<string, string> = {}
+    item.fields.forEach(f => { initial[f.key] = item.config?.[f.key] || '' })
+    setIntForm(initial)
+  }
+
+  const saveIntegration = async (item: IntegrationItem) => {
+    setIntSaving(true)
+    try {
+      const res = await settingsAPI.updateIntegration(item.provider, { enabled: true, config: intForm })
+      setIntegrations(list => list.map(x =>
+        x.provider === item.provider
+          ? { ...x, configured: res.data.configured, enabled: res.data.enabled, config: { ...intForm } }
+          : x
+      ))
+      toast.success(res.data.configured
+        ? (language === 'ar' ? `تم ربط ${item.label} بنجاح` : `${item.label} connected`)
+        : (language === 'ar' ? 'تم الحفظ — في حقول ناقصة لسه' : 'Saved — some fields still missing'))
+      if (res.data.configured) setExpanded(null)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Save failed')
+    } finally {
+      setIntSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -146,29 +212,108 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'integrations' && (
-            <div className="space-y-4">
-              <h2 className="text-base font-semibold text-white">Integrations</h2>
-              {[
-                { name:'WhatsApp Business API', status:'Connected',     icon:'💬', color:'border-emerald-500/30 bg-emerald-500/5' },
-                { name:'Facebook / Meta API',   status:'Connected',     icon:'📘', color:'border-blue-500/30 bg-blue-500/5' },
-                { name:'Google My Business',    status:'Not Connected', icon:'🗺️', color:'border-surface-500 bg-surface-700/30' },
-                { name:'Stripe Payments',       status:'Not Connected', icon:'💳', color:'border-surface-500 bg-surface-700/30' },
-                { name:'Mailchimp',             status:'Not Connected', icon:'🐵', color:'border-surface-500 bg-surface-700/30' },
-                { name:'Zapier',                status:'Not Connected', icon:'⚡', color:'border-surface-500 bg-surface-700/30' },
-              ].map(({ name, status, icon, color }) => (
-                <div key={name} className={`flex items-center justify-between p-4 rounded-xl border ${color}`}>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{icon}</span>
-                    <div>
-                      <p className="text-sm font-medium text-white">{name}</p>
-                      <p className={`text-xs ${status==='Connected'?'text-emerald-400':'text-slate-500'}`}>{status}</p>
+            <div className="space-y-5">
+              {/* Local engines — live status so users see what's actually running */}
+              <div>
+                <h2 className="text-base font-semibold text-white mb-1">System Engines / محركات النظام</h2>
+                <p className="text-xs text-slate-400 mb-3">الحالة الفعلية للمحركات اللي شغالة على جهازك</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    {
+                      label: 'AI Engine (Ollama)', Ico: Cpu,
+                      ok: !!engines?.ollama?.running,
+                      detail: engines?.ollama?.running ? `v${engines.ollama.version}` : 'مش شغال — شغّله من صفحة نماذج الذكاء',
+                    },
+                    {
+                      label: 'Speech-to-Text (Whisper)', Ico: Mic,
+                      ok: !!engines?.voice?.stt_available,
+                      detail: engines?.voice?.stt_available ? `Model: ${engines.voice.model_size}` : 'pip install faster-whisper',
+                    },
+                    {
+                      label: 'Voice (TTS)', Ico: Volume2,
+                      ok: !!engines?.voice?.tts_available,
+                      detail: engines?.voice?.tts_available ? (engines.voice.default_voice || 'Male Egyptian voice') : 'pip install edge-tts',
+                    },
+                  ].map(({ label, Ico, ok, detail }) => (
+                    <div key={label} className={`p-3 rounded-xl border ${ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+                      <div className="flex items-center gap-2">
+                        <Ico size={15} className={ok ? 'text-emerald-400' : 'text-amber-400'} />
+                        <p className="text-xs font-medium text-white flex-1">{label}</p>
+                        {ok ? <CheckCircle2 size={14} className="text-emerald-400" /> : <XCircle size={14} className="text-amber-400" />}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1.5 font-mono truncate" title={detail}>{detail}</p>
                     </div>
-                  </div>
-                  <button className={status==='Connected'?'btn-ghost text-xs':'btn-primary text-xs'}>
-                    {status==='Connected'?'Configure':'Connect'}
-                  </button>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              {/* External accounts — real saved credentials */}
+              <div>
+                <h2 className="text-base font-semibold text-white mb-1">Connected Accounts / ربط الحسابات</h2>
+                <p className="text-xs text-slate-400 mb-3">دوس «ربط» وحط بيانات الخدمة — بتتحفظ على جهازك بس</p>
+                {intLoading ? (
+                  <div className="flex items-center justify-center py-10 text-slate-500 text-sm gap-2">
+                    <span className="w-4 h-4 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin" />
+                    Loading...
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {integrations.map(item => (
+                      <div key={item.provider}
+                        className={`rounded-xl border transition-colors ${
+                          item.configured ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-surface-500 bg-surface-700/30'
+                        }`}>
+                        <div className="flex items-center justify-between p-4">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">{item.icon}</span>
+                            <div>
+                              <p className="text-sm font-medium text-white">{item.label}</p>
+                              <p className={`text-xs ${item.configured ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                {item.configured ? 'Connected / متربط' : 'Not Connected / مش متربط'}
+                              </p>
+                            </div>
+                          </div>
+                          <button onClick={() => openIntegration(item)}
+                            className={`${item.configured ? 'btn-ghost' : 'btn-primary'} text-xs flex items-center gap-1.5`}>
+                            {item.configured ? 'Configure / تعديل' : 'Connect / ربط'}
+                            <ChevronDown size={13} className={`transition-transform ${expanded === item.provider ? 'rotate-180' : ''}`} />
+                          </button>
+                        </div>
+
+                        {expanded === item.provider && (
+                          <div className="px-4 pb-4 space-y-3 border-t border-line pt-3">
+                            <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                              <ExternalLink size={11} />{item.help}
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              {item.fields.map(f => (
+                                <div key={f.key} className={item.fields.length % 2 && f === item.fields[item.fields.length - 1] ? 'col-span-2' : ''}>
+                                  <label className="text-xs text-slate-400 mb-1 block">{f.label}</label>
+                                  <input
+                                    className="input-field font-mono text-xs"
+                                    dir="ltr"
+                                    type={f.secret ? 'password' : 'text'}
+                                    value={intForm[f.key] || ''}
+                                    onChange={e => setIntForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                    placeholder={f.secret ? '••••••••' : f.label}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-end">
+                              <button onClick={() => saveIntegration(item)} disabled={intSaving}
+                                className="btn-primary text-xs flex items-center gap-2">
+                                {intSaving && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                                <Save size={12} />Save / حفظ
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

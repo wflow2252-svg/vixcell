@@ -59,6 +59,23 @@ def get_model():
     return _model
 
 
+def preload_model_async() -> None:
+    """
+    Warms the Whisper model in a background thread at app startup so the
+    first voice command doesn't pay the load (or first-run download) cost.
+    """
+    if not whisper_available():
+        return
+
+    def _warm():
+        try:
+            get_model()
+        except Exception as e:
+            logger.warning(f"Whisper preload failed (will retry on first use): {e}")
+
+    threading.Thread(target=_warm, daemon=True, name="whisper-preload").start()
+
+
 def transcribe(audio_path: str, language: Optional[str] = None) -> dict:
     """
     Transcribes an audio file (webm/wav/mp3 — decoded by PyAV, no ffmpeg
@@ -68,8 +85,11 @@ def transcribe(audio_path: str, language: Optional[str] = None) -> dict:
     segments, info = model.transcribe(
         audio_path,
         language=language,          # None = auto-detect
-        beam_size=5,
+        # Greedy decode: ~2-3x faster than beam 5 on CPU and accurate enough
+        # for short push-to-talk commands.
+        beam_size=1,
         vad_filter=True,            # trim silence — much faster on push-to-talk clips
+        condition_on_previous_text=False,  # avoids repetition loops, slightly faster
     )
     text = " ".join(s.text.strip() for s in segments).strip()
     return {
@@ -95,10 +115,21 @@ PAGE_ALIASES = {
     "/settings":  ["الإعدادات", "settings"],
 }
 
-NAV_TRIGGERS = ["روح", "افتح", "اذهب", "وريني", "ورينى", "خشني", "ادخل", "open", "go to", "show", "navigate"]
-STATS_TRIGGERS = ["إحصائيات", "الاحصائيات", "الأرقام", "الارقام", "الملخص", "ملخص", "stats", "numbers", "summary", "أداء", "الاداء"]
-LEAD_TRIGGERS = ["ضيف عميل", "أضف عميل", "اضف عميل", "عميل جديد", "add lead", "new lead", "create lead"]
-CONTENT_TRIGGERS = ["اكتب", "اعمل", "أنشئ", "انشئ", "جهز", "write", "create", "generate"]
+NAV_TRIGGERS = ["روح", "افتح", "افتحلي", "اذهب", "وريني", "ورينى", "ورني", "خشني", "ادخل", "وديني", "خدني", "روحني", "open", "go to", "show", "navigate"]
+STATS_TRIGGERS = ["إحصائيات", "الاحصائيات", "احصائيات", "الأرقام", "الارقام", "الملخص", "ملخص", "stats", "numbers", "summary", "أداء", "الاداء", "اداء", "الشغل ماشي ازاي", "ايه الاخبار", "ايه أخبار الشغل"]
+LEAD_TRIGGERS = ["ضيف عميل", "أضف عميل", "اضف عميل", "ضيفلي عميل", "سجل عميل", "عميل جديد", "add lead", "new lead", "create lead"]
+# "يجيب لي عملاء" — lead discovery from the local map data (no manual entry)
+FIND_LEADS_TRIGGERS = [
+    "جيب عملاء", "جبلي عملاء", "جيبلي عملاء", "هات عملاء", "هاتلي عملاء", "هات لي عملاء",
+    "دور على عملاء", "دورلي على عملاء", "ابحث عن عملاء", "ابحثلي عن عملاء", "اجمع عملاء",
+    "عايز عملاء", "عاوز عملاء", "محتاج عملاء", "اقتراحات عملاء",
+    "find leads", "get leads", "find clients", "find customers", "discover leads",
+]
+SEARCH_LEAD_TRIGGERS = ["دور على عميل", "دورلي على عميل", "ابحث عن عميل", "فين عميل", "search lead", "find lead "]
+EXPORT_TRIGGERS = ["صدر العملاء", "صدّر العملاء", "تصدير العملاء", "نزل العملاء", "نزلي العملاء", "طلع ملف العملاء", "export leads", "download leads"]
+HELP_TRIGGERS = ["مساعدة", "ساعدني", "بتعرف تعمل ايه", "تعمل ايه", "تقدر تعمل ايه", "الاوامر", "اوامر", "ايه الاوامر", "help", "what can you do", "commands"]
+STOP_TRIGGERS = ["اسكت", "اخرس", "كفاية", "بس كده", "خلاص", "وقف الكلام", "stop talking", "be quiet", "shut up"]
+CONTENT_TRIGGERS = ["اكتب", "اكتبلي", "اعمل", "اعملي", "أنشئ", "انشئ", "جهز", "جهزلي", "write", "create", "generate"]
 CONTENT_TYPES = {
     "facebook_post":     ["منشور فيس", "بوست فيس", "منشور", "بوست", "facebook", "post"],
     "instagram_caption": ["كابشن", "انستجرام", "انستقرام", "instagram", "caption"],
@@ -117,6 +148,16 @@ def _normalize(text: str) -> str:
     return text
 
 
+# Normalize the alias/trigger tables once so hamza spelling variants
+# (الإعدادات vs الاعدادات) always match the normalized transcript.
+PAGE_ALIASES = {p: [_normalize(a) for a in al] for p, al in PAGE_ALIASES.items()}
+CONTENT_TYPES = {k: [_normalize(a) for a in v] for k, v in CONTENT_TYPES.items()}
+for _lst in (NAV_TRIGGERS, STATS_TRIGGERS, LEAD_TRIGGERS, FIND_LEADS_TRIGGERS,
+             SEARCH_LEAD_TRIGGERS, EXPORT_TRIGGERS, HELP_TRIGGERS, STOP_TRIGGERS,
+             CONTENT_TRIGGERS):
+    _lst[:] = [_normalize(t) for t in _lst]
+
+
 def parse_intent(text: str) -> dict:
     """
     Fast rule-based intent extraction. Returns:
@@ -127,9 +168,52 @@ def parse_intent(text: str) -> dict:
     if not norm:
         return {"action": "unknown", "params": {}, "speech": "لم أسمع شيئًا، حاول مرة أخرى"}
 
+    # 0. Stop / help — instant control commands
+    if any(t in norm for t in STOP_TRIGGERS) and len(norm.split()) <= 3:
+        return {"action": "stop", "params": {}, "speech": None}
+    if any(t in norm for t in HELP_TRIGGERS):
+        return {
+            "action": "help", "params": {},
+            "speech": "أقدر أفتحلك أي صفحة، أقرالك الإحصائيات، أضيف عميل، أدورلك على عملاء جداد — "
+                      "قول مثلًا: هاتلي عملاء مطاعم في القاهرة. وكمان أكتبلك منشور أو إعلان، وأصدّرلك العملاء في ملف.",
+        }
+
     # 1. Stats / summary readout
     if any(t in norm for t in STATS_TRIGGERS):
         return {"action": "read_stats", "params": {}, "speech": None}
+
+    # 1.5 Lead discovery — "هاتلي عملاء مطاعم في القاهرة"
+    if any(t in norm for t in FIND_LEADS_TRIGGERS):
+        params = {}
+        m = re.search(r"(?:عملاء|leads|clients|customers)\s+(?:of\s+|for\s+)?(.+?)(?:\s+(?:في|فى|in)\s+(.+))?$", norm)
+        if m:
+            what = (m.group(1) or "").strip()
+            where = (m.group(2) or "").strip()
+            # strip dangling connectors picked up by the lazy group
+            what = re.sub(r"^(جداد|جدد|new)\s*", "", what).strip()
+            # "عملاء في القاهرة" (no type): the lazy group swallows "في <place>"
+            if not where and what.startswith(("في ", "فى ")):
+                where, what = what.split(" ", 1)[1].strip(), ""
+            if what:
+                params["what"] = what
+            if where:
+                params["where"] = where
+        return {
+            "action": "find_leads",
+            "params": params,
+            "speech": f"تمام، بدور لك على {params['what']}{' في ' + params['where'] if params.get('where') else ''} — ثواني"
+                      if params.get("what") else None,
+        }
+
+    # 1.6 Export leads to CSV
+    if any(t in norm for t in EXPORT_TRIGGERS):
+        return {"action": "export_leads", "params": {}, "speech": "تمام، بجهزلك ملف العملاء"}
+
+    # 1.7 Search for a specific lead
+    if any(t in norm for t in SEARCH_LEAD_TRIGGERS):
+        name_m = re.search(r"(?:عميل|lead)\s+(?:اسمه|اسمها|named|called)?\s*(.+)$", norm)
+        q = name_m.group(1).strip() if name_m else ""
+        return {"action": "search_leads", "params": {"query": q} if q else {}, "speech": None}
 
     # 2. Create lead — extract name/phone when present
     if any(t in norm for t in LEAD_TRIGGERS):
@@ -172,13 +256,9 @@ def parse_intent(text: str) -> dict:
     return {"action": "unknown", "params": {"text": text}, "speech": None}
 
 
-def llm_intent_fallback(text: str) -> Optional[dict]:
-    """
-    Free-form commands → local LLM classification. Returns None when no
-    model is available or parsing fails (caller keeps the 'unknown' intent).
-    """
+def _pick_llm_model() -> Optional[str]:
+    """Best installed local model for assistant tasks, or None."""
     from app.services import ai_engine
-    import json
     if not ai_engine.is_running():
         return None
     try:
@@ -186,14 +266,30 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
     except Exception:
         return None
     model = next((m for m in ai_engine.PREFERRED_MODELS if m in installed), None)
+    if not model and installed:
+        # any installed model beats giving up — prefer instruct-tagged ones
+        model = next((m for m in installed if "instruct" in m), next(iter(installed)))
+    return model
+
+
+def llm_intent_fallback(text: str) -> Optional[dict]:
+    """
+    Free-form commands → local LLM classification. Returns None when no
+    model is available or parsing fails (caller keeps the 'unknown' intent).
+    """
+    from app.services import ai_engine
+    import json
+    model = _pick_llm_model()
     if not model:
         return None
 
     system = (
-        "You convert voice commands (Arabic or English) into JSON. "
-        'Output ONLY JSON: {"action": "navigate|read_stats|create_lead|generate_content|unknown", "params": {}}. '
+        "You convert voice commands (Arabic, Egyptian Arabic, or English) into JSON. "
+        'Output ONLY JSON: {"action": "navigate|read_stats|create_lead|find_leads|export_leads|search_leads|generate_content|unknown", "params": {}}. '
         'navigate params: {"path": one of /dashboard /leads /crm /social /content /analytics /knowledge /flows /ai-models /settings}. '
         'create_lead params: {"name": "...", "phone": "..."} (only if mentioned). '
+        'find_leads = user wants NEW potential clients found for them; params: {"what": business type, "where": city/area} (omit missing). '
+        'search_leads params: {"query": "..."}. '
         'generate_content params: {"content_type": "facebook_post|instagram_caption|tiktok_script|ad_copy|email|blog_article", "topic": "..."}.'
     )
     try:
@@ -203,10 +299,37 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
         if not m:
             return None
         data = json.loads(m.group(0))
-        if data.get("action") in {"navigate", "read_stats", "create_lead", "generate_content"}:
+        if data.get("action") in {"navigate", "read_stats", "create_lead", "find_leads",
+                                  "export_leads", "search_leads", "generate_content"}:
             data.setdefault("params", {})
             data["speech"] = None
             return data
     except Exception as e:
         logger.warning(f"LLM intent fallback failed: {e}")
     return None
+
+
+def llm_chat_answer(text: str) -> Optional[str]:
+    """
+    Conversational fallback: when the transcript is not a command, answer
+    it briefly in Egyptian Arabic so the assistant always responds usefully.
+    Returns None when no local model is available.
+    """
+    from app.services import ai_engine
+    model = _pick_llm_model()
+    if not model:
+        return None
+
+    system = (
+        "انت المساعد الصوتي بتاع Vixcell AI OS — نظام إدارة أعمال (عملاء، مبيعات، محتوى تسويقي). "
+        "رد على المستخدم باللهجة المصرية، إجابة مفيدة ومختصرة جدًا (جملة لجملتين)، "
+        "من غير مقدمات ولا تكرار للسؤال. لو طلب حاجة النظام مش بيعملها، اقترح أقرب حاجة بيعرف يعملها."
+    )
+    try:
+        answer = ai_engine.chat(model=model, prompt=text, system=system,
+                                temperature=0.4, max_tokens=160, timeout=60.0)
+        answer = answer.strip()
+        return answer or None
+    except Exception as e:
+        logger.warning(f"LLM chat fallback failed: {e}")
+        return None

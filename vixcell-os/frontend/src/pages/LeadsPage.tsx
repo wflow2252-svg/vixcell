@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import Icon from '@/components/Icon'
 import { leadsAPI } from '@/api/client'
@@ -18,6 +19,16 @@ interface Lead {
   status?: string
   source?: string
   notes?: string
+}
+
+interface Candidate {
+  name: string
+  phone?: string
+  email?: string
+  website?: string
+  address?: string
+  osm_type?: string
+  already_exists?: boolean
 }
 
 const CATEGORY_BADGE: Record<string, string> = {
@@ -43,6 +54,15 @@ export default function LeadsPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
 
+  // Find-leads (discovery) dialog
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [findOpen, setFindOpen] = useState(false)
+  const [findForm, setFindForm] = useState({ what: '', where: '' })
+  const [finding, setFinding] = useState(false)
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null)
+  const [picked, setPicked] = useState<Set<number>>(new Set())
+  const [importing, setImporting] = useState(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -64,6 +84,67 @@ export default function LeadsPage() {
     const t = setTimeout(load, search ? 300 : 0)
     return () => clearTimeout(t)
   }, [load, search])
+
+  // Voice assistant deep-links: /leads?search=... and /leads?find=1&what=...
+  useEffect(() => {
+    const q = searchParams.get('search')
+    const wantFind = searchParams.get('find') === '1'
+    if (q) setSearch(q)
+    if (wantFind) {
+      setFindForm(f => ({ ...f, what: searchParams.get('what') || f.what }))
+      setCandidates(null)
+      setFindOpen(true)
+    }
+    if (q || wantFind) setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  const runDiscover = async () => {
+    if (!findForm.what.trim() || !findForm.where.trim()) {
+      toast.error(isAr ? 'اكتب نوع النشاط والمكان' : 'Enter business type and area')
+      return
+    }
+    setFinding(true)
+    setCandidates(null)
+    try {
+      const res = await leadsAPI.discover({ what: findForm.what.trim(), where: findForm.where.trim(), limit: 30 })
+      const items: Candidate[] = res.data.items
+      setCandidates(items)
+      // preselect everything new — one click to import the lot
+      setPicked(new Set(items.map((_, i) => i).filter(i => !items[i].already_exists)))
+      if (!items.length) toast(isAr ? 'ملقناش نتايج — جرب كلمات تانية' : 'No results — try different terms')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || (isAr ? 'فشل البحث — اتأكد من الإنترنت' : 'Search failed — check internet'))
+    } finally {
+      setFinding(false)
+    }
+  }
+
+  const runImport = async () => {
+    if (!candidates) return
+    const items = candidates.filter((_, i) => picked.has(i))
+    if (!items.length) { toast.error(isAr ? 'اختار عميل واحد على الأقل' : 'Pick at least one'); return }
+    setImporting(true)
+    try {
+      const res = await leadsAPI.discoverImport(items)
+      toast.success(isAr
+        ? `تم استيراد ${res.data.imported} عميل${res.data.skipped ? ` (${res.data.skipped} مكرر)` : ''}`
+        : `Imported ${res.data.imported} leads${res.data.skipped ? ` (${res.data.skipped} duplicates)` : ''}`)
+      setFindOpen(false)
+      setCandidates(null)
+      load()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Import failed')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const togglePick = (i: number) =>
+    setPicked(prev => {
+      const next = new Set(prev)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
 
   const openCreate = () => {
     setEditing(null)
@@ -155,7 +236,11 @@ export default function LeadsPage() {
           <button onClick={exportCsv} className="btn-ghost flex items-center gap-2 text-sm">
             <Icon name="download" size={18} />{isAr ? 'تصدير' : 'Export'}
           </button>
-          <button onClick={openCreate} className="btn-primary flex items-center gap-2 text-sm">
+          <button onClick={() => { setCandidates(null); setFindOpen(true) }}
+            className="btn-primary flex items-center gap-2 text-sm">
+            <Icon name="travel_explore" size={18} />{isAr ? 'البحث عن عملاء' : 'Find Leads'}
+          </button>
+          <button onClick={openCreate} className="btn-ghost flex items-center gap-2 text-sm">
             <Icon name="add" size={18} />{isAr ? 'إضافة عميل' : 'Add Lead'}
           </button>
         </div>
@@ -271,6 +356,111 @@ export default function LeadsPage() {
           {isAr ? `إجمالي ${total} عميل` : `${total} leads total`}
         </div>
       </div>
+
+      {/* Find Leads (discovery) modal */}
+      {findOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => !importing && setFindOpen(false)}>
+          <div className="glass-card w-full max-w-2xl p-6 shadow-pop max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Icon name="travel_explore" size={20} className="text-brand-400" />
+                  {isAr ? 'البحث عن عملاء جدد' : 'Find New Leads'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {isAr ? 'بيانات حقيقية من الخريطة — اسم النشاط ورقمه وعنوانه' : 'Real businesses from map data — name, phone, address'}
+                </p>
+              </div>
+              <button onClick={() => setFindOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-surface-600">
+                <Icon name="close" size={20} />
+              </button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <input className="input-field flex-1" autoFocus
+                placeholder={isAr ? 'نوع النشاط — مطاعم، صيدليات، جيمات...' : 'Business type — restaurants, pharmacies...'}
+                value={findForm.what}
+                onChange={e => setFindForm(f => ({ ...f, what: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && runDiscover()} />
+              <input className="input-field flex-1"
+                placeholder={isAr ? 'المكان — القاهرة، مدينة نصر...' : 'Area — Cairo, Nasr City...'}
+                value={findForm.where}
+                onChange={e => setFindForm(f => ({ ...f, where: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && runDiscover()} />
+              <button onClick={runDiscover} disabled={finding} className="btn-primary text-sm flex items-center gap-2 whitespace-nowrap">
+                {finding
+                  ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <Icon name="search" size={16} />}
+                {isAr ? 'دوّر' : 'Search'}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto min-h-[120px]">
+              {finding && (
+                <div className="flex items-center justify-center py-12 text-slate-400 text-sm gap-2">
+                  <span className="w-4 h-4 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin" />
+                  {isAr ? 'بندور في الخريطة...' : 'Searching the map...'}
+                </div>
+              )}
+              {!finding && candidates && candidates.length === 0 && (
+                <div className="text-center py-12 text-slate-500 text-sm">
+                  {isAr ? 'مفيش نتايج — جرب نشاط تاني أو مدينة أكبر' : 'No results — try another type or a bigger city'}
+                </div>
+              )}
+              {!finding && candidates && candidates.length > 0 && (
+                <div className="space-y-1.5">
+                  {candidates.map((c, i) => (
+                    <label key={i}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        c.already_exists
+                          ? 'border-surface-500 bg-surface-700/30 opacity-50'
+                          : picked.has(i)
+                          ? 'border-brand-500/50 bg-brand-500/10'
+                          : 'border-line bg-surface-700/40 hover:bg-surface-600/40'
+                      }`}>
+                      <input type="checkbox" disabled={c.already_exists}
+                        checked={picked.has(i)} onChange={() => togglePick(i)}
+                        className="accent-brand-500 w-4 h-4 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{c.name}</p>
+                        <p className="text-xs text-slate-400 truncate flex items-center gap-2">
+                          {c.phone && <span className="flex items-center gap-1" dir="ltr"><Icon name="call" size={12} />{c.phone}</span>}
+                          {c.address && <span className="flex items-center gap-1"><Icon name="location_on" size={12} />{c.address}</span>}
+                        </p>
+                      </div>
+                      {c.already_exists
+                        ? <span className="badge badge-blue text-[10px] flex-shrink-0">{isAr ? 'موجود' : 'Exists'}</span>
+                        : c.phone
+                        ? <span className="badge badge-green text-[10px] flex-shrink-0">{isAr ? 'برقم تليفون' : 'Has phone'}</span>
+                        : null}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {!finding && !candidates && (
+                <div className="text-center py-10 text-slate-500 text-xs leading-relaxed">
+                  {isAr
+                    ? 'أمثلة: «مطاعم» في «القاهرة» • «صيدليات» في «الإسكندرية» • «جيمات» في «مدينة نصر»'
+                    : 'Examples: "restaurants" in "Cairo" • "pharmacies" in "Alexandria"'}
+                </div>
+              )}
+            </div>
+
+            {candidates && candidates.length > 0 && (
+              <div className="flex items-center justify-between pt-4 border-t border-line mt-4">
+                <span className="text-xs text-slate-400">
+                  {isAr ? `${picked.size} محدد من ${candidates.length}` : `${picked.size} of ${candidates.length} selected`}
+                </span>
+                <button onClick={runImport} disabled={importing || picked.size === 0}
+                  className="btn-primary text-sm flex items-center gap-2">
+                  {importing && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  {isAr ? 'إضافة المحدد للعملاء' : 'Import Selected'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit modal */}
       {modalOpen && (

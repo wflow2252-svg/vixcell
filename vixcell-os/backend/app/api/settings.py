@@ -4,10 +4,13 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Body
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_db, RoleChecker
 from app.models.user import User
+from app.models.integration import IntegrationConfig
 from app.schemas.settings import SettingsPaths, SettingsUpdate
 from app.core.config import settings
 
@@ -16,6 +19,117 @@ router = APIRouter()
 # Instantiate RBAC checkers
 admin_only = RoleChecker(allowed_roles=["admin"])
 logger = logging.getLogger(__name__)
+
+# Catalog of connectable services. `fields` drives the frontend form so
+# users always know exactly what to paste and where it goes.
+INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
+    "whatsapp": {
+        "label": "WhatsApp Business API",
+        "icon": "💬",
+        "help": "Meta for Developers → WhatsApp → API Setup",
+        "fields": [
+            {"key": "access_token", "label": "Access Token", "secret": True},
+            {"key": "phone_number_id", "label": "Phone Number ID", "secret": False},
+            {"key": "business_account_id", "label": "Business Account ID", "secret": False},
+        ],
+    },
+    "meta": {
+        "label": "Facebook / Meta API",
+        "icon": "📘",
+        "help": "Meta for Developers → App → Page Access Token",
+        "fields": [
+            {"key": "page_id", "label": "Page ID", "secret": False},
+            {"key": "page_access_token", "label": "Page Access Token", "secret": True},
+        ],
+    },
+    "google_business": {
+        "label": "Google Business / Maps",
+        "icon": "🗺️",
+        "help": "Google Cloud Console → APIs & Services → Credentials",
+        "fields": [
+            {"key": "api_key", "label": "API Key", "secret": True},
+        ],
+    },
+    "smtp": {
+        "label": "Email (SMTP)",
+        "icon": "✉️",
+        "help": "بيانات SMTP من مزود الإيميل (مثلاً Gmail App Password)",
+        "fields": [
+            {"key": "host", "label": "SMTP Host", "secret": False},
+            {"key": "port", "label": "Port", "secret": False},
+            {"key": "username", "label": "Username", "secret": False},
+            {"key": "password", "label": "Password", "secret": True},
+            {"key": "from_email", "label": "From Email", "secret": False},
+        ],
+    },
+}
+
+
+class IntegrationUpdateIn(BaseModel):
+    enabled: bool = True
+    config: Dict[str, Any] = {}
+
+
+@router.get("/integrations")
+def list_integrations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(admin_only),
+):
+    """
+    All connectable services with their form fields, plus what's already
+    saved for this tenant. This is THE place to wire external accounts.
+    """
+    saved = {
+        row.provider: row
+        for row in db.query(IntegrationConfig).filter(
+            IntegrationConfig.tenant_id == current_user.tenant_id
+        ).all()
+    }
+    out = []
+    for key, meta in INTEGRATION_PROVIDERS.items():
+        row = saved.get(key)
+        cfg = (row.config or {}) if row else {}
+        required = [f["key"] for f in meta["fields"]]
+        out.append({
+            "provider": key,
+            "label": meta["label"],
+            "icon": meta["icon"],
+            "help": meta["help"],
+            "fields": meta["fields"],
+            "enabled": row.enabled if row else False,
+            "configured": bool(row) and all(cfg.get(k) for k in required),
+            "config": cfg,
+        })
+    return {"items": out}
+
+
+@router.put("/integrations/{provider}")
+def update_integration(
+    provider: str,
+    body: IntegrationUpdateIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(admin_only),
+):
+    """Saves (upserts) credentials for one service. Local SQLite only."""
+    if provider not in INTEGRATION_PROVIDERS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Unknown provider. Allowed: {list(INTEGRATION_PROVIDERS)}")
+    row = db.query(IntegrationConfig).filter(
+        IntegrationConfig.tenant_id == current_user.tenant_id,
+        IntegrationConfig.provider == provider,
+    ).first()
+    if not row:
+        row = IntegrationConfig(tenant_id=current_user.tenant_id, provider=provider)
+        db.add(row)
+    row.enabled = body.enabled
+    row.config = {k: v for k, v in body.config.items() if v not in (None, "")}
+    db.commit()
+    required = [f["key"] for f in INTEGRATION_PROVIDERS[provider]["fields"]]
+    return {
+        "provider": provider,
+        "enabled": row.enabled,
+        "configured": all((row.config or {}).get(k) for k in required),
+    }
 
 @router.get("/paths", response_model=SettingsPaths)
 def get_paths(current_user: User = Depends(admin_only)):

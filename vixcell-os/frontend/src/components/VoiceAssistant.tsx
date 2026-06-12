@@ -13,14 +13,28 @@ const PAGE_NAMES_AR: Record<string, string> = {
   '/knowledge': 'قاعدة المعرفة', '/flows': 'الأتمتة', '/ai-models': 'نماذج الذكاء', '/settings': 'الإعدادات',
 }
 
-// ── Text-to-speech: prefer an Arabic system voice, fall back gracefully ──────
-function speak(text: string, lang = 'ar-EG'): Promise<void> {
+// ── Text-to-speech ────────────────────────────────────────────────────────────
+// Primary: server TTS (neural male Egyptian voice, disk-cached). Fallback:
+// browser SpeechSynthesis preferring a male Arabic system voice.
+let currentAudio: HTMLAudioElement | null = null
+
+function stopSpeaking() {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null }
+  window.speechSynthesis?.cancel()
+}
+
+// Known male Arabic Windows/Chrome voices (Hoda/Salma are female)
+const MALE_VOICE_HINTS = ['hamed', 'naayf', 'shakir', 'male']
+
+function speakBrowser(text: string, lang = 'ar-EG'): Promise<void> {
   return new Promise(resolve => {
     if (!('speechSynthesis' in window) || !text) { resolve(); return }
     window.speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(text)
     const voices = window.speechSynthesis.getVoices()
-    const arVoice = voices.find(v => v.lang.startsWith('ar'))
+    const arVoices = voices.filter(v => v.lang.startsWith('ar'))
+    const male = arVoices.find(v => MALE_VOICE_HINTS.some(h => v.name.toLowerCase().includes(h)))
+    const arVoice = male || arVoices[0]
     if (lang.startsWith('ar') && arVoice) u.voice = arVoice
     u.lang = arVoice && lang.startsWith('ar') ? arVoice.lang : lang
     u.rate = 1.05
@@ -28,6 +42,29 @@ function speak(text: string, lang = 'ar-EG'): Promise<void> {
     u.onerror = () => resolve()
     window.speechSynthesis.speak(u)
   })
+}
+
+async function speakServer(text: string): Promise<boolean> {
+  try {
+    const res = await voiceAPI.speak(text)
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'audio/mpeg' }))
+    await new Promise<void>((resolve, reject) => {
+      const audio = new Audio(url)
+      currentAudio = audio
+      audio.onended = () => { URL.revokeObjectURL(url); resolve() }
+      audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error('audio playback failed')) }
+      audio.play().catch(reject)
+    })
+    return true
+  } catch {
+    return false // offline / edge-tts missing → caller falls back to browser voice
+  }
+}
+
+async function speak(text: string, lang = 'ar-EG'): Promise<void> {
+  if (!text) return
+  const ok = await speakServer(text)
+  if (!ok) await speakBrowser(text, lang)
 }
 
 export default function VoiceAssistant() {
@@ -58,9 +95,76 @@ export default function VoiceAssistant() {
   const execute = useCallback(async (intent: any, heardText: string) => {
     const { action, params } = intent
 
+    if (action === 'stop') {
+      stopSpeaking()
+      setState('idle')
+      return
+    }
+
+    if (action === 'help' || action === 'chat') {
+      await say(intent.speech || 'تحت أمرك — قولي تعمل إيه')
+      return
+    }
+
     if (action === 'navigate' && params?.path) {
       navigate(params.path)
       await say(intent.speech || `فتحتلك ${PAGE_NAMES_AR[params.path] || 'الصفحة'}`)
+      return
+    }
+
+    if (action === 'find_leads') {
+      const what = params?.what?.trim()
+      const where = params?.where?.trim()
+      if (what && where) {
+        await say(intent.speech || `تمام، بدور لك على ${what} في ${where} — ثواني`)
+        setState('processing')
+        try {
+          const res = await leadsAPI.discover({ what, where, limit: 30 })
+          const fresh = res.data.items.filter((i: any) => !i.already_exists)
+          if (!fresh.length) {
+            await say(res.data.items.length
+              ? `كل ${what} ${where} اللي لقيتهم موجودين عندك بالفعل`
+              : `معلش، ملقتش ${what} في ${where} — جرب نشاط أو مكان تاني`)
+            return
+          }
+          const imp = await leadsAPI.discoverImport(fresh)
+          const withPhone = fresh.filter((i: any) => i.phone).length
+          navigate('/leads')
+          await say(
+            `لقيتلك ${imp.data.imported} ${what} في ${where} وضفتهم في العملاء` +
+            (withPhone ? `، منهم ${withPhone} برقم تليفون جاهز للاتصال` : '')
+          )
+        } catch (err: any) {
+          await say(err?.response?.data?.detail || 'حصلت مشكلة في البحث — اتأكد إن النت شغال وجرب تاني')
+        }
+        return
+      }
+      // Missing what/where → open the Find Leads dialog prefilled
+      navigate(`/leads?find=1${what ? `&what=${encodeURIComponent(what)}` : ''}`)
+      await say('فتحتلك البحث عن عملاء — اكتب نوع النشاط والمكان، أو قولي مثلًا: هاتلي عملاء مطاعم في القاهرة')
+      return
+    }
+
+    if (action === 'export_leads') {
+      try {
+        const res = await leadsAPI.exportCsv()
+        const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8' }))
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'vixcell_leads.csv'
+        a.click()
+        URL.revokeObjectURL(url)
+        await say('تمام، نزلتلك ملف العملاء')
+      } catch {
+        await say('معلش، مقدرتش أصدّر الملف')
+      }
+      return
+    }
+
+    if (action === 'search_leads') {
+      const q = params?.query?.trim()
+      navigate(q ? `/leads?search=${encodeURIComponent(q)}` : '/leads')
+      await say(q ? `بدور لك على ${q} في العملاء` : 'فتحتلك العملاء')
       return
     }
 
@@ -119,7 +223,7 @@ export default function VoiceAssistant() {
       return
     }
 
-    await say(`سمعتك بتقول: ${heardText}. بس مفهمتش المطلوب — جرب تقول مثلًا: افتح العملاء، أو اكتب منشور عن العروض`)
+    await say(`سمعتك بتقول: ${heardText}. بس مفهمتش المطلوب — جرب تقول مثلًا: هاتلي عملاء مطاعم في القاهرة، أو افتح الإحصائيات، أو اكتب منشور عن العروض`)
   }, [navigate, say, isAr])
 
   // ── Recording flow ──────────────────────────────────────────────────────────
@@ -128,6 +232,7 @@ export default function VoiceAssistant() {
   }, [])
 
   const startRecording = useCallback(async () => {
+    stopSpeaking() // user pressed mic — assistant yields immediately
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       chunksRef.current = []
@@ -163,6 +268,12 @@ export default function VoiceAssistant() {
   const toggle = useCallback(() => {
     if (stateRef.current === 'recording') stopRecording()
     else if (stateRef.current === 'idle') startRecording()
+    else if (stateRef.current === 'speaking') {
+      // interrupt the assistant and listen right away
+      stopSpeaking()
+      setState('idle')
+      startRecording()
+    }
   }, [startRecording, stopRecording])
 
   // Ctrl+Space push-to-talk toggle

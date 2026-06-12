@@ -87,6 +87,21 @@ app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai", tags=["AI Engi
 app.include_router(voice.router, prefix=f"{settings.API_V1_STR}/voice", tags=["Voice AI"])
 
 
+@app.on_event("startup")
+def warm_engines():
+    """
+    Background-load the heavy engines at boot (Whisper STT + preferred
+    Ollama model) so the first voice command answers in seconds, not minutes.
+    """
+    import os
+    # Tests spin the app up dozens of times — don't download/load models there
+    if os.getenv("PYTEST_CURRENT_TEST") or os.getenv("VIXCELL_SKIP_WARMUP"):
+        return
+    from app.services import voice_engine, ai_engine
+    voice_engine.preload_model_async()
+    ai_engine.warm_preferred_model_async()
+
+
 @app.get("/health")
 def health_check():
     """

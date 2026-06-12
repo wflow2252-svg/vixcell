@@ -4,17 +4,40 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_db, get_current_active_user, RoleChecker
 from app.models.lead import Lead
 from app.models.user import User
 from app.schemas.lead import LeadCreate, LeadUpdate, LeadOut, LeadListOut
+from app.services import lead_finder
+from app.services.lead_finder import LeadFinderError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 can_write = RoleChecker(allowed_roles=["admin", "manager", "sales"])
+
+
+class DiscoverIn(BaseModel):
+    what: str
+    where: str
+    limit: int = 30
+
+
+class DiscoverCandidate(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    address: Optional[str] = None
+    osm_type: Optional[str] = None
+
+
+class DiscoverImportIn(BaseModel):
+    items: list[DiscoverCandidate]
+    source: str = "OpenStreetMap"
 
 
 def compute_lead_score(lead: Lead) -> int:
@@ -137,6 +160,75 @@ def lead_stats(
         "by_category": by_category,
         "avg_score": round(float(avg_score), 1) if avg_score is not None else 0,
     }
+
+
+@router.post("/discover")
+def discover_leads(
+    body: DiscoverIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(can_write),
+):
+    """
+    Finds real local businesses (OpenStreetMap) matching a type + area —
+    e.g. what="مطاعم", where="القاهرة". Marks candidates that already
+    exist in this tenant's leads. Nothing is saved at this stage.
+    """
+    try:
+        result = lead_finder.find_businesses(body.what, body.where, min(body.limit, 50))
+    except LeadFinderError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Lead discovery failed: {e}")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                            detail="فشل البحث عن العملاء — جرب تاني")
+
+    existing = {
+        (name or "").strip().lower()
+        for (name,) in db.query(Lead.name).filter(Lead.tenant_id == current_user.tenant_id).all()
+    }
+    for item in result["items"]:
+        item["already_exists"] = item["name"].strip().lower() in existing
+    return result
+
+
+@router.post("/discover/import")
+def import_discovered_leads(
+    body: DiscoverImportIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(can_write),
+):
+    """
+    Bulk-saves discovered candidates as leads. Skips duplicates
+    (same name already in this tenant). Scores are computed server-side.
+    """
+    existing = {
+        (name or "").strip().lower()
+        for (name,) in db.query(Lead.name).filter(Lead.tenant_id == current_user.tenant_id).all()
+    }
+    imported, skipped = 0, 0
+    for cand in body.items:
+        key = cand.name.strip().lower()
+        if not key or key in existing:
+            skipped += 1
+            continue
+        lead = Lead(
+            tenant_id=current_user.tenant_id,
+            name=cand.name.strip(),
+            phone=cand.phone,
+            email=cand.email,
+            website=cand.website,
+            address=cand.address,
+            source=body.source,
+            status="new",
+            notes=f"نوع النشاط: {cand.osm_type}" if cand.osm_type else None,
+        )
+        lead.lead_score = compute_lead_score(lead)
+        lead.category = categorize(lead.lead_score)
+        db.add(lead)
+        existing.add(key)
+        imported += 1
+    db.commit()
+    return {"imported": imported, "skipped": skipped}
 
 
 @router.get("/export/csv")

@@ -77,6 +77,9 @@ export const settingsAPI = {
   getPaths: () => api.get('/settings/paths'),
   updatePaths: (data: any) => api.put('/settings/paths', data),
   backup: () => api.post('/settings/backup'),
+  integrations: () => api.get('/settings/integrations'),
+  updateIntegration: (provider: string, data: { enabled: boolean; config: Record<string, any> }) =>
+    api.put(`/settings/integrations/${provider}`, data),
 }
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
@@ -88,6 +91,10 @@ export const leadsAPI = {
   update: (id: string, data: any) => api.put(`/leads/${id}`, data),
   delete: (id: string) => api.delete(`/leads/${id}`),
   exportCsv: () => api.get('/leads/export/csv', { responseType: 'blob' }),
+  discover: (data: { what: string; where: string; limit?: number }) =>
+    api.post('/leads/discover', data, { timeout: 60000 }),
+  discoverImport: (items: any[], source = 'OpenStreetMap') =>
+    api.post('/leads/discover/import', { items, source }),
 }
 
 // ── CRM ───────────────────────────────────────────────────────────────────────
@@ -118,7 +125,9 @@ export const voiceAPI = {
       timeout: 120000, // first call downloads the Whisper model
     })
   },
-  command: (text: string) => api.post('/voice/command', { text }),
+  command: (text: string) => api.post('/voice/command', { text }, { timeout: 90000 }),
+  speak: (text: string, opts?: { gender?: string; language?: string }) =>
+    api.post('/voice/speak', { text, ...opts }, { responseType: 'arraybuffer', timeout: 30000 }),
 }
 
 // ── AI Engine ─────────────────────────────────────────────────────────────────
