@@ -1369,12 +1369,15 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     trackPresence()
   }, [camOn, micOn, sharing, trackPresence])
 
-  // Attach local stream to preview element
+  // Attach local stream to preview element. Explicit play(): when the tile
+  // mounts hidden (admin alone in the room) autoplay never kicks in and the
+  // self-view stays a black 0x0 frame.
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream
+      localVideoRef.current.play().catch(() => {})
     }
-  }, [localStream])
+  }, [localStream, peers.length])
 
   // Replace WebRTC transceiver tracks when localStream is acquired or updated
   useEffect(() => {
