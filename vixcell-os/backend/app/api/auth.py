@@ -92,6 +92,43 @@ def login_json(
     }
 
 
+@router.post("/auto-login", response_model=Token)
+def auto_login(db: Session = Depends(get_db)):
+    """
+    Desktop single-user mode: every request already passes the Electron
+    internal-key middleware, so the first active admin signs in without a
+    password screen. 404 when setup hasn't created an admin yet.
+    """
+    user = (
+        db.query(User)
+        .filter(User.role == "admin", User.is_active == True)  # noqa: E712 — SQLAlchemy comparison
+        .order_by(User.created_at)
+        .first()
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No admin account yet — complete the setup wizard first",
+        )
+
+    access_token = security.create_access_token(subject=user.id)
+    refresh_token_str = security.create_refresh_token(subject=user.id)
+
+    db_refresh = RefreshToken(
+        user_id=user.id,
+        token=refresh_token_str,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    db.add(db_refresh)
+    db.commit()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token_str,
+        "token_type": "bearer",
+    }
+
+
 @router.post("/refresh", response_model=Token)
 def refresh_token(
     db: Session = Depends(get_db),

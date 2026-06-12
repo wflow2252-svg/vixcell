@@ -38,14 +38,19 @@ api.interceptors.request.use(async (config) => {
   return config
 })
 
-// Response interceptor — handle 401 by clearing session
+// Response interceptor — on 401 clear the stale session and restart the
+// app shell; init() then auto-logs the admin back in (no login screen).
+// hash+reload (not href='/login') keeps packaged file:// builds working.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
-      window.location.href = '/login'
+      if (!window.location.hash.startsWith('#/bar')) {
+        window.location.hash = '#/'
+        window.location.reload()
+      }
     }
     return Promise.reject(err)
   }
@@ -58,6 +63,7 @@ export const authAPI = {
     api.post('/auth/wizard/setup', data),
   login: (email: string, password: string) =>
     api.post('/auth/login/json', { email, password }),
+  autoLogin: () => api.post('/auth/auto-login'),
   refresh: (refreshToken: string) =>
     api.post('/auth/refresh', { refresh_token_in: refreshToken }),
   me: () => api.get('/auth/me'),

@@ -25,6 +25,33 @@ def test_internal_app_key_block(client):
     assert response.status_code == 403
 
 
+def test_auto_login(client, db):
+    """
+    Desktop single-user mode: /auth/auto-login issues admin tokens without
+    a password once setup is done, and 404s before any admin exists.
+    """
+    # Before setup: no admin yet
+    response = client.post("/api/v1/auth/auto-login")
+    assert response.status_code == 404
+
+    client.post("/api/v1/auth/wizard/setup", json={
+        "company_name": "Auto Org",
+        "admin_name": "Auto Admin",
+        "admin_email": "auto@test.com",
+        "admin_password": "supersecurepassword123",
+    })
+
+    response = client.post("/api/v1/auth/auto-login")
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data and "refresh_token" in data
+
+    # Token actually works against a protected endpoint
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {data['access_token']}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == "auto@test.com"
+
+
 def test_setup_wizard_flow(client, db):
     """
     Test the full initialization flow: status check -> setup submission -> token check.

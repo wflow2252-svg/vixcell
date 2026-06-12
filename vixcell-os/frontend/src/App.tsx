@@ -37,7 +37,7 @@ type AppStatus = 'loading' | 'setup' | 'login' | 'ready'
 
 export default function App() {
   const [status, setStatus] = useState<AppStatus>('loading')
-  const { isAuthenticated, loadUser } = useAuthStore()
+  const { isAuthenticated, loadUser, autoLogin } = useAuthStore()
   const { language } = useAppStore()
 
   useEffect(() => {
@@ -56,9 +56,19 @@ export default function App() {
         }
         if (isAuthenticated) {
           await loadUser()
+          // loadUser logs out on a stale token — fall through to auto-login then
+          if (useAuthStore.getState().isAuthenticated) {
+            setStatus('ready')
+            return
+          }
+        }
+        // Desktop single-user mode: no login screen — the backend signs
+        // the admin in automatically (Electron internal key gates access)
+        try {
+          await autoLogin()
           setStatus('ready')
-        } else {
-          setStatus('login')
+        } catch {
+          setStatus('login') // safety net (e.g. no active admin in DB)
         }
       } catch {
         // Backend not yet available — show login

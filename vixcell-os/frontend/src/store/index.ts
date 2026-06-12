@@ -17,6 +17,7 @@ interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
+  autoLogin: () => Promise<void>
   logout: () => void
   setupWizard: (data: any) => Promise<void>
   loadUser: () => Promise<void>
@@ -35,6 +36,21 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true })
         try {
           const res = await authAPI.login(email, password)
+          const { access_token, refresh_token } = res.data
+          localStorage.setItem('access_token', access_token)
+          localStorage.setItem('refresh_token', refresh_token)
+          set({ accessToken: access_token, refreshToken: refresh_token, isAuthenticated: true })
+          await get().loadUser()
+        } finally {
+          set({ isLoading: false })
+        }
+      },
+
+      // Desktop single-user mode — backend signs the admin in, no password UI
+      autoLogin: async () => {
+        set({ isLoading: true })
+        try {
+          const res = await authAPI.autoLogin()
           const { access_token, refresh_token } = res.data
           localStorage.setItem('access_token', access_token)
           localStorage.setItem('refresh_token', refresh_token)
