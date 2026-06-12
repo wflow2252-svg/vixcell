@@ -181,8 +181,8 @@ export default function SettingsPage() {
                   Voice Recognition / دقة التعرف على الصوت
                 </h3>
                 <p className="text-xs text-slate-400">
-                  الموديل الأكبر = فهم أدق للعربي والإنجليزي، بس أبطأ شوية وبيحتاج تنزيل أول مرة.
-                  المقترح: <span className="font-mono">medium</span> لو الجهاز كويس.
+                  الموديل الأكبر = فهم أدق، بس أبطأ وبيحتاج رامات فاضية وتنزيل أول مرة.
+                  الافتراضي <span className="font-mono">small</span> هو الأنسب لمعظم الأجهزة.
                 </p>
                 <div className="grid grid-cols-2 gap-3 items-end">
                   <div>
@@ -191,7 +191,7 @@ export default function SettingsPage() {
                       onChange={e => saveVoiceModel(e.target.value)}>
                       {(voiceAllowed.length ? voiceAllowed : [voiceModel]).map(m => (
                         <option key={m} value={m}>
-                          {m}{m === 'small' ? ' (أسرع — دقة أقل)' : m === 'medium' ? ' (الافتراضي — دقة عالية)' : m.startsWith('large') ? ' (الأدق — أبطأ)' : ''}
+                          {m}{m === 'small' ? ' (الافتراضي — سريع ودقيق)' : m === 'medium' ? ' (أدق — محتاج جهاز فاضي)' : m.startsWith('large') ? ' (الأدق — أبطأ)' : ''}
                         </option>
                       ))}
                     </select>

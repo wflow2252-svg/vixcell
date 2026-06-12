@@ -79,6 +79,15 @@ async def transcribe_audio(
     if not voice_engine.whisper_available():
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=WHISPER_MISSING_MSG)
 
+    # Never hang the user's request behind a model load/download — answer
+    # instantly with a clear message instead of "thinking" into a timeout.
+    if not voice_engine.model_ready():
+        voice_engine.preload_model_async()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="لسه بجهّز نموذج السمع (بيحصل مرة واحدة بعد التحديث) — استنى نص دقيقة وجرب تاني",
+        )
+
     suffix = Path(audio.filename or "clip.webm").suffix or ".webm"
     tmp_path = None
     try:

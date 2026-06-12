@@ -20,8 +20,21 @@ logger = logging.getLogger(__name__)
 _model = None
 _model_lock = threading.Lock()
 _model_error: Optional[str] = None
+_model_loading = False
+_loaded_size: Optional[str] = None
 
-WHISPER_SIZE = "medium"  # markedly better Egyptian Arabic + English than small
+
+def model_ready() -> bool:
+    return _model is not None
+
+
+def model_loading() -> bool:
+    return _model_loading
+
+# small + beam 5 + the Arabic re-detect guard is the sweet spot on busy
+# consumer CPUs — medium proved too slow there (requests timed out).
+# Users can still pick medium/large in Settings on stronger machines.
+WHISPER_SIZE = "small"
 ALLOWED_WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
 
 # Domain vocabulary the recognizer should be biased towards (mixed ar/en —
@@ -62,7 +75,7 @@ def configured_model_size() -> str:
 
 def get_model():
     """Lazy singleton — first call downloads weights to MODEL_PATH/whisper."""
-    global _model, _model_error
+    global _model, _model_error, _model_loading, _loaded_size
     if _model is not None:
         return _model
     with _model_lock:
@@ -77,13 +90,17 @@ def get_model():
         # Opt in to GPU with VIXCELL_WHISPER_DEVICE=cuda.
         device = os.getenv("VIXCELL_WHISPER_DEVICE", "cpu")
         compute = "float16" if device == "cuda" else "int8"
+        _model_loading = True
         try:
             _model = WhisperModel(size, device=device, compute_type=compute,
                                   download_root=download_root)
+            _loaded_size = size
             logger.info(f"Whisper '{size}' loaded on {device} ({compute})")
         except Exception as e:
             _model_error = str(e)
             raise
+        finally:
+            _model_loading = False
     return _model
 
 
@@ -110,14 +127,15 @@ def transcribe(audio_path: str, language: Optional[str] = None) -> dict:
     binary needed). Auto-detects Arabic/English unless language is forced.
     """
     model = get_model()
+    # Wide beam where it's cheap (small models), narrow where decode is the
+    # bottleneck (medium/large picked in Settings) so commands stay snappy.
+    beam = 5 if (_loaded_size or WHISPER_SIZE) in ("tiny", "base", "small") else 2
 
     def _run(lang):
         return model.transcribe(
             audio_path,
             language=lang,              # None = auto-detect
-            # beam 2: meaningful accuracy gain over greedy at a small cost —
-            # the model upgrade (medium) is the main quality jump.
-            beam_size=2,
+            beam_size=beam,
             vad_filter=True,            # trim silence — much faster on push-to-talk clips
             condition_on_previous_text=False,  # avoids repetition loops, slightly faster
             hotwords=HOTWORDS,          # bias brand/app vocabulary (ar + en)
