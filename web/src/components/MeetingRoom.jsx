@@ -125,6 +125,31 @@ function getMeetingUrl(meetingId) {
   return `${window.location.origin}/meeting?code=${meetingId}&role=client`
 }
 
+// Clipboard write that actually reports the truth: tries the async API,
+// falls back to execCommand (works in Electron/older webviews), and only
+// returns true when one of them really copied.
+async function copyTextRobust(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {}
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
+
 /* ─── AI helpers (local Ollama) ──────────────── */
 async function askOllama(prompt) {
   try {
@@ -781,10 +806,10 @@ function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream
     }
   }, [localStream])
 
-  function copyLink() {
-    navigator.clipboard.writeText(meetingUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2500)
+  async function copyLink() {
+    const ok = await copyTextRobust(meetingUrl)
+    setCopied(ok)
+    if (ok) setTimeout(() => setCopied(false), 2500)
   }
 
   return (
@@ -971,10 +996,10 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const [inviteCopied, setInviteCopied] = useState(false)
   const meetingUrl = getMeetingUrl(meetingId)
 
-  function copyInvite() {
-    navigator.clipboard.writeText(meetingUrl)
-    setInviteCopied(true)
-    setTimeout(() => setInviteCopied(false), 2500)
+  async function copyInvite() {
+    const ok = await copyTextRobust(meetingUrl)
+    setInviteCopied(ok)
+    if (ok) setTimeout(() => setInviteCopied(false), 2500)
   }
 
   // ── Sync list of peers to local state ──
@@ -1033,7 +1058,18 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
     const pc = new RTCPeerConnection({
       iceServers: [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+        // TURN relay — without it, P2P fails entirely on mobile data/CGNAT
+        // and strict NATs (media never flows even though signaling works).
+        {
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp',
+          ],
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
       ]
     })
 
@@ -1207,6 +1243,16 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   }, [])
 
   // ── Supabase Channels ──
+  // CRITICAL: the channel effect must depend ONLY on meetingId. Its old deps
+  // (handlePresenceSync/handleSignal/trackPresence/sendSignal) changed whenever
+  // localStream arrived or mic/cam toggled — which tore down the channel AND
+  // closed every RTCPeerConnection, so audio/video never survived. The latest
+  // handlers are read through a ref instead.
+  const liveHandlersRef = useRef({})
+  useEffect(() => {
+    liveHandlersRef.current = { handlePresenceSync, handleSignal, trackPresence, sendSignal }
+  })
+
   useEffect(() => {
     const ch = supabase.channel(`meeting-${meetingId}`, {
       config: {
@@ -1216,8 +1262,8 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     })
     channelRef.current = ch
 
-    ch.on('presence', { event: 'sync' }, handlePresenceSync)
-    ch.on('broadcast', { event: 'signal' }, ({ payload }) => { handleSignal(payload) })
+    ch.on('presence', { event: 'sync' }, () => liveHandlersRef.current.handlePresenceSync?.())
+    ch.on('broadcast', { event: 'signal' }, ({ payload }) => { liveHandlersRef.current.handleSignal?.(payload) })
     ch.on('broadcast', { event: 'whiteboard_status' }, ({ payload }) => {
       setWhiteboardActive(payload.active)
     })
@@ -1270,7 +1316,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
     ch.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        trackPresence()
+        liveHandlersRef.current.trackPresence?.()
         if (!isAdminMode) {
           ch.send({ type: 'broadcast', event: 'request_wb_sync' })
         }
@@ -1279,14 +1325,20 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
     return () => {
       Array.from(peersMapRef.current.keys()).forEach(id => {
-        try { sendSignal(id, 'bye', null) } catch {}
+        try { liveHandlersRef.current.sendSignal?.(id, 'bye', null) } catch {}
       })
       peersMapRef.current.forEach(p => { try { p.pc.close() } catch {} })
       peersMapRef.current.clear()
       ch.unsubscribe()
       channelRef.current = null
     }
-  }, [meetingId, handlePresenceSync, handleSignal, trackPresence, sendSignal])
+  }, [meetingId, isAdminMode])
+
+  // Presence meta (mic/cam/share badges) updates WITHOUT touching the
+  // channel subscription — ch.track() is cheap and keeps the call alive.
+  useEffect(() => {
+    trackPresence()
+  }, [trackPresence])
 
   // Lobby channel (knock/admit) for Admin
   useEffect(() => {
@@ -1341,15 +1393,20 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     const firstPeer = Array.from(peersMapRef.current.values())[0]
     if (firstPeer) {
       setRemoteStream(firstPeer.remoteStream)
-      if (remoteVideoRef.current) {
-        // Force refresh srcObject to handle track replacement
-        remoteVideoRef.current.srcObject = null
-        remoteVideoRef.current.srcObject = firstPeer.remoteStream
-        remoteVideoRef.current.play()
+      const el = remoteVideoRef.current
+      if (el) {
+        // Re-set srcObject only when it actually changed — nulling it on every
+        // render aborted in-flight play() calls and flashed the video.
+        if (el.srcObject !== firstPeer.remoteStream) {
+          el.srcObject = firstPeer.remoteStream
+        }
+        el.play()
           .then(() => setAutoplayBlocked(false))
           .catch(e => {
             console.warn("Remote video play failed:", e)
-            setAutoplayBlocked(true)
+            // Only a real autoplay-policy block needs the user's tap.
+            // AbortError just means a newer load interrupted this play().
+            if (e && e.name === 'NotAllowedError') setAutoplayBlocked(true)
           })
       }
     } else {
@@ -2261,7 +2318,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                       .then(() => setAutoplayBlocked(false))
                       .catch(e => {
                         console.warn("Remote video play failed on callback ref:", e);
-                        setAutoplayBlocked(true);
+                        if (e && e.name === 'NotAllowedError') setAutoplayBlocked(true);
                       });
                   }
                 }}
