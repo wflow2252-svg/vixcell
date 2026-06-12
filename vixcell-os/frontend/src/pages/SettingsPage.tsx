@@ -13,10 +13,18 @@ interface IntegrationItem {
   label: string
   icon: string
   help: string
+  setup_url?: string | null
   fields: { key: string; label: string; secret: boolean }[]
   enabled: boolean
   configured: boolean
   config: Record<string, any>
+}
+
+// Open a URL: prefer the OS browser via Electron, fall back to a new tab
+function openInBrowser(url: string) {
+  const eAPI = (window as any).electronAPI
+  if (eAPI?.openExternal) eAPI.openExternal(url)
+  else window.open(url, '_blank')
 }
 
 const tabs = [
@@ -337,9 +345,18 @@ export default function SettingsPage() {
 
                         {expanded === item.provider && (
                           <div className="px-4 pb-4 space-y-3 border-t border-line pt-3">
-                            <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                              <ExternalLink size={11} />{item.help}
-                            </p>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <ExternalLink size={11} />{item.help}
+                              </p>
+                              {item.setup_url && (
+                                <button onClick={() => openInBrowser(item.setup_url!)}
+                                  className="btn-primary text-[11px] flex items-center gap-1.5 whitespace-nowrap py-1.5">
+                                  <Globe size={12} />{language === 'ar' ? 'افتح صفحة الإعداد وهات البيانات' : 'Open setup page'}
+                                  <ExternalLink size={11} />
+                                </button>
+                              )}
+                            </div>
                             <div className="grid grid-cols-2 gap-3">
                               {item.fields.map(f => (
                                 <div key={f.key} className={item.fields.length % 2 && f === item.fields[item.fields.length - 1] ? 'col-span-2' : ''}>

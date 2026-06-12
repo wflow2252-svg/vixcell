@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { voiceAPI, dashboardAPI, leadsAPI, aiAPI, systemAPI, websiteAPI } from '@/api/client'
+import { startMeeting } from '@/lib/meeting'
 
 export type VoiceState = 'idle' | 'recording' | 'processing' | 'speaking'
 
@@ -63,12 +64,6 @@ export async function speak(text: string, lang = 'ar-EG'): Promise<void> {
   if (!text) return
   const ok = await speakServer(text)
   if (!ok) await speakBrowser(text, lang)
-}
-
-function openMeetingWindow(url: string) {
-  const eAPI = (window as any).electronAPI
-  if (eAPI?.openMeeting) eAPI.openMeeting(url)
-  else window.open(url, '_blank') // browser dev fallback
 }
 
 interface Options {
@@ -148,13 +143,8 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
     }
 
     if (action === 'open_meeting') {
-      try {
-        const res = await websiteAPI.meetingUrl('admin')
-        openMeetingWindow(res.data.url)
-        await say(intent.speech || 'فتحتلك غرفة الميتنج كأدمن')
-      } catch (err: any) {
-        await say(err?.response?.data?.detail || 'معرفتش أجيب لينك الميتنج — راجع ربط الموقع في الإعدادات')
-      }
+      await startMeeting(isAr)
+      await say(intent.speech || 'فتحتلك غرفة الميتنج كأدمن، واللينك متنسخ')
       return
     }
 

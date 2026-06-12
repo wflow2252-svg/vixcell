@@ -140,33 +140,44 @@ ipcMain.handle('open-external', (_, url) => shell.openExternal(url))
 
 ipcMain.handle('get-storage-root', () => getStorageRoot())
 
-// ─── Floating Assistant Bar ───────────────────────────────────────────────────
-// A slim always-on-top voice bar pinned to the top of the screen, available
-// over every app on the machine (toggled with Ctrl+Shift+Space).
-const BAR_WIDTH = 480
-const BAR_HEIGHT = 72
-const BAR_EXPANDED = 220
+// ─── Floating Assistant Bar (iPhone Dynamic Island style) ─────────────────────
+// A pill pinned to the top-center of the screen, above every app. It's a
+// slim "notch" when idle and grows when listening/answering. Summoned with
+// Ctrl+Shift+Space or a double-clap; stays available system-wide.
+const BAR_W_IDLE = 230, BAR_H_IDLE = 50
+const BAR_W_OPEN = 540, BAR_H_OPEN = 210
+
+function positionBar(expanded) {
+  if (!barWindow || barWindow.isDestroyed()) return
+  const { width: screenW } = screen.getPrimaryDisplay().workAreaSize
+  const w = expanded ? BAR_W_OPEN : BAR_W_IDLE
+  const h = expanded ? BAR_H_OPEN : BAR_H_IDLE
+  // animate:true gives the smooth grow/shrink on Windows
+  barWindow.setBounds({ x: Math.round((screenW - w) / 2), y: 6, width: w, height: h }, true)
+}
 
 function createBarWindow() {
   if (barWindow && !barWindow.isDestroyed()) return barWindow
   const { width: screenW } = screen.getPrimaryDisplay().workAreaSize
   barWindow = new BrowserWindow({
-    width: BAR_WIDTH,
-    height: BAR_HEIGHT,
-    x: Math.round((screenW - BAR_WIDTH) / 2),
-    y: 8,
+    width: BAR_W_IDLE,
+    height: BAR_H_IDLE,
+    x: Math.round((screenW - BAR_W_IDLE) / 2),
+    y: 6,
     frame: false,
     transparent: true,
     resizable: false,
     movable: true,
     skipTaskbar: true,
     focusable: true,
+    hasShadow: false,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: !isDev,
+      backgroundThrottling: false, // keep clap-listener running while hidden
     },
   })
   // Above fullscreen apps too
@@ -193,11 +204,8 @@ function toggleBar(forceShow = false) {
 
 ipcMain.handle('bar-toggle', () => toggleBar())
 ipcMain.on('bar-hide', () => { if (barWindow && !barWindow.isDestroyed()) barWindow.hide() })
-ipcMain.on('bar-set-height', (_e, expanded) => {
-  if (!barWindow || barWindow.isDestroyed()) return
-  const b = barWindow.getBounds()
-  barWindow.setBounds({ ...b, height: expanded ? BAR_EXPANDED : BAR_HEIGHT })
-})
+ipcMain.on('bar-show', () => { const w = createBarWindow(); w.show() }) // clap wake
+ipcMain.on('bar-set-height', (_e, expanded) => positionBar(expanded))
 
 // Bar → main app navigation (bar lives in its own window)
 ipcMain.on('bar-navigate', (_e, route) => {
@@ -234,6 +242,25 @@ ipcMain.handle('open-meeting', (_e, url) => {
   meetingWindow.webContents.session.setPermissionRequestHandler((_wc, permission, cb) => {
     cb(['media', 'audioCapture', 'videoCapture', 'display-capture'].includes(permission))
   })
+  meetingWindow.once('ready-to-show', () => meetingWindow.show())
+
+  // If the room URL can't load (site offline / wrong API base), show a clear
+  // message with the copyable link instead of a blank white window.
+  meetingWindow.webContents.on('did-fail-load', (_e, code, desc, failedUrl) => {
+    if (code === -3) return // aborted (e.g. redirect) — ignore
+    const safe = String(failedUrl || url).replace(/"/g, '&quot;')
+    meetingWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`
+      <html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0f0f1a;color:#e2e8f0;font-family:Segoe UI,Tahoma,sans-serif;direction:rtl">
+        <div style="text-align:center;max-width:520px;padding:24px">
+          <div style="font-size:40px">🎥</div>
+          <h2 style="margin:12px 0 6px">تعذّر فتح غرفة الميتنج</h2>
+          <p style="color:#94a3b8;font-size:14px;line-height:1.7">الموقع مش راد دلوقتي أو لسه مش منشور. اللينك متنسخ وتقدر تفتحه في المتصفح، أو غيّر عنوان الموقع من الإعدادات ← Integrations ← Vixcell Website.</p>
+          <p style="margin-top:14px"><a href="${safe}" style="color:#818cf8;font-size:13px;word-break:break-all">${safe}</a></p>
+          <button onclick="location.reload()" style="margin-top:16px;background:#6366f1;color:#fff;border:0;border-radius:10px;padding:9px 18px;font-size:13px;cursor:pointer">إعادة المحاولة</button>
+        </div>
+      </body></html>`))
+  })
+
   meetingWindow.loadURL(url)
   meetingWindow.on('closed', () => { meetingWindow = null })
   return true

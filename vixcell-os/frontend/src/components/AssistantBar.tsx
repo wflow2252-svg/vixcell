@@ -1,23 +1,35 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { useAppStore } from '@/store'
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
+import { useClapListener } from '@/hooks/useClapListener'
 
 const eAPI = () => (window as any).electronAPI
 
 /**
- * The system-wide floating voice bar — a slim always-on-top window pinned
- * to the top of the screen (its own Electron window at #/bar).
- * Navigation commands are forwarded to the main app window over IPC.
+ * The system-wide voice "Dynamic Island" — a black pill pinned to the top
+ * center of the screen, above every app (its own Electron window at #/bar).
+ * Slim when idle, grows when listening/answering. Summoned by double-clap
+ * (hands-free) or Ctrl+Shift+Space. Commands are forwarded to the main
+ * window over IPC.
  */
 export default function AssistantBar() {
   const { language } = useAppStore()
   const isAr = language === 'ar'
+  const [clapOn, setClapOn] = useState(true)
+  const [justWoke, setJustWoke] = useState(false)
 
   const { state, transcript, reply, toggle, clear } = useVoiceAssistant({
-    // bar window doesn't navigate itself — it drives the main window
     navigate: (path: string) => eAPI()?.barNavigate?.(path),
     isAr,
+  })
+
+  // Hands-free: a double-clap wakes the assistant (works even while hidden)
+  useClapListener(clapOn && state === 'idle', () => {
+    eAPI()?.barShow?.()
+    setJustWoke(true)
+    setTimeout(() => setJustWoke(false), 1200)
+    toggle()
   })
 
   // Global shortcut (Ctrl+Shift+Space anywhere in Windows) → toggle the mic
@@ -26,91 +38,110 @@ export default function AssistantBar() {
     return () => { off?.() }
   }, [toggle])
 
-  // Expand the window when there's content to show, shrink back when cleared
-  const expanded = Boolean((transcript || reply) && state !== 'recording')
+  // Grow the window when there's content / activity; shrink back when idle
+  const expanded = state !== 'idle' || Boolean(transcript || reply)
   useEffect(() => { eAPI()?.barSetExpanded?.(expanded) }, [expanded])
 
-  const statusLabel = {
-    idle: isAr ? 'Vixcell — اتكلم (Ctrl+Shift+Space)' : 'Vixcell — speak (Ctrl+Shift+Space)',
-    recording: isAr ? 'بسمعك...' : 'Listening...',
-    processing: isAr ? 'ثواني...' : 'Processing...',
-    speaking: isAr ? 'برد عليك...' : 'Speaking...',
-  }[state]
+  const active = state === 'recording'
+  const speaking = state === 'speaking'
+  const processing = state === 'processing'
+
+  const hint = isAr
+    ? 'صفّق مرتين أو قول أمرك'
+    : 'Double-clap or speak'
 
   return (
-    <div dir={isAr ? 'rtl' : 'ltr'} className="h-screen w-screen flex flex-col items-stretch p-1.5 select-none">
-      {/* Pill bar */}
+    <div dir={isAr ? 'rtl' : 'ltr'}
+      className="h-screen w-screen flex flex-col items-center justify-start select-none overflow-hidden">
+      {/* The pill */}
       <div
-        className="flex items-center gap-3 px-3 h-[58px] rounded-2xl border border-brand-500/30 shadow-pop"
+        onClick={() => { if (state === 'idle' || state === 'speaking') toggle() }}
+        className="flex items-center gap-2.5 px-3.5 transition-all duration-300 ease-out cursor-pointer"
         style={{
-          background: 'rgba(15, 15, 26, 0.92)',
-          backdropFilter: 'blur(14px)',
+          width: expanded ? 'calc(100vw - 16px)' : 'auto',
+          minWidth: 210,
+          height: 46,
+          marginTop: 2,
+          borderRadius: 26,
+          background: active
+            ? 'linear-gradient(180deg, #2a0d12, #120406)'
+            : 'rgba(8, 8, 12, 0.96)',
+          border: active ? '1px solid rgba(248,113,113,0.5)' : '1px solid rgba(120,120,140,0.18)',
+          boxShadow: active
+            ? '0 8px 30px rgba(239,68,68,0.35)'
+            : justWoke
+            ? '0 8px 30px rgba(99,102,241,0.5)'
+            : '0 6px 22px rgba(0,0,0,0.5)',
           WebkitAppRegion: 'drag',
         } as any}
       >
-        {/* Mic */}
-        <button
-          onClick={toggle}
-          disabled={state === 'processing'}
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-            state === 'recording'
-              ? 'bg-red-500 animate-pulse-glow scale-110'
-              : state === 'processing'
-              ? 'bg-surface-600 cursor-wait'
-              : 'bg-brand-gradient hover:scale-105'
-          }`}
-        >
-          {state === 'processing'
-            ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            : <Icon name={state === 'recording' ? 'stop' : 'mic'} size={20} filled className="text-white" />}
-        </button>
-
-        {/* Status / live transcript */}
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-medium text-white truncate">
-            {state === 'recording' && transcript ? transcript : statusLabel}
-          </p>
-          <p className="text-[10px] text-slate-500 truncate">
-            {isAr ? 'مساعد فيكسيل — شغال على كل الجهاز' : 'Vixcell assistant — system-wide'}
-          </p>
+        {/* Left status orb */}
+        <div className="flex-shrink-0 flex items-center justify-center" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          {processing ? (
+            <span className="w-5 h-5 border-2 border-white/25 border-t-white rounded-full animate-spin" />
+          ) : active ? (
+            <span className="relative flex h-5 w-5 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60 animate-ping" />
+              <Icon name="mic" size={18} filled className="relative text-white" />
+            </span>
+          ) : speaking ? (
+            <div className="flex items-end gap-[2px] h-5">
+              {[0, 1, 2, 3].map((i) => (
+                <span key={i} className="w-[3px] rounded-full bg-brand-400"
+                  style={{ animation: `bounce 0.7s infinite ${i * 0.1}s`, height: `${7 + (i % 3) * 5}px` }} />
+              ))}
+            </div>
+          ) : (
+            <span className={`relative flex h-3 w-3 ${justWoke ? '' : ''}`}>
+              <span className="absolute inline-flex h-full w-full rounded-full bg-brand-500 opacity-60 animate-ping" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-brand-gradient" />
+            </span>
+          )}
         </div>
 
-        {/* Equalizer while speaking */}
-        {state === 'speaking' && (
-          <div className="flex items-end gap-0.5 h-5 flex-shrink-0">
-            {[0, 1, 2, 3].map(i => (
-              <span key={i} className="w-1 bg-brand-400 rounded-full"
-                style={{ animation: `bounce 0.8s infinite ${i * 0.12}s`, height: `${8 + (i % 3) * 5}px` }} />
-            ))}
+        {/* Center text */}
+        <div className="flex-1 min-w-0 leading-tight" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <p className="text-[13px] font-semibold text-white truncate">
+            {active && transcript ? transcript
+              : active ? (isAr ? 'بسمعك...' : 'Listening...')
+              : processing ? (isAr ? 'ثانية بفكر...' : 'Thinking...')
+              : speaking ? 'Vixcell'
+              : 'Vixcell'}
+          </p>
+          {!expanded && (
+            <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+              <Icon name="back_hand" size={10} className={clapOn ? 'text-brand-400' : 'text-slate-600'} />
+              {hint}
+            </p>
+          )}
+        </div>
+
+        {/* Right controls (idle only, to keep the notch clean) */}
+        {state === 'idle' && (
+          <div className="flex items-center gap-0.5 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as any}>
+            <button onClick={(e) => { e.stopPropagation(); setClapOn((v) => !v) }}
+              title={clapOn ? (isAr ? 'إيقاف التفعيل بالتصفيق' : 'Disable clap wake') : (isAr ? 'تفعيل بالتصفيق' : 'Enable clap wake')}
+              className={`p-1 rounded-full transition-colors ${clapOn ? 'text-brand-400 hover:text-brand-300' : 'text-slate-600 hover:text-slate-400'}`}>
+              <Icon name="back_hand" size={15} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); eAPI()?.barNavigate?.('/dashboard') }}
+              title={isAr ? 'افتح التطبيق' : 'Open app'}
+              className="p-1 rounded-full text-slate-500 hover:text-white">
+              <Icon name="open_in_new" size={15} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); eAPI()?.barHide?.() }}
+              title={isAr ? 'إخفاء' : 'Hide'}
+              className="p-1 rounded-full text-slate-500 hover:text-white">
+              <Icon name="close" size={15} />
+            </button>
           </div>
         )}
-
-        {/* Open main app */}
-        <button
-          onClick={() => eAPI()?.barNavigate?.('/dashboard')}
-          title={isAr ? 'افتح التطبيق' : 'Open app'}
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-600 flex-shrink-0"
-        >
-          <Icon name="open_in_new" size={16} />
-        </button>
-
-        {/* Hide bar */}
-        <button
-          onClick={() => eAPI()?.barHide?.()}
-          title={isAr ? 'إخفاء (Ctrl+Shift+Space للرجوع)' : 'Hide (Ctrl+Shift+Space to return)'}
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-600 flex-shrink-0"
-        >
-          <Icon name="close" size={16} />
-        </button>
       </div>
 
       {/* Expanded transcript / reply panel */}
-      {expanded && (
+      {expanded && (transcript || reply) && (
         <div className="mt-1.5 rounded-2xl border border-line p-3 overflow-y-auto animate-fade-in"
-          style={{ background: 'rgba(15, 15, 26, 0.94)', backdropFilter: 'blur(14px)', maxHeight: 130 }}>
+          style={{ width: 'calc(100vw - 16px)', maxHeight: 140, background: 'rgba(8,8,12,0.96)', backdropFilter: 'blur(14px)' }}>
           {transcript && (
             <p className="text-[11px] text-slate-400 flex items-start gap-1.5">
               <Icon name="hearing" size={13} className="mt-0.5 flex-shrink-0" />
@@ -118,13 +149,14 @@ export default function AssistantBar() {
             </p>
           )}
           {reply && (
-            <p className="text-[11px] text-slate-200 mt-1 whitespace-pre-wrap flex items-start gap-1.5">
+            <p className="text-[12px] text-slate-100 mt-1 whitespace-pre-wrap flex items-start gap-1.5">
               <Icon name="graphic_eq" size={13} className="mt-0.5 flex-shrink-0 text-brand-400" />
               <span>{reply}</span>
             </p>
           )}
-          <button onClick={clear} className="text-[10px] text-slate-500 hover:text-white mt-1">
-            {isAr ? 'إخفاء' : 'Dismiss'}
+          <button onClick={clear} className="text-[10px] text-slate-500 hover:text-white mt-1.5"
+            style={{ WebkitAppRegion: 'no-drag' } as any}>
+            {isAr ? 'تمام' : 'Dismiss'}
           </button>
         </div>
       )}

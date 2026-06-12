@@ -1,20 +1,8 @@
 import { NavLink } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import { useAppStore, useAuthStore } from '@/store'
-import { websiteAPI } from '@/api/client'
+import { startMeeting } from '@/lib/meeting'
 import Icon from './Icon'
 import clsx from 'clsx'
-
-async function openAdminMeeting() {
-  try {
-    const res = await websiteAPI.meetingUrl('admin')
-    const eAPI = (window as any).electronAPI
-    if (eAPI?.openMeeting) eAPI.openMeeting(res.data.url)
-    else window.open(res.data.url, '_blank')
-  } catch (err: any) {
-    toast.error(err?.response?.data?.detail || 'Could not get meeting link')
-  }
-}
 
 const navItems = [
   { label: 'Dashboard', labelAr: 'لوحة التحكم',      icon: 'dashboard',     path: '/dashboard' },
@@ -112,7 +100,7 @@ export default function Sidebar() {
       {/* Bottom: Meeting + Settings + user */}
       <div className="border-t border-line p-2 space-y-0.5">
         <button
-          onClick={openAdminMeeting}
+          onClick={() => startMeeting(isAr)}
           className={clsx('sidebar-item w-full', !sidebarOpen && 'justify-center px-0')}
           title={isAr ? 'افتح الميتنج (أدمن)' : 'Open Meeting (admin)'}
         >

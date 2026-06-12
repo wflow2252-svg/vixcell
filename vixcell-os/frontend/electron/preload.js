@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Floating assistant bar
   barToggle: () => ipcRenderer.invoke('bar-toggle'),
   barHide: () => ipcRenderer.send('bar-hide'),
+  barShow: () => ipcRenderer.send('bar-show'),
   barSetExpanded: (expanded) => ipcRenderer.send('bar-set-height', expanded),
   barNavigate: (route) => ipcRenderer.send('bar-navigate', route),
   onBarPushToTalk: (cb) => {

@@ -36,6 +36,7 @@ INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "label": "WhatsApp Business API",
         "icon": "💬",
         "help": "Meta for Developers → WhatsApp → API Setup",
+        "setup_url": "https://developers.facebook.com/apps/",
         "fields": [
             {"key": "access_token", "label": "Access Token", "secret": True},
             {"key": "phone_number_id", "label": "Phone Number ID", "secret": False},
@@ -46,6 +47,7 @@ INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "label": "Facebook / Meta API",
         "icon": "📘",
         "help": "Meta for Developers → App → Page Access Token",
+        "setup_url": "https://developers.facebook.com/apps/",
         "fields": [
             {"key": "page_id", "label": "Page ID", "secret": False},
             {"key": "page_access_token", "label": "Page Access Token", "secret": True},
@@ -55,6 +57,7 @@ INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "label": "Google Business / Maps",
         "icon": "🗺️",
         "help": "Google Cloud Console → APIs & Services → Credentials",
+        "setup_url": "https://console.cloud.google.com/apis/credentials",
         "fields": [
             {"key": "api_key", "label": "API Key", "secret": True},
         ],
@@ -63,6 +66,7 @@ INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
         "label": "Email (SMTP)",
         "icon": "✉️",
         "help": "بيانات SMTP من مزود الإيميل (مثلاً Gmail App Password)",
+        "setup_url": "https://myaccount.google.com/apppasswords",
         "fields": [
             {"key": "host", "label": "SMTP Host", "secret": False},
             {"key": "port", "label": "Port", "secret": False},
@@ -104,6 +108,7 @@ def list_integrations(
             "label": meta["label"],
             "icon": meta["icon"],
             "help": meta["help"],
+            "setup_url": meta.get("setup_url"),
             "fields": meta["fields"],
             "enabled": row.enabled if row else False,
             "configured": bool(row) and all(cfg.get(k) for k in required),
