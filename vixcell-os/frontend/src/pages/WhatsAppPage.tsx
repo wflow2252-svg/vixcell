@@ -2,16 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import Icon from '@/components/Icon'
 import { whatsappAPI, leadsAPI, aiAPI } from '@/api/client'
+import { openWhatsApp } from '@/lib/whatsapp'
 import { useAppStore } from '@/store'
 
 interface Contact { id: string; name?: string; phone: string; last_sent_at?: string }
 interface Message { id: string; contact_id?: string; body: string; sent_by: string; created_at?: string }
-
-function openLink(url: string) {
-  const eAPI = (window as any).electronAPI
-  if (eAPI?.openExternal) eAPI.openExternal(url)
-  else window.open(url, '_blank')
-}
 
 export default function WhatsAppPage() {
   const { language } = useAppStore()
@@ -64,7 +59,7 @@ export default function WhatsAppPage() {
     setSending(true)
     try {
       const res = await whatsappAPI.send(to.trim(), message.trim(), topic.trim() ? 'ai' : 'user')
-      openLink(res.data.link)
+      openWhatsApp(res.data)
       toast.success(isAr ? `الواتساب فتح لـ ${res.data.name || to} — دوس إرسال` : 'WhatsApp opened — tap send')
       setMessage(''); setTopic('')
       setTimeout(loadHistory, 800)

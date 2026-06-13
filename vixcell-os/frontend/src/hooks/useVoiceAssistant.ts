@@ -2,7 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { voiceAPI, dashboardAPI, leadsAPI, aiAPI, systemAPI, websiteAPI, whatsappAPI } from '@/api/client'
 import { startMeeting } from '@/lib/meeting'
+import { openWhatsApp } from '@/lib/whatsapp'
 import { useAICoreStore } from '@/store'
+
+// Hands-free confirmation words for the "confirm before send" step.
+const CONFIRM_WORDS = ['اه', 'أه', 'ايوه', 'أيوة', 'ايوة', 'تمام', 'ابعت', 'ابعتها', 'اوكي', 'أوكي', 'اوك', 'ماشي', 'yes', 'ok', 'okay', 'send', 'go', 'do it', 'confirm']
+const CANCEL_WORDS = ['لا', 'لأ', 'الغي', 'إلغاء', 'بلاش', 'كنسل', 'no', 'cancel', 'stop', 'never mind']
+const norm = (s: string) => (s || '').trim().toLowerCase().replace(/[أإآ]/g, 'ا')
+const isConfirm = (s: string) => { const n = norm(s); return CONFIRM_WORDS.some(w => n === w || n.startsWith(w + ' ') || n.includes(' ' + w)) }
+const isCancel = (s: string) => { const n = norm(s); return CANCEL_WORDS.some(w => n === w || n.startsWith(w + ' ')) }
 
 export type VoiceState = 'idle' | 'recording' | 'processing' | 'speaking'
 
@@ -86,6 +94,8 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
   const audioCtxRef = useRef<AudioContext | null>(null)
   const rafRef = useRef<number>(0)
   const cancelledRef = useRef(false)
+  // A WhatsApp message staged and awaiting the user's spoken "تمام/ابعت".
+  const pendingWaRef = useRef<{ to: string; message: string; name?: string; byAI: boolean } | null>(null)
 
   // Chrome loads voices async — warm the list so the first speak() finds Arabic
   useEffect(() => { window.speechSynthesis?.getVoices() }, [])
@@ -162,11 +172,21 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
     if (action === 'send_whatsapp') {
       const to = params?.to?.trim()
       if (!to) { await say('قولي أبعت لمين'); return }
-      let message: string = params?.message?.trim() || ''
 
-      // "ابعت لأحمد منشور عن X" → write the message first, then send
+      // Confirm the recipient exists first (preview only — nothing sent yet)
+      let name = to
+      try {
+        const r = await whatsappAPI.resolve(to)
+        name = r.data.name || to
+      } catch (err: any) {
+        await say(err?.response?.data?.detail || `ملقتش رقم لـ ${to} — ضيف رقمه في العملاء أو قول الرقم`)
+        return
+      }
+
+      let message: string = params?.message?.trim() || ''
+      // "ابعت لأحمد رسالة عن X" → AI writes it from the topic first
       if (!message && params?.topic) {
-        await say(`تمام، بكتب رسالة عن ${params.topic} وأبعتها لـ ${to}`)
+        await say(`تمام، بكتب رسالة عن ${params.topic} لـ ${name}`)
         setState('processing')
         try {
           const models = await aiAPI.models()
@@ -184,16 +204,11 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
       }
       if (!message) { await say('قولي الرسالة اللي عايز تبعتها'); return }
 
-      try {
-        const res = await whatsappAPI.send(to, message, params?.topic ? 'ai' : 'user')
-        const link = res.data.link
-        const eAPI = (window as any).electronAPI
-        if (eAPI?.openExternal) eAPI.openExternal(link)
-        else window.open(link, '_blank')
-        await say(`جهّزت الرسالة لـ ${res.data.name || to} — الواتساب فتح، دوس إرسال`)
-      } catch (err: any) {
-        await say(err?.response?.data?.detail || 'ملقتش رقم للشخص ده — ضيف رقمه في العملاء أو قول الرقم')
-      }
+      // Stage it and ASK before opening WhatsApp. What you say next —
+      // "تمام/ابعت" opens WhatsApp Desktop & sends, "لأ" cancels.
+      pendingWaRef.current = { to, message, name, byAI: !!params?.topic }
+      setReply(`📲 ${name}:\n${message}`)
+      await say(`الرسالة لـ ${name}: ${message} . أقول تمام أفتح الواتساب وأبعت، أو لأ أبطّل.`)
       return
     }
 
@@ -365,6 +380,28 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
           const text = tr.data.text
           setTranscript(text)
           if (!text) { await say('مسمعتش حاجة واضحة — جرب تاني'); return }
+          // A WhatsApp message staged & awaiting confirmation? Handle the
+          // spoken "تمام/ابعت" (send) or "لأ" (cancel) before anything else.
+          if (pendingWaRef.current) {
+            const p = pendingWaRef.current
+            if (isConfirm(text)) {
+              pendingWaRef.current = null
+              try {
+                const res = await whatsappAPI.send(p.to, p.message, p.byAI ? 'ai' : 'user')
+                openWhatsApp(res.data)
+                await say(`فتحت الواتساب لـ ${res.data.name || p.name || p.to} والرسالة جاهزة — راجعها ودوس إرسال`)
+              } catch (err: any) {
+                await say(err?.response?.data?.detail || 'حصلت مشكلة في فتح الواتساب')
+              }
+              return
+            }
+            if (isCancel(text)) {
+              pendingWaRef.current = null
+              await say('تمام، بطّلت')
+              return
+            }
+            pendingWaRef.current = null // anything else = a fresh command
+          }
           const cmd = await voiceAPI.command(text)
           await execute(cmd.data, text)
         } catch (err: any) {

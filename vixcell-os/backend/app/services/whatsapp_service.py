@@ -92,6 +92,12 @@ def build_link(phone: str, text: str) -> str:
     return f"https://wa.me/{phone}?text={quote(text or '')}"
 
 
+def build_desktop_uri(phone: str, text: str) -> str:
+    """whatsapp:// opens the installed WhatsApp DESKTOP app with the chat +
+    message pre-filled (not the browser). Client tries this first."""
+    return f"whatsapp://send?phone={phone}&text={quote(text or '')}"
+
+
 def _upsert_contact(db: Session, tenant_id: str, phone: str, name: Optional[str],
                     lead_id: Optional[str]) -> WaContact:
     contact = (
@@ -121,6 +127,7 @@ def prepare_send(db: Session, tenant_id: str, who: str, text: str,
         raise WhatsAppError("اكتب الرسالة الأول")
     r = resolve_recipient(db, tenant_id, who)
     link = build_link(r["phone"], text)
+    desktop = build_desktop_uri(r["phone"], text)
     try:
         contact = _upsert_contact(db, tenant_id, r["phone"], r.get("name"), r.get("lead_id"))
         db.flush()
@@ -130,4 +137,5 @@ def prepare_send(db: Session, tenant_id: str, who: str, text: str,
     except Exception as e:
         db.rollback()
         logger.warning(f"WhatsApp log failed (send still works): {e}")
-    return {"link": link, "phone": r["phone"], "name": r.get("name"), "message": text}
+    return {"link": link, "desktop": desktop, "phone": r["phone"],
+            "name": r.get("name"), "message": text}
