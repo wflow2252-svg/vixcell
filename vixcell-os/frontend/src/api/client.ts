@@ -189,13 +189,17 @@ export const systemAPI = {
   analyzeScreen: (question = '') => api.post('/system/analyze-screen', { question }, { timeout: 180000 }),
 }
 
-// ── Website bridge (vixcell.com tasks / projects / meeting) ──────────────────
+// ── Website bridge (vixcell.com live data via Supabase) ──────────────────────
 export const websiteAPI = {
   status: () => api.get('/website/status'),
   meetingUrl: (role = 'admin') => api.get('/website/meeting', { params: { role } }),
   tasks: (status?: string) => api.get('/website/tasks', { params: status ? { status } : undefined }),
   taskStats: () => api.get('/website/tasks/stats'),
   projects: () => api.get('/website/projects'),
+  siteProjects: () => api.get('/website/site-projects'),
+  brand: () => api.get('/website/brand'),
+  submissions: () => api.get('/website/submissions'),
+  importProject: (project: Record<string, any>) => api.post('/website/import-project', project),
   updateTask: (id: string | number, data: any) => api.put(`/website/tasks/${id}`, data),
 }
 
