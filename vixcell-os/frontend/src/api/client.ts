@@ -216,6 +216,13 @@ export const memoryAPI = {
   delete: (id: string) => api.delete(`/memory/${id}`),
 }
 
+// ── Training Center ─────────────────────────────────────────────────────────────
+export const trainingAPI = {
+  stats: () => api.get('/training/stats'),
+  interactions: (limit = 50) => api.get('/training/interactions', { params: { limit } }),
+  export: () => api.post('/training/export'),
+}
+
 // ── AI Engine ─────────────────────────────────────────────────────────────────
 export const aiAPI = {
   status: () => api.get('/ai/status'),

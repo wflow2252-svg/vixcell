@@ -171,6 +171,7 @@ PAGE_ALIASES = {
     "/knowledge": ["قاعدة المعرفة", "المعرفة", "knowledge"],
     "/flows":     ["الأتمتة", "الفلوز", "flows", "automation"],
     "/ai-models": ["نماذج الذكاء", "النماذج", "الموديلات", "models", "ai models"],
+    "/training":  ["مركز التدريب", "التدريب", "training", "training center"],
     "/settings":  ["الإعدادات", "settings"],
 }
 

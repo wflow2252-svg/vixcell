@@ -18,6 +18,7 @@ const navItems = [
   { label: 'Knowledge', labelAr: 'قاعدة المعرفة',    icon: 'menu_book',     path: '/knowledge' },
   { label: 'Flows',     labelAr: 'الأتمتة',          icon: 'account_tree',  path: '/flows' },
   { label: 'AI Models', labelAr: 'نماذج الذكاء',     icon: 'neurology',     path: '/ai-models' },
+  { label: 'Training',  labelAr: 'مركز التدريب',     icon: 'school',        path: '/training' },
 ]
 
 export default function Sidebar() {
