@@ -130,6 +130,22 @@ export const projectsAPI = {
     api.post(`/projects/${id}/generate-tasks`, { text }, { timeout: 120000 }),
 }
 
+// ── Meetings AI (transcribe → summary → tasks) ─────────────────────────────────
+export const meetingsAPI = {
+  list: () => api.get('/meetings/'),
+  get: (id: string) => api.get(`/meetings/${id}`),
+  fromText: (transcript: string, title = '') =>
+    api.post('/meetings/from-text', { transcript, title }, { timeout: 200000 }),
+  transcribe: (blob: Blob, title = '') => {
+    const form = new FormData()
+    form.append('audio', blob, 'meeting.webm')
+    form.append('title', title)
+    return api.post('/meetings/transcribe', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000,
+    })
+  },
+}
+
 // ── Native Tasks (AI-generatable, local) ───────────────────────────────────────
 export const coreTasksAPI = {
   list: (projectId?: string) => api.get('/tasks/', { params: projectId ? { project_id: projectId } : undefined }),

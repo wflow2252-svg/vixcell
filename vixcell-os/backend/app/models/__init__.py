@@ -14,6 +14,7 @@ from app.models.whatsapp import WaContact, WaMessage
 from app.models.core import InteractionLog
 from app.models.project import Project, ProjectAsset
 from app.models.task import Task
+from app.models.meeting import Meeting
 
 # Expose metadata for alembic migrations
 metadata = Base.metadata

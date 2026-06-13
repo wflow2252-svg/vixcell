@@ -11,6 +11,7 @@ const navItems = [
   { label: 'Tasks',     labelAr: 'مهام الموقع',      icon: 'task_alt',      path: '/tasks' },
   { label: 'CRM',       labelAr: 'إدارة العلاقات',   icon: 'handshake',     path: '/crm' },
   { label: 'Projects',  labelAr: 'المشاريع',         icon: 'folder',        path: '/projects' },
+  { label: 'Meetings',  labelAr: 'محاضر الاجتماعات', icon: 'record_voice_over', path: '/meetings' },
   { label: 'Social',    labelAr: 'التواصل الاجتماعي', icon: 'share',         path: '/social' },
   { label: 'Content',   labelAr: 'إنشاء المحتوى',    icon: 'edit_square',   path: '/content' },
   { label: 'Analytics', labelAr: 'التحليلات',        icon: 'monitoring',    path: '/analytics' },
