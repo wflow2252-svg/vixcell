@@ -115,6 +115,30 @@ export const crmAPI = {
   activities: (params?: { deal_id?: string; lead_id?: string }) => api.get('/crm/activities', { params }),
   createActivity: (data: any) => api.post('/crm/activities', data),
   completeActivity: (id: string) => api.put(`/crm/activities/${id}/complete`),
+  rescoreDeal: (id: string) => api.post(`/crm/deals/${id}/rescore`),
+}
+
+// ── Projects (native delivery workspaces) ──────────────────────────────────────
+export const projectsAPI = {
+  list: () => api.get('/projects/'),
+  get: (id: string) => api.get(`/projects/${id}`),
+  create: (data: { name: string; description?: string; deal_id?: string; lead_id?: string }) =>
+    api.post('/projects/', data),
+  addAsset: (id: string, data: { kind: string; title?: string; url?: string; body?: string }) =>
+    api.post(`/projects/${id}/assets`, data),
+  generateTasks: (id: string, text: string) =>
+    api.post(`/projects/${id}/generate-tasks`, { text }, { timeout: 120000 }),
+}
+
+// ── Native Tasks (AI-generatable, local) ───────────────────────────────────────
+export const coreTasksAPI = {
+  list: (projectId?: string) => api.get('/tasks/', { params: projectId ? { project_id: projectId } : undefined }),
+  create: (data: { title: string; description?: string; project_id?: string; priority?: string }) =>
+    api.post('/tasks/', data),
+  update: (id: string, data: any) => api.put(`/tasks/${id}`, data),
+  delete: (id: string) => api.delete(`/tasks/${id}`),
+  generate: (text: string, project_id?: string) =>
+    api.post('/tasks/generate', { text, project_id }, { timeout: 120000 }),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import AIModelsPage from '@/pages/AIModelsPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import FlowBuilderPage from '@/pages/FlowBuilderPage'
 import TasksPage from '@/pages/TasksPage'
+import ProjectsPage from '@/pages/ProjectsPage'
 import WhatsAppPage from '@/pages/WhatsAppPage'
 
 // Shown in the floating bar window before the user logs into the main app
@@ -163,6 +164,7 @@ export default function App() {
               <Route path="/leads" element={<LeadsPage />} />
               <Route path="/whatsapp" element={<WhatsAppPage />} />
               <Route path="/tasks" element={<TasksPage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/crm" element={<CRMPage />} />
               <Route path="/social" element={<SocialPage />} />
               <Route path="/content" element={<ContentPage />} />

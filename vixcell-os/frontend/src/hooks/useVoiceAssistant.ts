@@ -9,7 +9,7 @@ export const PAGE_NAMES_AR: Record<string, string> = {
   '/dashboard': 'لوحة التحكم', '/leads': 'العملاء المحتملين', '/crm': 'إدارة العلاقات',
   '/social': 'التواصل الاجتماعي', '/content': 'إنشاء المحتوى', '/analytics': 'التحليلات',
   '/knowledge': 'قاعدة المعرفة', '/flows': 'الأتمتة', '/ai-models': 'نماذج الذكاء',
-  '/settings': 'الإعدادات', '/tasks': 'مهام الموقع',
+  '/settings': 'الإعدادات', '/tasks': 'مهام الموقع', '/projects': 'المشاريع',
 }
 
 // ── Text-to-speech ────────────────────────────────────────────────────────────

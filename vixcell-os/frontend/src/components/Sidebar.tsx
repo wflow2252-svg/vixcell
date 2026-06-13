@@ -10,6 +10,7 @@ const navItems = [
   { label: 'WhatsApp',  labelAr: 'واتساب',           icon: 'chat',          path: '/whatsapp' },
   { label: 'Tasks',     labelAr: 'مهام الموقع',      icon: 'task_alt',      path: '/tasks' },
   { label: 'CRM',       labelAr: 'إدارة العلاقات',   icon: 'handshake',     path: '/crm' },
+  { label: 'Projects',  labelAr: 'المشاريع',         icon: 'folder',        path: '/projects' },
   { label: 'Social',    labelAr: 'التواصل الاجتماعي', icon: 'share',         path: '/social' },
   { label: 'Content',   labelAr: 'إنشاء المحتوى',    icon: 'edit_square',   path: '/content' },
   { label: 'Analytics', labelAr: 'التحليلات',        icon: 'monitoring',    path: '/analytics' },

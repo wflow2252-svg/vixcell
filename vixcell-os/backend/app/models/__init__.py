@@ -12,6 +12,8 @@ from app.models.integration import IntegrationConfig
 from app.models.memory import AssistantMemory
 from app.models.whatsapp import WaContact, WaMessage
 from app.models.core import InteractionLog
+from app.models.project import Project, ProjectAsset
+from app.models.task import Task
 
 # Expose metadata for alembic migrations
 metadata = Base.metadata

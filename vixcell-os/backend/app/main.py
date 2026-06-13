@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.database import engine, Base
-from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice, system, website, memory, whatsapp
+from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice, system, website, memory, whatsapp, projects, tasks
 import logging
 
 # Initialize Logging
@@ -89,6 +89,8 @@ app.include_router(system.router, prefix=f"{settings.API_V1_STR}/system", tags=[
 app.include_router(website.router, prefix=f"{settings.API_V1_STR}/website", tags=["Website Bridge"])
 app.include_router(memory.router, prefix=f"{settings.API_V1_STR}/memory", tags=["Assistant Memory"])
 app.include_router(whatsapp.router, prefix=f"{settings.API_V1_STR}/whatsapp", tags=["WhatsApp"])
+app.include_router(projects.router, prefix=f"{settings.API_V1_STR}/projects", tags=["Projects"])
+app.include_router(tasks.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["Tasks"])
 
 
 @app.on_event("startup")

@@ -116,11 +116,40 @@ def update_deal(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid stage. Allowed: {DEAL_STAGES}",
         )
+    was_won = deal.stage == "Won"
     for field, value in update_data.items():
         setattr(deal, field, value)
     db.commit()
     db.refresh(deal)
+
+    # Spec: when a deal is won, automatically spin up a delivery project.
+    if deal.stage == "Won" and not was_won:
+        try:
+            from app.services import project_service
+            project_service.create_from_deal(db, current_user.tenant_id, deal)
+        except Exception as e:
+            logger.warning(f"Auto-project on deal win failed: {e}")
+
     return deal_to_out(deal)
+
+
+@router.post("/deals/{deal_id}/rescore")
+def rescore_deal(
+    deal_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(can_write),
+):
+    """AI re-estimates the closing probability for a deal (Deal Intelligence)."""
+    deal = (
+        db.query(Deal)
+        .options(joinedload(Deal.lead))
+        .filter(Deal.id == deal_id, Deal.tenant_id == current_user.tenant_id)
+        .first()
+    )
+    if not deal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deal not found")
+    from app.services import deal_intel
+    return deal_intel.rescore(db, deal)
 
 
 @router.delete("/deals/{deal_id}", status_code=status.HTTP_204_NO_CONTENT)
