@@ -13,6 +13,66 @@ const Icon = ({ name, size = 24, style = {} }) => (
   </span>
 )
 
+/* ─── Real-time pitch shifter (Jungle algorithm) ──────────────────────
+   Two cross-faded modulated delay lines shift pitch live with no library.
+   setPitchOffset(-0.3) lowers the voice (sounds older/deeper). */
+function createPitchShifter(ctx) {
+  const input = ctx.createGain()
+  const output = ctx.createGain()
+  const delayTime = 0.100, fadeTime = 0.050, bufferTime = 0.100
+  const mod1 = ctx.createBufferSource(), mod2 = ctx.createBufferSource()
+  const mod3 = ctx.createBufferSource(), mod4 = ctx.createBufferSource()
+  const fade1 = ctx.createGain(), fade2 = ctx.createGain()
+  const mix1 = ctx.createGain(), mix2 = ctx.createGain()
+  const delay1 = ctx.createDelay(), delay2 = ctx.createDelay()
+
+  // shift buffer (sawtooth-ish ramp) controls delay; fade buffer crossfades
+  function makeBuffer(active) {
+    const len = Math.round(ctx.sampleRate * bufferTime)
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate), p = buf.getChannelData(0)
+    const dt = (delayTime - fadeTime) / 2, fdt = (delayTime + fadeTime) / 2
+    for (let i = 0; i < len; i++) {
+      const t = i / ctx.sampleRate
+      p[i] = active ? (t < dt ? 0 : t < fdt ? (t - dt) / fadeTime : 1) : 0
+    }
+    return buf
+  }
+  function shiftBuffer() {
+    const len = Math.round(ctx.sampleRate * bufferTime)
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate), p = buf.getChannelData(0)
+    for (let i = 0; i < len; i++) p[i] = (i / len)
+    return buf
+  }
+  const fadeBuf1 = makeBuffer(true), fadeBuf2 = makeBuffer(false), shiftBuf = shiftBuffer()
+  mod1.buffer = shiftBuf; mod2.buffer = shiftBuf
+  mod3.buffer = fadeBuf1; mod4.buffer = fadeBuf2
+  ;[mod1, mod2, mod3, mod4].forEach(m => { m.loop = true })
+
+  const shiftGain1 = ctx.createGain(), shiftGain2 = ctx.createGain()
+  shiftGain1.gain.value = 0; shiftGain2.gain.value = 0
+  mod1.connect(shiftGain1); shiftGain1.connect(delay1.delayTime)
+  mod2.connect(shiftGain2); shiftGain2.connect(delay2.delayTime)
+  mod3.connect(fade1.gain); mod4.connect(fade2.gain)
+
+  input.connect(delay1); input.connect(delay2)
+  delay1.connect(mix1); delay2.connect(mix2)
+  mix1.connect(fade1); mix2.connect(fade2)
+  fade1.connect(output); fade2.connect(output)
+
+  const t = ctx.currentTime + 0.05
+  mod1.start(t); mod2.start(t + delayTime / 2)
+  mod3.start(t); mod4.start(t + delayTime / 2)
+
+  return {
+    input, output,
+    setPitchOffset(mult) {
+      // mult in [-1, 1]; negative lowers pitch
+      shiftGain1.gain.value = (mult > 0 ? delayTime : -delayTime) * Math.abs(mult)
+      shiftGain2.gain.value = (mult > 0 ? delayTime : -delayTime) * Math.abs(mult)
+    },
+  }
+}
+
 /* ─── Path Simplification (Douglas-Peucker) ────── */
 function simplifyPath(points, epsilon = 8) {
   if (points.length <= 2) return points
@@ -907,6 +967,12 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const [whiteboardActive, setWhiteboardActive] = useState(false)
   const [autoplayBlocked, setAutoplayBlocked] = useState(false)
   const [videoFit, setVideoFit] = useState('contain')
+  // Voice changer (deeper/older voice) — OFF by default so the normal mic path
+  // is untouched. When ON, fxTrackRef holds a pitch-shifted audio track that
+  // replaces the raw mic track on all peers.
+  const [voiceFx, setVoiceFx] = useState(false)
+  const fxTrackRef = useRef(null)
+  const fxCtxRef = useRef(null)
 
   const firstPeer = peers[0]
   const isReconnecting = firstPeer && (firstPeer.presenceOffline || firstPeer.conn === 'disconnected' || firstPeer.conn === 'failed')
@@ -1115,7 +1181,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
     const ls = localStream
     const vt = (sharing && screenTrackRef.current) ? screenTrackRef.current : (ls && ls.getVideoTracks()[0])
-    const at = ls && ls.getAudioTracks()[0]
+    const at = fxTrackRef.current || (ls && ls.getAudioTracks()[0])
     if (vt) vTx.sender.replaceTrack(vt).catch(() => {})
     if (at) aTx.sender.replaceTrack(at).catch(() => {})
 
@@ -1407,13 +1473,41 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   useEffect(() => {
     if (!localStream) return
     const vt = localStream.getVideoTracks()[0]
-    const at = localStream.getAudioTracks()[0]
-    
+    const at = fxTrackRef.current || localStream.getAudioTracks()[0]
+
     peersMapRef.current.forEach(p => {
       if (!sharing && vt && p.videoSender) p.videoSender.replaceTrack(vt).catch(e => console.warn("Failed to replace video track:", e))
       if (at && p.audioSender) p.audioSender.replaceTrack(at).catch(e => console.warn("Failed to replace audio track:", e))
     })
   }, [localStream, sharing])
+
+  // Voice changer: build/tear down a pitch-shift graph and swap the audio track
+  // on every peer. Lowering pitch makes a young voice sound more mature. OFF by
+  // default, so the normal mic path is unchanged unless the user enables it.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (voiceFx && localStream && localStream.getAudioTracks()[0]) {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)()
+          const src = ctx.createMediaStreamSource(localStream)
+          const shifter = createPitchShifter(ctx)
+          shifter.setPitchOffset(-0.32)
+          const dest = ctx.createMediaStreamDestination()
+          src.connect(shifter.input); shifter.output.connect(dest)
+          fxCtxRef.current = ctx
+          fxTrackRef.current = dest.stream.getAudioTracks()[0]
+        } catch (e) { console.warn('voiceFx setup failed', e); return }
+      } else {
+        fxTrackRef.current = null
+        if (fxCtxRef.current) { try { await fxCtxRef.current.close() } catch {} fxCtxRef.current = null }
+      }
+      if (cancelled) return
+      const at = fxTrackRef.current || (localStream && localStream.getAudioTracks()[0])
+      if (at) peersMapRef.current.forEach(p => { if (p.audioSender) p.audioSender.replaceTrack(at).catch(() => {}) })
+    })()
+    return () => { cancelled = true }
+  }, [voiceFx, localStream])
 
   // Attach first remote stream to main video
   useEffect(() => {
@@ -2753,6 +2847,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       <div style={rm.controls}>
         <div style={rm.ctrlGroup}>
           <GmBtn onClick={toggleMic} icon={micOn ? 'mic' : 'mic_off'} label={micOn ? 'كتم' : 'الصوت'} red={!micOn} />
+          <GmBtn onClick={() => setVoiceFx(v => !v)} icon="graphic_eq" label={voiceFx ? 'صوت طبيعي' : 'غيّر الصوت'} blue={voiceFx} />
           <GmBtn onClick={toggleShare} icon={sharing ? 'stop_screen_share' : 'screen_share'} label={sharing ? 'إيقاف المشاركة' : 'مشاركة الشاشة'} blue={sharing} />
           {isAdminMode && (
             <GmBtn icon="fiber_manual_record" label={`REC ${fmtDur(recDuration)}`} red style={{ opacity: 1 }} />
