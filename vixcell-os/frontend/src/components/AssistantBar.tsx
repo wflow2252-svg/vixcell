@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import Icon from './Icon'
 import { useAppStore } from '@/store'
 import { useVoiceAssistant } from '@/hooks/useVoiceAssistant'
-import { useClapListener } from '@/hooks/useClapListener'
+import { useWakeListener } from '@/hooks/useWakeListener'
 
 const eAPI = () => (window as any).electronAPI
+const LISTEN_KEY = 'vix_always_listen'
 
 /**
  * The system-wide voice "Dynamic Island" — a black pill pinned to the top
@@ -16,21 +17,31 @@ const eAPI = () => (window as any).electronAPI
 export default function AssistantBar() {
   const { language } = useAppStore()
   const isAr = language === 'ar'
-  const [clapOn, setClapOn] = useState(true)
+  // Always-listening on by default — the user just talks and it hears.
+  const [listenOn, setListenOn] = useState(() => localStorage.getItem(LISTEN_KEY) !== '0')
   const [justWoke, setJustWoke] = useState(false)
 
-  const { state, transcript, reply, level, toggle, clear } = useVoiceAssistant({
+  const { state, transcript, reply, level, toggle, startRecording, clear } = useVoiceAssistant({
     navigate: (path: string) => eAPI()?.barNavigate?.(path),
     isAr,
   })
 
-  // Hands-free: a double-clap wakes the assistant (works even while hidden)
-  useClapListener(clapOn && state === 'idle', () => {
+  // Always-on hands-free: continuously listen; the moment you speak, record.
+  // Only while idle, so it never hears the assistant's own reply.
+  useWakeListener(listenOn && state === 'idle', () => {
     eAPI()?.barShow?.()
     setJustWoke(true)
-    setTimeout(() => setJustWoke(false), 1200)
-    toggle()
+    setTimeout(() => setJustWoke(false), 1000)
+    startRecording()
   })
+
+  const toggleListen = () => {
+    setListenOn((v) => {
+      const next = !v
+      localStorage.setItem(LISTEN_KEY, next ? '1' : '0')
+      return next
+    })
+  }
 
   // Global shortcut (Ctrl+Shift+Space anywhere in Windows) → toggle the mic
   useEffect(() => {
@@ -46,9 +57,9 @@ export default function AssistantBar() {
   const speaking = state === 'speaking'
   const processing = state === 'processing'
 
-  const hint = isAr
-    ? 'صفّق مرتين أو قول أمرك'
-    : 'Double-clap or speak'
+  const hint = listenOn
+    ? (isAr ? 'بسمعك — اتكلم على طول' : 'Listening — just speak')
+    : (isAr ? 'اضغط الكورة وتكلم' : 'Click the orb to talk')
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'}
@@ -113,7 +124,7 @@ export default function AssistantBar() {
           </p>
           {!expanded && (
             <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
-              <Icon name="back_hand" size={10} className={clapOn ? 'text-brand-400' : 'text-slate-600'} />
+              <Icon name={listenOn ? 'hearing' : 'hearing_disabled'} size={10} className={listenOn ? 'text-emerald-400' : 'text-slate-600'} />
               {hint}
             </p>
           )}
@@ -122,10 +133,10 @@ export default function AssistantBar() {
         {/* Right controls (idle only, to keep the notch clean) */}
         {state === 'idle' && (
           <div className="flex items-center gap-0.5 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as any}>
-            <button onClick={(e) => { e.stopPropagation(); setClapOn((v) => !v) }}
-              title={clapOn ? (isAr ? 'إيقاف التفعيل بالتصفيق' : 'Disable clap wake') : (isAr ? 'تفعيل بالتصفيق' : 'Enable clap wake')}
-              className={`p-1 rounded-full transition-colors ${clapOn ? 'text-brand-400 hover:text-brand-300' : 'text-slate-600 hover:text-slate-400'}`}>
-              <Icon name="back_hand" size={15} />
+            <button onClick={(e) => { e.stopPropagation(); toggleListen() }}
+              title={listenOn ? (isAr ? 'إيقاف السماع المستمر' : 'Turn off always-listening') : (isAr ? 'تشغيل السماع المستمر' : 'Turn on always-listening')}
+              className={`p-1 rounded-full transition-colors ${listenOn ? 'text-emerald-400 hover:text-emerald-300' : 'text-slate-600 hover:text-slate-400'}`}>
+              <Icon name={listenOn ? 'hearing' : 'hearing_disabled'} size={15} />
             </button>
             <button onClick={(e) => { e.stopPropagation(); eAPI()?.barNavigate?.('/dashboard') }}
               title={isAr ? 'افتح التطبيق' : 'Open app'}
