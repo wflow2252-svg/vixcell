@@ -210,6 +210,75 @@ async function copyTextRobust(text) {
   }
 }
 
+/* ─── ICE / TURN servers ───────────────────────────────────────────
+   Cross-network calls (client on mobile data / different network) REQUIRE a
+   TURN relay — without a working one, media never flows even though signaling
+   does (this is the #1 cause of "no audio / no screen share").
+
+   Order of preference:
+   1) An explicit ICE list the admin pasted (e.g. free Metered creds), shared
+      via Supabase site_settings so BOTH sides use the same relay — editable
+      with no redeploy.
+   2) A Metered API key (we fetch fresh creds at join time).
+   3) Built-in best-effort free relays (Google STUN + openrelay). */
+const DEFAULT_ICE = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+  { urls: ['stun:stun.cloudflare.com:3478'] },
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+      'turns:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+]
+
+let _iceCache = null
+
+async function getTurnConfig() {
+  try {
+    const { data } = await supabase.from('site_settings').select('images').eq('id', true).maybeSingle()
+    return (data && data.images && data.images.__turn) || null
+  } catch { return null }
+}
+
+async function saveTurnConfig(turn) {
+  const { data } = await supabase.from('site_settings').select('images').eq('id', true).maybeSingle()
+  const images = { ...((data && data.images) || {}), __turn: turn }
+  const { error } = await supabase.from('site_settings').update({ images }).eq('id', true)
+  if (error) throw error
+  _iceCache = null
+}
+
+async function loadIceServers() {
+  if (_iceCache) return _iceCache
+  let servers = DEFAULT_ICE
+  try {
+    const turn = await getTurnConfig()
+    if (turn) {
+      if (Array.isArray(turn.ice_servers) && turn.ice_servers.length) {
+        servers = turn.ice_servers
+      } else if (turn.metered_api_key && turn.metered_app) {
+        const r = await fetch(
+          `https://${turn.metered_app}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(turn.metered_api_key)}`,
+          { signal: AbortSignal.timeout(8000) },
+        )
+        if (r.ok) {
+          const arr = await r.json()
+          if (Array.isArray(arr) && arr.length) servers = arr
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Meet] ICE config load failed, using defaults:', e)
+  }
+  _iceCache = servers
+  return servers
+}
+
 /* ─── AI helpers (local Ollama) ──────────────── */
 async function askOllama(prompt) {
   try {
@@ -836,6 +905,72 @@ function AdminLobby({ adminName, setAdminName, clientName, setClientName, joinId
 /* ═══════════════════════════════════════════════
    PRE-MEETING (Camera check + invite link)
 ═══════════════════════════════════════════════ */
+/* Admin-only: paste a free TURN relay so cross-network calls (client on mobile
+   data) work 100%. Shared via Supabase → both sides use it, no redeploy. */
+function TurnSetup() {
+  const [open, setOpen]       = useState(false)
+  const [val, setVal]         = useState('')
+  const [status, setStatus]   = useState('')   // '' | saving | saved | error
+  const [configured, setConfigured] = useState(null)
+
+  useEffect(() => {
+    getTurnConfig().then(t => setConfigured(!!(t && ((t.ice_servers && t.ice_servers.length) || t.metered_api_key))))
+  }, [])
+
+  async function save() {
+    setStatus('saving')
+    try {
+      const parsed = JSON.parse(val.trim())
+      const ice = Array.isArray(parsed) ? parsed : (parsed.iceServers || parsed.ice_servers)
+      if (!Array.isArray(ice) || !ice.length) throw new Error('format')
+      await saveTurnConfig({ ice_servers: ice, updated_at: new Date().toISOString() })
+      setConfigured(true)
+      setStatus('saved')
+    } catch (e) {
+      setStatus('error')
+    }
+  }
+
+  return (
+    <div style={{ ...pre.infoCard, background: 'rgba(255,255,255,0.02)' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: C.text2, fontFamily: FONT, fontSize: 12 }}>
+        <Icon name="dns" size={16} style={{ color: configured ? C.green : C.yellow }} />
+        <span style={{ fontWeight: 700, color: configured ? C.green : C.text2 }}>
+          {configured ? 'سيرفر الاتصال (Relay) متظبط ✓' : 'إعداد سيرفر اتصال أقوى (للموبايل/شبكة تانية)'}
+        </span>
+        <Icon name={open ? 'expand_less' : 'expand_more'} size={18} style={{ marginInlineStart: 'auto' }} />
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 10, color: C.text2, fontSize: 11.5, lineHeight: 1.8 }}>
+          <div style={{ marginBottom: 8 }}>
+            لو العميل بيدخل من موبايل أو نت تاني، محتاج Relay قوي. مجانًا في دقيقتين:
+            <br/>1) افتح <b>metered.ca</b> → اعمل حساب مجاني → TURN Server.
+            <br/>2) انسخ مصفوفة <b>«ICE Servers»</b> (JSON) من عندهم.
+            <br/>3) الزقها هنا واضغط حفظ — هتشتغل للطرفين فورًا من غير أي رفع جديد.
+          </div>
+          <textarea
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            placeholder='[ { "urls": "stun:...", ... }, { "urls": "turn:...", "username": "...", "credential": "..." } ]'
+            dir="ltr"
+            style={{ width: '100%', minHeight: 90, background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+            <button onClick={save} disabled={status === 'saving' || !val.trim()}
+              style={{ background: 'rgba(26,115,232,0.15)', border: '1px solid rgba(26,115,232,0.3)', color: C.blue, borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: FONT, fontSize: 12, fontWeight: 700 }}>
+              {status === 'saving' ? 'بيتحفظ…' : 'حفظ Relay'}
+            </button>
+            {status === 'saved' && <span style={{ color: C.green, fontSize: 12 }}>اتحفظ ✓ — ادخل الاجتماع تاني</span>}
+            {status === 'error' && <span style={{ color: C.red, fontSize: 12 }}>الصيغة غلط — لازم JSON array</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream, camOn, micOn, toggleCam, toggleMic, onEnter, onBack }) {
   const videoRef = useRef(null)
   const [copied, setCopied]   = useState(false)
@@ -911,6 +1046,8 @@ function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream
               </button>
             </div>
 
+            {isAdminMode && <TurnSetup />}
+
             {/* User card */}
             <div style={pre.infoCard}>
               <div style={pre.infoLabel}>أنت</div>
@@ -952,6 +1089,10 @@ function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream
 ═══════════════════════════════════════════════ */
 function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, localStream, camOn, micOn, toggleCam, toggleMic, onLeave }) {
   const myIdRef = useRef('p-' + Math.random().toString(36).substring(2, 10))
+  // ICE/TURN servers — loaded once (admin's shared relay config or defaults).
+  // A ref so new peers always read the latest without re-creating callbacks.
+  const iceServersRef = useRef(DEFAULT_ICE)
+  useEffect(() => { loadIceServers().then(s => { iceServersRef.current = s }) }, [])
 
   const localVideoRef  = useRef(null)
   const remoteVideoRef = useRef(null)
@@ -1147,20 +1288,8 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     if (map.size >= 5) return null
 
     const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-        // TURN relay — without it, P2P fails entirely on mobile data/CGNAT
-        // and strict NATs (media never flows even though signaling works).
-        {
-          urls: [
-            'turn:openrelay.metered.ca:80',
-            'turn:openrelay.metered.ca:443',
-            'turn:openrelay.metered.ca:443?transport=tcp',
-          ],
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
-        },
-      ]
+      iceServers: iceServersRef.current,
+      iceCandidatePoolSize: 4,
     })
 
     p = {
@@ -1210,8 +1339,16 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     }
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') {
+      const st = pc.connectionState
+      if (st === 'failed') {
         try { pc.restartIce() } catch {}
+      } else if (st === 'disconnected') {
+        // Give it a few seconds to self-heal; if still down, force an ICE restart.
+        setTimeout(() => {
+          if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            try { pc.restartIce() } catch {}
+          }
+        }, 4000)
       }
       syncPeersState()
     }
