@@ -45,14 +45,34 @@ def voice_status(current_user: User = Depends(get_current_active_user)):
 
 
 @router.post("/speak")
-def speak(body: SpeakIn, current_user: User = Depends(get_current_active_user)):
+def speak(body: SpeakIn, db: Session = Depends(get_db),
+          current_user: User = Depends(get_current_active_user)):
     """
-    Text → MP3 with a neural male Egyptian voice (ar-EG-ShakirNeural).
-    Disk-cached per phrase. 503 when edge-tts is missing or offline —
-    the client then falls back to browser speech synthesis.
+    Text → MP3. Prefers ElevenLabs (human-grade) when an API key is configured
+    for the tenant; otherwise the neural male Egyptian edge-tts voice
+    (ar-EG-ShakirNeural). Disk-cached per phrase.
     """
     if not body.text.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="text is required")
+
+    # Premium path: ElevenLabs if the tenant configured a key
+    try:
+        from app.models.integration import IntegrationConfig
+        row = (db.query(IntegrationConfig)
+               .filter(IntegrationConfig.tenant_id == current_user.tenant_id,
+                       IntegrationConfig.provider == "elevenlabs",
+                       IntegrationConfig.enabled == True)  # noqa: E712
+               .first())
+        cfg = (row.config or {}) if row else {}
+        if tts_engine.elevenlabs_available(cfg.get("api_key")):
+            audio = tts_engine.synthesize_elevenlabs(
+                body.text.strip(), cfg["api_key"], cfg.get("voice_id"))
+            return Response(content=audio, media_type="audio/mpeg",
+                            headers={"Cache-Control": "max-age=86400"})
+    except Exception as e:
+        logger.warning(f"ElevenLabs TTS failed, falling back to edge-tts: {e}")
+
+    # Free path: edge-tts neural voice
     if not tts_engine.engine_available():
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                             detail="TTS engine not installed. Run: pip install edge-tts")
@@ -60,7 +80,6 @@ def speak(body: SpeakIn, current_user: User = Depends(get_current_active_user)):
     try:
         audio = tts_engine.synthesize(body.text.strip(), voice=voice, rate=body.rate)
     except Exception as e:
-        # Most common cause: no internet (edge-tts is a cloud service)
         logger.warning(f"TTS synthesis failed: {e}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"TTS failed: {e}")
     return Response(content=audio, media_type="audio/mpeg",

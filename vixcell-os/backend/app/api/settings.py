@@ -62,6 +62,16 @@ INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
             {"key": "api_key", "label": "API Key", "secret": True},
         ],
     },
+    "elevenlabs": {
+        "label": "ElevenLabs (صوت بشري احترافي)",
+        "icon": "🗣️",
+        "help": "elevenlabs.io → Profile → API Key. سيب voice_id فاضي للصوت الافتراضي",
+        "setup_url": "https://elevenlabs.io/app/settings/api-keys",
+        "fields": [
+            {"key": "api_key", "label": "API Key", "secret": True},
+            {"key": "voice_id", "label": "Voice ID (اختياري)", "secret": False},
+        ],
+    },
     "smtp": {
         "label": "Email (SMTP)",
         "icon": "✉️",

@@ -127,3 +127,44 @@ def pick_voice(language: str = "ar", gender: str = "male") -> str:
     if language.startswith("en"):
         return DEFAULT_VOICE_EN_MALE if gender == "male" else DEFAULT_VOICE_EN_FEMALE
     return DEFAULT_VOICE_AR_MALE if gender == "male" else DEFAULT_VOICE_AR_FEMALE
+
+
+# ── ElevenLabs (premium, human-grade) — optional, used when a key is set ──────
+EL_DEFAULT_VOICE = "pNInz6obpgDQGcFmaJgB"   # "Adam" — multilingual, deep male
+EL_MODEL = "eleven_multilingual_v2"          # supports Arabic
+
+
+def elevenlabs_available(api_key: Optional[str]) -> bool:
+    return bool(api_key and api_key.strip())
+
+
+def synthesize_elevenlabs(text: str, api_key: str, voice_id: Optional[str] = None) -> bytes:
+    """Human-grade TTS via ElevenLabs. Disk-cached per phrase+voice. Raises on failure."""
+    import httpx
+    if not text or not text.strip():
+        raise ValueError("text is required")
+    voice_id = (voice_id or EL_DEFAULT_VOICE).strip()
+    cache = _cache_path(text, f"el:{voice_id}|{EL_MODEL}")
+    if cache.exists() and cache.stat().st_size > 0:
+        return cache.read_bytes()
+
+    saved = _strip_proxies()
+    try:
+        r = httpx.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            headers={"xi-api-key": api_key.strip(), "Content-Type": "application/json"},
+            json={
+                "text": text.strip(),
+                "model_id": EL_MODEL,
+                "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.3},
+            },
+            timeout=60,
+        )
+        r.raise_for_status()
+        audio = r.content
+    finally:
+        _restore_proxies(saved)
+    if not audio:
+        raise RuntimeError("ElevenLabs returned no audio")
+    cache.write_bytes(audio)
+    return audio
