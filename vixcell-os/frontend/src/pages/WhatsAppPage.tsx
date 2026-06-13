@@ -80,9 +80,11 @@ export default function WhatsAppPage() {
     if (!message.trim()) { toast.error(isAr ? 'اكتب الرسالة' : 'Write the message'); return }
     setSending(true)
     try {
-      const res = await whatsappAPI.send(to.trim(), message.trim(), topic.trim() ? 'ai' : 'user')
-      openWhatsApp(res.data)
-      toast.success(isAr ? `الواتساب فتح لـ ${res.data.name || to} — دوس إرسال` : 'WhatsApp opened — tap send')
+      const res = await whatsappAPI.sendNow(to.trim(), message.trim(), topic.trim() ? 'ai' : 'user')
+      if (!res.data.sent) openWhatsApp(res.data)
+      toast.success(res.data.sent
+        ? (isAr ? `اتبعتت لـ ${res.data.name || to} ✅` : `Sent to ${res.data.name || to} ✅`)
+        : (isAr ? `الواتساب فتح لـ ${res.data.name || to} — دوس إرسال` : 'WhatsApp opened — tap send'))
       setMessage(''); setTopic('')
       setTimeout(loadHistory, 800)
     } catch (err: any) {

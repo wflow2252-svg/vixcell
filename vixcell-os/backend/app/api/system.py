@@ -8,9 +8,10 @@ from pydantic import BaseModel
 
 from app.api.dependencies import get_current_active_user
 from app.models.user import User
-from app.services import system_control, system_info, vision_service
+from app.services import system_control, system_info, vision_service, computer_control
 from app.services.system_control import SystemControlError
 from app.services.vision_service import VisionError
+from app.services.computer_control import ControlError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,6 +24,32 @@ class OpenIn(BaseModel):
 
 class AnalyzeScreenIn(BaseModel):
     question: str = ""   # optional specific question about the screen
+
+
+class ControlIn(BaseModel):
+    action: str                      # move|click|double_click|scroll|type|key
+    x: int | None = None
+    y: int | None = None
+    text: str | None = None          # for type / key
+    amount: int | None = None        # for scroll
+    button: str = "left"
+
+
+@router.post("/control")
+def control(body: ControlIn, current_user: User = Depends(get_current_active_user)):
+    """Real mouse/keyboard control (pyautogui). Used by the automation agent."""
+    try:
+        a = body.action
+        if a == "move":   return computer_control.move(body.x or 0, body.y or 0)
+        if a == "click":  return computer_control.click(body.x, body.y, body.button)
+        if a == "double_click": return computer_control.double_click(body.x, body.y)
+        if a == "scroll": return computer_control.scroll(body.amount if body.amount is not None else -500, body.x, body.y)
+        if a == "type":   return computer_control.type_text(body.text or "")
+        if a == "key":    return computer_control.press(body.text or "")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="action must be move|click|double_click|scroll|type|key")
+    except ControlError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/vision/status")

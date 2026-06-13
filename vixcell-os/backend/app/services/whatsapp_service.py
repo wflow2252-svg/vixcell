@@ -178,3 +178,34 @@ def prepare_send(db: Session, tenant_id: str, who: str, text: str,
         logger.warning(f"WhatsApp log failed (send still works): {e}")
     return {"link": link, "desktop": desktop, "phone": r["phone"],
             "name": r.get("name"), "message": text}
+
+
+def send_now(db: Session, tenant_id: str, who: str, text: str,
+             sent_by: str = "user") -> dict:
+    """
+    真-send: open the WhatsApp Desktop chat with the message pre-filled, then
+    press Enter (via computer_control) so it actually sends — no manual tap.
+    Falls back to just-opened (prepare_send) when control isn't available.
+    """
+    import os
+    import webbrowser
+    info = prepare_send(db, tenant_id, who, text, sent_by=sent_by)
+    from app.services import computer_control
+    opened = False
+    try:
+        os.startfile(info["desktop"])  # noqa: S606 — Windows: opens WhatsApp Desktop
+        opened = True
+    except Exception:
+        try:
+            webbrowser.open(info["link"]); opened = True
+        except Exception:
+            opened = False
+    if opened and computer_control.available():
+        try:
+            computer_control.press_enter_after(delay=3.0)
+            info["sent"] = True
+            return info
+        except Exception as e:
+            logger.warning(f"WhatsApp auto-send Enter failed: {e}")
+    info["sent"] = False  # opened but couldn't auto-press; user taps send
+    return info

@@ -400,11 +400,12 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
             if (isConfirm(text)) {
               pendingWaRef.current = null
               try {
-                const res = await whatsappAPI.send(p.to, p.message, p.byAI ? 'ai' : 'user')
-                openWhatsApp(res.data)
-                await say(`فتحت الواتساب لـ ${res.data.name || p.name || p.to} والرسالة جاهزة — راجعها ودوس إرسال`)
+                const res = await whatsappAPI.sendNow(p.to, p.message, p.byAI ? 'ai' : 'user')
+                const who = res.data.name || p.name || p.to
+                if (res.data.sent) await say(`تمام، بعتّ الرسالة لـ ${who} ✅`)
+                else { openWhatsApp(res.data); await say(`فتحت الواتساب لـ ${who} — دوس إرسال`) }
               } catch (err: any) {
-                await say(err?.response?.data?.detail || 'حصلت مشكلة في فتح الواتساب')
+                await say(err?.response?.data?.detail || 'حصلت مشكلة في إرسال الواتساب')
               }
               return
             }

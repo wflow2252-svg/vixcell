@@ -68,6 +68,20 @@ def send_whatsapp(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+@router.post("/send-now")
+def send_now(
+    body: SendIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """真-send: open WhatsApp Desktop and actually press send (not just prefill)."""
+    try:
+        return whatsapp_service.send_now(db, current_user.tenant_id, body.to,
+                                         body.text, sent_by=body.sent_by)
+    except WhatsAppError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.get("/resolve")
 def resolve(
     q: str = Query(..., description="Lead name or phone"),

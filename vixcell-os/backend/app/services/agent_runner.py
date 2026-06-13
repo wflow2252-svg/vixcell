@@ -23,7 +23,10 @@ TOOLS = {
     "create_task":    'إضافة مهمة. args: {"title": "..."}',
     "create_project": 'إنشاء مشروع. args: {"name": "..."}',
     "create_lead":    'إضافة عميل. args: {"name": "...", "phone": "اختياري"}',
-    "analyze_screen": 'تحليل/قراءة الشاشة. args: {"question": "اختياري"}',
+    "analyze_screen": 'تصوير وتحليل الشاشة الحالية. args: {"question": "اختياري"}',
+    "scroll":         'عمل سكورول في الشاشة. args: {"amount": رقم سالب لتحت موجب لفوق (مثلا -600)}',
+    "press_key":      'كبس زرار أو اختصار. args: {"keys": "enter" أو "ctrl+s"}',
+    "wait":           'انتظار ثواني قبل الخطوة اللي بعدها. args: {"seconds": رقم}',
 }
 
 
@@ -96,6 +99,16 @@ def _run_step(db: Session, tenant_id: str, tool: str, args: dict) -> dict:
         return {"created_lead": lead.id, "name": lead.name}
     if tool == "analyze_screen":
         return vision_service.analyze_screen(args.get("question", ""))
+    if tool == "scroll":
+        from app.services import computer_control
+        return computer_control.scroll(int(args.get("amount", -600)))
+    if tool == "press_key":
+        from app.services import computer_control
+        return computer_control.press(args.get("keys", "enter"))
+    if tool == "wait":
+        import time as _t
+        _t.sleep(min(float(args.get("seconds", 1)), 8))
+        return {"waited": args.get("seconds", 1)}
     raise AgentError(f"أداة غير معروفة: {tool}")
 
 
