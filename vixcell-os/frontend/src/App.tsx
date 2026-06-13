@@ -20,6 +20,7 @@ import AIModelsPage from '@/pages/AIModelsPage'
 import KnowledgePage from '@/pages/KnowledgePage'
 import FlowBuilderPage from '@/pages/FlowBuilderPage'
 import TasksPage from '@/pages/TasksPage'
+import WhatsAppPage from '@/pages/WhatsAppPage'
 
 // Shown in the floating bar window before the user logs into the main app
 function BarLocked() {
@@ -160,6 +161,7 @@ export default function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/leads" element={<LeadsPage />} />
+              <Route path="/whatsapp" element={<WhatsAppPage />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/crm" element={<CRMPage />} />
               <Route path="/social" element={<SocialPage />} />

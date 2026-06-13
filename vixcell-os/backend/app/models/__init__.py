@@ -10,6 +10,8 @@ from app.models.workflow import Workflow
 from app.models.voice import VoiceLog
 from app.models.integration import IntegrationConfig
 from app.models.memory import AssistantMemory
+from app.models.whatsapp import WaContact, WaMessage
+from app.models.core import InteractionLog
 
 # Expose metadata for alembic migrations
 metadata = Base.metadata

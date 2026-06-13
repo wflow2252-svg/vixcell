@@ -157,6 +157,14 @@ export const websiteAPI = {
   updateTask: (id: string | number, data: any) => api.put(`/website/tasks/${id}`, data),
 }
 
+// ── WhatsApp (deep-link send) ────────────────────────────────────────────────
+export const whatsappAPI = {
+  send: (to: string, text: string, sent_by: 'user' | 'ai' = 'user') =>
+    api.post('/whatsapp/send', { to, text, sent_by }),
+  resolve: (q: string) => api.get('/whatsapp/resolve', { params: { q } }),
+  history: (contact_id?: string) => api.get('/whatsapp/history', { params: contact_id ? { contact_id } : undefined }),
+}
+
 // ── Assistant memory ──────────────────────────────────────────────────────────
 export const memoryAPI = {
   list: () => api.get('/memory/'),

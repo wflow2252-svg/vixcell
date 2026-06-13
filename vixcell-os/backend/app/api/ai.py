@@ -41,6 +41,7 @@ CONTENT_TEMPLATES = {
     "email":               "Write a marketing email about: {topic}. Subject line + preview text + body (under 150 words) + CTA button text.",
     "blog_article":        "Write a blog article about: {topic}. Include title, intro, 3-4 H2 sections, and a conclusion with CTA. SEO-friendly.",
     "product_description": "Write a product description for: {topic}. Highlight benefits over features, add a specs bullet list and a closing line.",
+    "whatsapp_message":    "Write a short, friendly WhatsApp message about: {topic}. One or two sentences, warm and personal, no preamble — output only the message text ready to send.",
 }
 
 LANGUAGE_DIRECTIVES = {

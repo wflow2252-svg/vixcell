@@ -1,0 +1,154 @@
+import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
+import Icon from '@/components/Icon'
+import { whatsappAPI, leadsAPI, aiAPI } from '@/api/client'
+import { useAppStore } from '@/store'
+
+interface Contact { id: string; name?: string; phone: string; last_sent_at?: string }
+interface Message { id: string; contact_id?: string; body: string; sent_by: string; created_at?: string }
+
+function openLink(url: string) {
+  const eAPI = (window as any).electronAPI
+  if (eAPI?.openExternal) eAPI.openExternal(url)
+  else window.open(url, '_blank')
+}
+
+export default function WhatsAppPage() {
+  const { language } = useAppStore()
+  const isAr = language === 'ar'
+
+  const [to, setTo] = useState('')
+  const [message, setMessage] = useState('')
+  const [topic, setTopic] = useState('')
+  const [sending, setSending] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [messages, setMessages] = useState<Message[]>([])
+  const [leadOptions, setLeadOptions] = useState<{ name: string; phone?: string }[]>([])
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await whatsappAPI.history()
+      setContacts(res.data.contacts)
+      setMessages(res.data.messages)
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    loadHistory()
+    leadsAPI.list({ page_size: 100 }).then(res => {
+      setLeadOptions(res.data.items.filter((l: any) => l.phone).map((l: any) => ({ name: l.name, phone: l.phone })))
+    }).catch(() => {})
+  }, [loadHistory])
+
+  const generate = async () => {
+    if (!topic.trim()) { toast.error(isAr ? 'اكتب الموضوع الأول' : 'Enter a topic'); return }
+    setGenerating(true)
+    try {
+      const models = await aiAPI.models()
+      const names = models.data.models.map((m: any) => m.name)
+      const model = names.find((n: string) => n.includes('instruct')) || names[0]
+      if (!model) { toast.error(isAr ? 'نزّل نموذج ذكاء الأول' : 'Install an AI model first'); return }
+      const res = await aiAPI.content({ model, content_type: 'whatsapp_message', topic: topic.trim(), language: 'ar-eg', tone: 'friendly' })
+      setMessage(res.data.text?.trim() || '')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || (isAr ? 'فشل توليد الرسالة' : 'Generation failed'))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const send = async () => {
+    if (!to.trim()) { toast.error(isAr ? 'اختار أو اكتب المستقبِل' : 'Pick a recipient'); return }
+    if (!message.trim()) { toast.error(isAr ? 'اكتب الرسالة' : 'Write the message'); return }
+    setSending(true)
+    try {
+      const res = await whatsappAPI.send(to.trim(), message.trim(), topic.trim() ? 'ai' : 'user')
+      openLink(res.data.link)
+      toast.success(isAr ? `الواتساب فتح لـ ${res.data.name || to} — دوس إرسال` : 'WhatsApp opened — tap send')
+      setMessage(''); setTopic('')
+      setTimeout(loadHistory, 800)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || (isAr ? 'ملقتش رقم' : 'No number found'))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div>
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <Icon name="chat" size={24} className="text-emerald-400" />{isAr ? 'واتساب' : 'WhatsApp'}
+        </h1>
+        <p className="text-slate-400 text-sm mt-1">
+          {isAr ? 'اكتب أو خلي الذكاء يكتب، واختار العميل — يفتح الواتساب بالرسالة جاهزة'
+                : 'Compose or let AI write, pick a contact — WhatsApp opens with the message ready'}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Composer */}
+        <div className="lg:col-span-2 glass-card p-5 space-y-4">
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">{isAr ? 'لمين؟ (اسم عميل أو رقم)' : 'To (lead name or number)'}</label>
+            <input className="input-field" dir="auto" value={to} onChange={e => setTo(e.target.value)}
+              list="wa-leads" placeholder={isAr ? 'مثال: أحمد، أو 01001234567' : 'e.g. Ahmed, or a number'} />
+            <datalist id="wa-leads">
+              {leadOptions.map((l, i) => <option key={i} value={l.name}>{l.phone}</option>)}
+            </datalist>
+          </div>
+
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="text-xs text-slate-400 mb-1 block">{isAr ? 'خلي الذكاء يكتبها (اختياري)' : 'Let AI write it (optional)'}</label>
+              <input className="input-field" value={topic} onChange={e => setTopic(e.target.value)}
+                placeholder={isAr ? 'الموضوع: مثال عرض الشهر' : 'Topic, e.g. this month\'s offer'} />
+            </div>
+            <button onClick={generate} disabled={generating} className="btn-ghost text-sm flex items-center gap-2 whitespace-nowrap">
+              {generating ? <span className="w-4 h-4 border-2 border-slate-500 border-t-white rounded-full animate-spin" /> : <Icon name="auto_awesome" size={16} />}
+              {isAr ? 'اكتبها' : 'Write'}
+            </button>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">{isAr ? 'الرسالة' : 'Message'}</label>
+            <textarea className="input-field min-h-[140px]" dir="auto" value={message} onChange={e => setMessage(e.target.value)}
+              placeholder={isAr ? 'اكتب رسالتك هنا...' : 'Type your message...'} />
+          </div>
+
+          <button onClick={send} disabled={sending} className="btn-primary w-full flex items-center justify-center gap-2">
+            {sending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="send" size={18} />}
+            {isAr ? 'افتح الواتساب وابعت' : 'Open WhatsApp & send'}
+          </button>
+        </div>
+
+        {/* Recent */}
+        <div className="glass-card p-5">
+          <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <Icon name="history" size={16} />{isAr ? 'آخر اللي بعتّه' : 'Recent'}
+          </h3>
+          {messages.length === 0 ? (
+            <p className="text-slate-500 text-xs py-6 text-center">{isAr ? 'لسه مبعتش حاجة' : 'Nothing sent yet'}</p>
+          ) : (
+            <div className="space-y-2 max-h-[420px] overflow-y-auto">
+              {messages.map(m => {
+                const c = contacts.find(x => x.id === m.contact_id)
+                return (
+                  <div key={m.id} className="p-2.5 rounded-lg bg-surface-700/40 border border-line">
+                    <p className="text-xs text-white font-medium flex items-center gap-1.5">
+                      <Icon name="person" size={12} className="text-emerald-400" />
+                      {c?.name || c?.phone || (isAr ? 'عميل' : 'contact')}
+                      {m.sent_by === 'ai' && <span className="badge badge-purple text-[9px]">AI</span>}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{m.body}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

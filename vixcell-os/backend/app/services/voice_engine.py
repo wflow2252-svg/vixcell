@@ -188,6 +188,9 @@ EXPORT_TRIGGERS = ["صدر العملاء", "صدّر العملاء", "تصدي
 HELP_TRIGGERS = ["مساعدة", "ساعدني", "بتعرف تعمل ايه", "تعمل ايه", "تقدر تعمل ايه", "الاوامر", "اوامر", "ايه الاوامر", "help", "what can you do", "commands"]
 STOP_TRIGGERS = ["اسكت", "اخرس", "كفاية", "بس كده", "خلاص", "وقف الكلام", "stop talking", "be quiet", "shut up"]
 MEETING_TRIGGERS = ["الميتنج", "ميتنج", "الاجتماع", "اجتماع", "غرفة الاجتماعات", "meeting"]
+WHATSAPP_TRIGGERS = ["واتساب", "واتس اب", "واتس", "الواتس", "whatsapp", "whats app"]
+# "ابعت/ابعتلي/كلم/راسل ..." — the send verbs
+SEND_TRIGGERS = ["ابعت", "إبعت", "ابعتلي", "ابعتله", "ابعتلها", "كلم", "راسل", "رد على", "send", "message", "text"]
 TASKS_TRIGGERS = ["التاسكات", "تاسكات", "التاسك", "تاسك", "المهام", "مهامي", "مهام الموقع", "الشغل المطلوب", "tasks", "my tasks", "todo"]
 REMEMBER_TRIGGERS = ["افتكر", "احفظ ان", "احفظ معلومة", "خزن ان", "سجل ان", "اعرف ان", "remember that", "remember this", "note that"]
 RECALL_TRIGGERS = ["عارف ايه عني", "فاكر ايه عني", "انت فاكر ايه", "تعرف ايه عني", "المعلومات اللي عندك عني", "what do you know about me", "what do you remember"]
@@ -235,7 +238,8 @@ SYSINFO_TOPICS = {k: [_normalize(a) for a in v] for k, v in SYSINFO_TOPICS.items
 for _lst in (NAV_TRIGGERS, STATS_TRIGGERS, LEAD_TRIGGERS, FIND_LEADS_TRIGGERS,
              SEARCH_LEAD_TRIGGERS, EXPORT_TRIGGERS, HELP_TRIGGERS, STOP_TRIGGERS,
              CONTENT_TRIGGERS, MEETING_TRIGGERS, TASKS_TRIGGERS, REMEMBER_TRIGGERS,
-             RECALL_TRIGGERS, SEARCH_WEB_HINTS, SYSINFO_TRIGGERS):
+             RECALL_TRIGGERS, SEARCH_WEB_HINTS, SYSINFO_TRIGGERS,
+             WHATSAPP_TRIGGERS, SEND_TRIGGERS):
     _lst[:] = [_normalize(t) for t in _lst]
 
 
@@ -289,6 +293,29 @@ def parse_intent(text: str) -> dict:
                 asking = False
         if asking:
             return {"action": "system_info", "params": {"topic": topic or "overview"}, "speech": None}
+
+    # 1.18 WhatsApp send — "ابعت لأحمد إن العرض خلص" / "كلم سارة وقولها ..." /
+    #       "ابعت لأحمد منشور عن العروض" (topic → generate then send).
+    if any(v in norm for v in SEND_TRIGGERS):
+        m = re.search(
+            r"(?:ابعتل\w*|ابعت\w*|كلم|راسل|رد على|send|message|text)\s+"
+            r"(?:رساله\s+|رسالة\s+|على\s+الواتس\s+|فى\s+الواتس\s+|في\s+الواتس\s+|واتساب\s+|واتس\s+)?"
+            r"(?:ل|لـ|الي|الى|إلى|to)?\s*"
+            r"(.+?)\s+(عن|بخصوص|about|ان|انه|انها|اني|وقوله|وقولها|قوله|قولها|يقول|بكلمه|الرساله|بقوله|that|saying)\s+(.+)$",
+            norm,
+        )
+        if m:
+            recipient = m.group(1).strip()
+            # strip trailing channel words and content nouns the recipient picked up
+            recipient = re.sub(r"\s*(?:على\s+الواتس|فى\s+الواتس|في\s+الواتس|واتساب|واتس)\s*$", "", recipient).strip()
+            recipient = re.sub(r"\s*(?:منشور|بوست|رساله|رسالة|ايميل|كلمتين|حاجه|كلمه|بوسته|رد)\s*$", "", recipient).strip()
+            conn, rest = m.group(2), m.group(3).strip()
+            if recipient:
+                if conn in ("عن", "بخصوص", "about"):
+                    return {"action": "send_whatsapp",
+                            "params": {"to": recipient, "topic": rest}, "speech": None}
+                return {"action": "send_whatsapp",
+                        "params": {"to": recipient, "message": rest}, "speech": None}
 
     # 1.2 Meeting room (admin) — opened from the desktop app
     if any(t in norm for t in MEETING_TRIGGERS):
@@ -431,6 +458,7 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
         'open_meeting = open the video meeting room. '
         'read_tasks = show/read the work tasks. '
         'system_info = user asks about THIS machine (specs, ram, disk, cpu, battery, gpu); params: {"topic": "overview|ram|disk|cpu|battery|gpu"}. '
+        'send_whatsapp = send a WhatsApp message; params: {"to": person name or number, "message": literal text} OR {"to": ..., "topic": subject to auto-write}. '
         'remember = store a fact about the user; params: {"content": the fact}.'
     )
     try:
@@ -443,7 +471,7 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
         if data.get("action") in {"navigate", "read_stats", "create_lead", "find_leads",
                                   "export_leads", "search_leads", "generate_content",
                                   "open_app", "search_web", "open_meeting", "read_tasks",
-                                  "system_info", "remember"}:
+                                  "system_info", "send_whatsapp", "remember"}:
             data.setdefault("params", {})
             data["speech"] = None
             return data

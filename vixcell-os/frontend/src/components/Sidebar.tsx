@@ -7,6 +7,7 @@ import clsx from 'clsx'
 const navItems = [
   { label: 'Dashboard', labelAr: 'لوحة التحكم',      icon: 'dashboard',     path: '/dashboard' },
   { label: 'Leads',     labelAr: 'العملاء المحتملون', icon: 'person_search', path: '/leads' },
+  { label: 'WhatsApp',  labelAr: 'واتساب',           icon: 'chat',          path: '/whatsapp' },
   { label: 'Tasks',     labelAr: 'مهام الموقع',      icon: 'task_alt',      path: '/tasks' },
   { label: 'CRM',       labelAr: 'إدارة العلاقات',   icon: 'handshake',     path: '/crm' },
   { label: 'Social',    labelAr: 'التواصل الاجتماعي', icon: 'share',         path: '/social' },

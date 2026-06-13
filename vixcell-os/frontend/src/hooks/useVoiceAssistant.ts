@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { voiceAPI, dashboardAPI, leadsAPI, aiAPI, systemAPI, websiteAPI } from '@/api/client'
+import { voiceAPI, dashboardAPI, leadsAPI, aiAPI, systemAPI, websiteAPI, whatsappAPI } from '@/api/client'
 import { startMeeting } from '@/lib/meeting'
 
 export type VoiceState = 'idle' | 'recording' | 'processing' | 'speaking'
@@ -143,6 +143,44 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
         await say(intent.speech || `فتحتلك البحث عن ${params.query}`)
       } catch {
         await say('معرفتش أفتح البحث')
+      }
+      return
+    }
+
+    if (action === 'send_whatsapp') {
+      const to = params?.to?.trim()
+      if (!to) { await say('قولي أبعت لمين'); return }
+      let message: string = params?.message?.trim() || ''
+
+      // "ابعت لأحمد منشور عن X" → write the message first, then send
+      if (!message && params?.topic) {
+        await say(`تمام، بكتب رسالة عن ${params.topic} وأبعتها لـ ${to}`)
+        setState('processing')
+        try {
+          const models = await aiAPI.models()
+          const names = models.data.models.map((m: any) => m.name)
+          const model = names.find((n: string) => n.includes('instruct')) || names[0]
+          if (model) {
+            const res = await aiAPI.content({
+              model, content_type: 'whatsapp_message',
+              topic: params.topic, language: 'ar-eg', tone: 'friendly',
+            })
+            message = res.data.text?.trim() || ''
+          }
+        } catch { /* fall through */ }
+        setState('idle')
+      }
+      if (!message) { await say('قولي الرسالة اللي عايز تبعتها'); return }
+
+      try {
+        const res = await whatsappAPI.send(to, message, params?.topic ? 'ai' : 'user')
+        const link = res.data.link
+        const eAPI = (window as any).electronAPI
+        if (eAPI?.openExternal) eAPI.openExternal(link)
+        else window.open(link, '_blank')
+        await say(`جهّزت الرسالة لـ ${res.data.name || to} — الواتساب فتح، دوس إرسال`)
+      } catch (err: any) {
+        await say(err?.response?.data?.detail || 'ملقتش رقم للشخص ده — ضيف رقمه في العملاء أو قول الرقم')
       }
       return
     }

@@ -157,6 +157,17 @@ def parse_command(
             transcript=body.text,
             summary=intent["action"],
         ))
+        # AI Core interaction log — the fine-tuning corpus (spec §Local AI Layer)
+        from app.models.core import InteractionLog
+        db.add(InteractionLog(
+            tenant_id=current_user.tenant_id,
+            channel="voice",
+            input=body.text,
+            intent=intent.get("action"),
+            params=intent.get("params") or {},
+            result=intent.get("speech"),
+            success=intent.get("action") != "unknown",
+        ))
         db.commit()
     except Exception:
         db.rollback()  # logging must never break the command flow
