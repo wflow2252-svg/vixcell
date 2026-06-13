@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.database import engine, Base
-from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice, system, website, memory, whatsapp, projects, tasks, meetings, training
+from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice, system, website, memory, whatsapp, projects, tasks, meetings, training, automation
 import logging
 
 # Initialize Logging
@@ -93,6 +93,7 @@ app.include_router(projects.router, prefix=f"{settings.API_V1_STR}/projects", ta
 app.include_router(tasks.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["Tasks"])
 app.include_router(meetings.router, prefix=f"{settings.API_V1_STR}/meetings", tags=["Meetings AI"])
 app.include_router(training.router, prefix=f"{settings.API_V1_STR}/training", tags=["Training Center"])
+app.include_router(automation.router, prefix=f"{settings.API_V1_STR}/automation", tags=["Automation"])
 
 
 @app.on_event("startup")

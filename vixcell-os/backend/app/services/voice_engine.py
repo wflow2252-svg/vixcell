@@ -169,7 +169,7 @@ PAGE_ALIASES = {
     "/content":   ["إنشاء المحتوى", "المحتوى", "content"],
     "/analytics": ["التحليلات", "التقارير", "analytics", "reports"],
     "/knowledge": ["قاعدة المعرفة", "المعرفة", "knowledge"],
-    "/flows":     ["الأتمتة", "الفلوز", "flows", "automation"],
+    "/automation": ["الأتمتة", "الاوتوميشن", "الوكيل", "automation", "agent"],
     "/ai-models": ["نماذج الذكاء", "النماذج", "الموديلات", "models", "ai models"],
     "/training":  ["مركز التدريب", "التدريب", "training", "training center"],
     "/settings":  ["الإعدادات", "settings"],
