@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useAuthStore, useAppStore } from '@/store'
+import { useAuthStore, useAppStore, useAICoreStore } from '@/store'
 import Icon from '@/components/Icon'
+import AIOrb from '@/components/AIOrb'
 import { dashboardAPI } from '@/api/client'
 import {
   AreaChart, Area, XAxis, YAxis,
@@ -113,6 +114,9 @@ export default function DashboardPage() {
           <span className="text-xs text-slate-300 font-medium">AI OS Running</span>
         </div>
       </div>
+
+      {/* AI Core — the heart: live transcription · Orb · responses */}
+      <AICoreHero isAr={isAr} />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-4 gap-4">
@@ -249,6 +253,40 @@ export default function DashboardPage() {
             <EmptyChart text={isAr ? 'لا نشاط بعد' : 'No activity yet'} icon="history" small />
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function AICoreHero({ isAr }: { isAr: boolean }) {
+  const { transcript, reply, orb } = useAICoreStore()
+  return (
+    <div className="glass-card p-5 grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
+      {/* Left: live transcription (what you said) */}
+      <div className="order-2 lg:order-1 min-h-[120px]">
+        <h3 className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+          <Icon name="hearing" size={14} className="text-emerald-400" />
+          {isAr ? 'بتقول' : 'You said'}
+        </h3>
+        <p className="text-sm text-slate-200 leading-relaxed min-h-[60px] whitespace-pre-wrap">
+          {transcript || <span className="text-slate-600">{isAr ? 'اضغط الكورة أو Ctrl+Space واتكلم...' : 'Click the orb or press Ctrl+Space and speak...'}</span>}
+        </p>
+      </div>
+
+      {/* Center: the Orb */}
+      <div className="order-1 lg:order-2 flex justify-center">
+        <AIOrb size={190} isAr={isAr} />
+      </div>
+
+      {/* Right: AI response */}
+      <div className="order-3 min-h-[120px]">
+        <h3 className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+          <Icon name="graphic_eq" size={14} className="text-brand-400" />
+          {isAr ? 'رد المساعد' : 'Assistant'}
+        </h3>
+        <p className="text-sm text-slate-200 leading-relaxed min-h-[60px] max-h-[140px] overflow-y-auto whitespace-pre-wrap">
+          {reply || <span className="text-slate-600">{orb === 'idle' ? (isAr ? 'في انتظار أمرك' : 'Waiting for your command') : '…'}</span>}
+        </p>
       </div>
     </div>
   )

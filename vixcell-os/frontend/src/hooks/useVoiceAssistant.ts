@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { voiceAPI, dashboardAPI, leadsAPI, aiAPI, systemAPI, websiteAPI, whatsappAPI } from '@/api/client'
 import { startMeeting } from '@/lib/meeting'
+import { useAICoreStore } from '@/store'
 
 export type VoiceState = 'idle' | 'recording' | 'processing' | 'speaking'
 
@@ -88,6 +89,17 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
 
   // Chrome loads voices async — warm the list so the first speak() finds Arabic
   useEffect(() => { window.speechSynthesis?.getVoices() }, [])
+
+  // Mirror live state to the shared AI Core store so the dashboard Orb reacts.
+  const setOrb = useAICoreStore(s => s.setOrb)
+  const setCoreTranscript = useAICoreStore(s => s.setTranscript)
+  const setCoreReply = useAICoreStore(s => s.setReply)
+  useEffect(() => {
+    const map = { idle: 'idle', recording: 'listening', processing: 'thinking', speaking: 'speaking' } as const
+    setOrb(map[state])
+  }, [state, setOrb])
+  useEffect(() => { if (transcript) setCoreTranscript(transcript) }, [transcript, setCoreTranscript])
+  useEffect(() => { if (reply) setCoreReply(reply) }, [reply, setCoreReply])
 
   const say = useCallback(async (text: string) => {
     if (!text) return

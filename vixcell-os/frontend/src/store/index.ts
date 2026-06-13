@@ -130,3 +130,26 @@ export const useAppStore = create<AppState>()(
     { name: 'vixcell-app' }
   )
 )
+
+// ── AI Core state ───────────────────────────────────────────────────────────────
+// Shared, in-memory orchestrator state so the dashboard Orb (and anything else)
+// reflects the live assistant: idle · listening · thinking · executing · speaking · error.
+export type OrbState = 'idle' | 'listening' | 'thinking' | 'executing' | 'speaking' | 'error'
+
+interface AICoreState {
+  orb: OrbState
+  transcript: string   // what the user said
+  reply: string        // what the assistant answered
+  setOrb: (orb: OrbState) => void
+  setTranscript: (t: string) => void
+  setReply: (r: string) => void
+}
+
+export const useAICoreStore = create<AICoreState>((set) => ({
+  orb: 'idle',
+  transcript: '',
+  reply: '',
+  setOrb: (orb) => set({ orb }),
+  setTranscript: (transcript) => set({ transcript }),
+  setReply: (reply) => set({ reply }),
+}))

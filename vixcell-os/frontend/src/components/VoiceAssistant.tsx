@@ -20,6 +20,13 @@ export default function VoiceAssistant() {
     return () => window.removeEventListener('keydown', onKey)
   }, [toggle])
 
+  // Dashboard Orb (and anything else) can ask to talk via this event
+  useEffect(() => {
+    const onToggle = () => toggle()
+    window.addEventListener('vix-voice-toggle', onToggle)
+    return () => window.removeEventListener('vix-voice-toggle', onToggle)
+  }, [toggle])
+
   const statusLabel = {
     idle: isAr ? 'اضغط وتكلم (Ctrl+Space)' : 'Tap & speak (Ctrl+Space)',
     recording: isAr ? 'بسمعك... اضغط تاني لما تخلص' : 'Listening... tap to finish',
