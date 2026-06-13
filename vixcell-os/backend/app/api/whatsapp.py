@@ -29,6 +29,13 @@ class ContactIn(BaseModel):
     phone: str
 
 
+class SendVoiceIn(BaseModel):
+    to: str                 # lead name or phone number
+    text: str               # what the voice note should say
+    sent_by: str = "user"   # user | ai
+    voice: Optional[str] = None  # explicit Edge voice override
+
+
 @router.get("/contacts")
 def list_contacts(
     db: Session = Depends(get_db),
@@ -78,6 +85,64 @@ def send_now(
     try:
         return whatsapp_service.send_now(db, current_user.tenant_id, body.to,
                                          body.text, sent_by=body.sent_by)
+    except WhatsAppError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+def _synthesize_voice_audio(db: Session, tenant_id: str, text: str,
+                            voice: Optional[str] = None) -> bytes:
+    """Generate speech bytes — ElevenLabs (human-grade) if the tenant set a key,
+    otherwise the neural male Egyptian edge-tts voice. Mirrors /voice/speak."""
+    from app.services import tts_engine
+    try:
+        from app.models.integration import IntegrationConfig
+        row = (db.query(IntegrationConfig)
+               .filter(IntegrationConfig.tenant_id == tenant_id,
+                       IntegrationConfig.provider == "elevenlabs",
+                       IntegrationConfig.enabled == True)  # noqa: E712
+               .first())
+        cfg = (row.config or {}) if row else {}
+        if tts_engine.elevenlabs_available(cfg.get("api_key")):
+            return tts_engine.synthesize_elevenlabs(text, cfg["api_key"], cfg.get("voice_id"))
+    except Exception as e:
+        logger.warning(f"ElevenLabs voice-note synth failed, using edge-tts: {e}")
+    if not tts_engine.engine_available():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="محرك الصوت مش متاح — مش قادر أعمل الفويس")
+    v = voice or tts_engine.pick_voice("ar", "male")
+    return tts_engine.synthesize(text, voice=v, rate="+0%")
+
+
+@router.post("/send-voice")
+def send_voice(
+    body: SendVoiceIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Send a voice message on WhatsApp: turn `text` into an audio file, then open
+    the recipient's WhatsApp Desktop chat and paste+send the file. Needs the
+    desktop app installed + computer control (Windows).
+    """
+    import uuid
+    from pathlib import Path
+    from app.core.config import settings
+
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="اكتب الكلام اللي عايز الفويس يقوله")
+
+    audio = _synthesize_voice_audio(db, current_user.tenant_id, text, body.voice)
+    out_dir = Path(settings.UPLOAD_PATH) / "voice_notes"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"vn_{uuid.uuid4().hex}.mp3"
+    path.write_bytes(audio)
+
+    try:
+        return whatsapp_service.send_voice_note(
+            db, current_user.tenant_id, body.to, str(path),
+            caption=text, sent_by=body.sent_by)
     except WhatsAppError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

@@ -209,6 +209,8 @@ export const whatsappAPI = {
     api.post('/whatsapp/send', { to, text, sent_by }),
   sendNow: (to: string, text: string, sent_by: 'user' | 'ai' = 'user') =>
     api.post('/whatsapp/send-now', { to, text, sent_by }, { timeout: 30000 }),
+  sendVoice: (to: string, text: string, sent_by: 'user' | 'ai' = 'user') =>
+    api.post('/whatsapp/send-voice', { to, text, sent_by }, { timeout: 60000 }),
   resolve: (q: string) => api.get('/whatsapp/resolve', { params: { q } }),
   history: (contact_id?: string) => api.get('/whatsapp/history', { params: contact_id ? { contact_id } : undefined }),
   contacts: () => api.get('/whatsapp/contacts'),

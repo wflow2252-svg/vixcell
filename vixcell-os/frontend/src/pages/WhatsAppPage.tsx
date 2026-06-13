@@ -16,6 +16,7 @@ export default function WhatsAppPage() {
   const [message, setMessage] = useState('')
   const [topic, setTopic] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendingVoice, setSendingVoice] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [contacts, setContacts] = useState<Contact[]>([])
   const [messages, setMessages] = useState<Message[]>([])
@@ -94,6 +95,23 @@ export default function WhatsAppPage() {
     }
   }
 
+  const sendVoice = async () => {
+    if (!to.trim()) { toast.error(isAr ? 'اختار أو اكتب المستقبِل' : 'Pick a recipient'); return }
+    if (!message.trim()) { toast.error(isAr ? 'اكتب الكلام اللي الفويس هيقوله' : 'Write what the voice should say'); return }
+    setSendingVoice(true)
+    const t = toast.loading(isAr ? 'بحوّل الكلام لفويس وبفتح الواتساب…' : 'Making the voice note…')
+    try {
+      const res = await whatsappAPI.sendVoice(to.trim(), message.trim(), topic.trim() ? 'ai' : 'user')
+      toast.success(isAr ? `الرسالة الصوتية اتبعتت لـ ${res.data.name || to} 🎤✅` : `Voice note sent to ${res.data.name || to} 🎤✅`, { id: t })
+      setMessage(''); setTopic('')
+      setTimeout(loadHistory, 1000)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || (isAr ? 'مقدرتش أبعت الفويس' : 'Voice send failed'), { id: t })
+    } finally {
+      setSendingVoice(false)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -137,10 +155,23 @@ export default function WhatsAppPage() {
               placeholder={isAr ? 'اكتب رسالتك هنا...' : 'Type your message...'} />
           </div>
 
-          <button onClick={send} disabled={sending} className="btn-primary w-full flex items-center justify-center gap-2">
-            {sending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="send" size={18} />}
-            {isAr ? 'افتح الواتساب وابعت' : 'Open WhatsApp & send'}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={send} disabled={sending || sendingVoice} className="btn-primary flex-1 flex items-center justify-center gap-2">
+              {sending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="send" size={18} />}
+              {isAr ? 'ابعت نص' : 'Send text'}
+            </button>
+            <button onClick={sendVoice} disabled={sending || sendingVoice}
+              className="btn-ghost flex items-center justify-center gap-2 whitespace-nowrap border border-emerald-500/30 text-emerald-300"
+              title={isAr ? 'يحوّل الكلام لرسالة صوتية ويبعتها كملف في الواتساب' : 'Turn the text into a voice note and send it as a file'}>
+              {sendingVoice ? <span className="w-4 h-4 border-2 border-emerald-300/40 border-t-emerald-300 rounded-full animate-spin" /> : <Icon name="mic" size={18} />}
+              {isAr ? 'ابعت صوت 🎤' : 'Send voice 🎤'}
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500 -mt-1">
+            {isAr
+              ? '🎤 الصوت بيتبعت كملف صوتي (مش الزرار اللي بتسجّل بيه) — البرنامج بيفتح الواتساب ويلزّقه ويبعته لوحده.'
+              : '🎤 The voice is sent as an audio file (not a recorded PTT) — the app opens WhatsApp, pastes it and sends.'}
+          </p>
         </div>
 
         {/* Add contact + Recent */}

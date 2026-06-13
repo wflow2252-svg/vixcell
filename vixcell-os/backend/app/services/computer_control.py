@@ -106,3 +106,39 @@ def press_enter_after(delay: float = 2.6) -> dict:
     time.sleep(delay)
     pyautogui.press("enter")
     return {"sent": True}
+
+
+def copy_file_to_clipboard(path: str) -> dict:
+    """
+    Put a FILE on the Windows clipboard (a file-drop), so it can be pasted as
+    an attachment into apps like WhatsApp Desktop — the way you'd Ctrl+C a file
+    in Explorer then Ctrl+V into a chat. Used to send a generated voice note.
+    """
+    import os
+    import subprocess
+    if not path or not os.path.exists(path):
+        raise ControlError("الملف مش موجود عشان يتبعت")
+    # Set-Clipboard -LiteralPath sets a CF_HDROP file list on the clipboard.
+    safe = path.replace("'", "''")
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             f"Set-Clipboard -LiteralPath '{safe}'"],
+            check=True, capture_output=True, timeout=15,
+        )
+    except Exception as e:
+        raise ControlError(f"مقدرتش أنسخ الملف للكليبورد: {e}")
+    return {"copied": path}
+
+
+def paste_file_and_send(paste_wait: float = 2.4, send_wait: float = 1.2) -> dict:
+    """
+    After a chat window is focused and a file is on the clipboard: paste it
+    (Ctrl+V → media preview opens), wait, then Enter to send the attachment.
+    """
+    _ensure()
+    pyautogui.hotkey("ctrl", "v")
+    time.sleep(paste_wait)
+    pyautogui.press("enter")
+    time.sleep(send_wait)
+    return {"sent": True}

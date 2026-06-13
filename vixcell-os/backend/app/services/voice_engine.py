@@ -327,12 +327,16 @@ def parse_intent(text: str) -> dict:
             recipient = re.sub(r"\s*(?:على\s+الواتس|فى\s+الواتس|في\s+الواتس|واتساب|واتس)\s*$", "", recipient).strip()
             recipient = re.sub(r"\s*(?:منشور|بوست|رساله|رسالة|ايميل|كلمتين|حاجه|كلمه|بوسته|رد)\s*$", "", recipient).strip()
             conn, rest = m.group(2), m.group(3).strip()
+            # "ابعتله فويس / رسالة صوتية ..." → send as a voice note (audio file)
+            wants_voice = any(w in norm for w in ("فويس", "voice", "صوتي", "صوتيه", "صوتية"))
             if recipient:
                 if conn in ("عن", "بخصوص", "about"):
                     return {"action": "send_whatsapp",
-                            "params": {"to": recipient, "topic": rest}, "speech": None}
+                            "params": {"to": recipient, "topic": rest, "voice": wants_voice},
+                            "speech": None}
                 return {"action": "send_whatsapp",
-                        "params": {"to": recipient, "message": rest}, "speech": None}
+                        "params": {"to": recipient, "message": rest, "voice": wants_voice},
+                        "speech": None}
 
     # 1.2 Meeting room (admin) — opened from the desktop app
     if any(t in norm for t in MEETING_TRIGGERS):

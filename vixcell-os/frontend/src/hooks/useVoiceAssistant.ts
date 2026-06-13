@@ -96,7 +96,7 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
   const rafRef = useRef<number>(0)
   const cancelledRef = useRef(false)
   // A WhatsApp message staged and awaiting the user's spoken "تمام/ابعت".
-  const pendingWaRef = useRef<{ to: string; message: string; name?: string; byAI: boolean } | null>(null)
+  const pendingWaRef = useRef<{ to: string; message: string; name?: string; byAI: boolean; voice?: boolean } | null>(null)
 
   // Chrome loads voices async — warm the list so the first speak() finds Arabic
   useEffect(() => { window.speechSynthesis?.getVoices() }, [])
@@ -219,9 +219,12 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
 
       // Stage it and ASK before opening WhatsApp. What you say next —
       // "تمام/ابعت" opens WhatsApp Desktop & sends, "لأ" cancels.
-      pendingWaRef.current = { to, message, name, byAI: !!params?.topic }
-      setReply(`📲 ${name}:\n${message}`)
-      await say(`الرسالة لـ ${name}: ${message} . أقول تمام أفتح الواتساب وأبعت، أو لأ أبطّل.`)
+      const asVoice = !!params?.voice
+      pendingWaRef.current = { to, message, name, byAI: !!params?.topic, voice: asVoice }
+      setReply(`${asVoice ? '🎤' : '📲'} ${name}:\n${message}`)
+      await say(asVoice
+        ? `رسالة صوتية لـ ${name}: ${message} . أقول تمام أبعتها فويس، أو لأ أبطّل.`
+        : `الرسالة لـ ${name}: ${message} . أقول تمام أفتح الواتساب وأبعت، أو لأ أبطّل.`)
       return
     }
 
@@ -400,10 +403,16 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
             if (isConfirm(text)) {
               pendingWaRef.current = null
               try {
-                const res = await whatsappAPI.sendNow(p.to, p.message, p.byAI ? 'ai' : 'user')
-                const who = res.data.name || p.name || p.to
-                if (res.data.sent) await say(`تمام، بعتّ الرسالة لـ ${who} ✅`)
-                else { openWhatsApp(res.data); await say(`فتحت الواتساب لـ ${who} — دوس إرسال`) }
+                if (p.voice) {
+                  await say(`تمام، بحوّلها فويس وأبعتها لـ ${p.name || p.to}`)
+                  const res = await whatsappAPI.sendVoice(p.to, p.message, p.byAI ? 'ai' : 'user')
+                  await say(`بعتّ الرسالة الصوتية لـ ${res.data.name || p.name || p.to} ✅`)
+                } else {
+                  const res = await whatsappAPI.sendNow(p.to, p.message, p.byAI ? 'ai' : 'user')
+                  const who = res.data.name || p.name || p.to
+                  if (res.data.sent) await say(`تمام، بعتّ الرسالة لـ ${who} ✅`)
+                  else { openWhatsApp(res.data); await say(`فتحت الواتساب لـ ${who} — دوس إرسال`) }
+                }
               } catch (err: any) {
                 await say(err?.response?.data?.detail || 'حصلت مشكلة في إرسال الواتساب')
               }

@@ -180,6 +180,62 @@ def prepare_send(db: Session, tenant_id: str, who: str, text: str,
             "name": r.get("name"), "message": text}
 
 
+def send_voice_note(db: Session, tenant_id: str, who: str, audio_path: str,
+                    caption: Optional[str] = None, sent_by: str = "user") -> dict:
+    """
+    Send an audio FILE as a WhatsApp message (the workaround for true voice
+    notes, which need the paid Cloud API): open the recipient's WhatsApp
+    Desktop chat, paste the generated audio file from the clipboard, then press
+    Enter so it's actually sent. Logs the outbound message.
+
+    Requires Windows + computer_control (pyautogui). Raises WhatsAppError on
+    anything the user should know about.
+    """
+    import os
+    import time
+    import webbrowser
+
+    if not audio_path or not os.path.exists(audio_path):
+        raise WhatsAppError("الملف الصوتي مش موجود")
+    r = resolve_recipient(db, tenant_id, who)
+
+    from app.services import computer_control
+    if not computer_control.available():
+        raise WhatsAppError("التحكم في الجهاز مش متاح — مش هينفع أبعت الفويس أوتوماتيك")
+
+    # Log it as an outbound voice message (best-effort; never blocks the send)
+    try:
+        contact = _upsert_contact(db, tenant_id, r["phone"], r.get("name"), r.get("lead_id"))
+        db.flush()
+        db.add(WaMessage(tenant_id=tenant_id, contact_id=contact.id, direction="out",
+                         body=(caption or "🎤 رسالة صوتية"), sent_by=sent_by,
+                         method="voice", status="sent"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"WhatsApp voice log failed (send still works): {e}")
+
+    # Open the chat (no pre-filled text), wait for focus, paste the file, send.
+    desktop = build_desktop_uri(r["phone"], "")
+    opened = False
+    try:
+        os.startfile(desktop)  # noqa: S606 — Windows: opens WhatsApp Desktop
+        opened = True
+    except Exception:
+        try:
+            webbrowser.open(build_link(r["phone"], "")); opened = True
+        except Exception:
+            opened = False
+    if not opened:
+        raise WhatsAppError("مقدرتش أفتح واتساب")
+
+    time.sleep(3.4)  # let WhatsApp open & focus the chat input
+    computer_control.copy_file_to_clipboard(audio_path)
+    computer_control.paste_file_and_send(paste_wait=2.4, send_wait=1.2)
+    return {"phone": r["phone"], "name": r.get("name"),
+            "file": os.path.basename(audio_path), "sent": True}
+
+
 def send_now(db: Session, tenant_id: str, who: str, text: str,
              sent_by: str = "user") -> dict:
     """
