@@ -2843,11 +2843,30 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         )}
       </div>
 
+      {/* Always-on audio sink — guarantees the remote voice is heard even when
+          there's no video tile (camera off / audio-only meetings). Without this
+          the audio track is received but never attached to any element. */}
+      {remoteStream && (
+        <audio
+          autoPlay
+          playsInline
+          ref={el => {
+            if (el && el.srcObject !== remoteStream) {
+              el.srcObject = remoteStream
+              el.play().catch(() => {})
+            }
+          }}
+          style={{ display: 'none' }}
+        />
+      )}
+
       {/* ── BOTTOM CONTROLS ── */}
       <div style={rm.controls}>
         <div style={rm.ctrlGroup}>
           <GmBtn onClick={toggleMic} icon={micOn ? 'mic' : 'mic_off'} label={micOn ? 'كتم' : 'الصوت'} red={!micOn} />
-          <GmBtn onClick={() => setVoiceFx(v => !v)} icon="graphic_eq" label={voiceFx ? 'صوت طبيعي' : 'غيّر الصوت'} blue={voiceFx} />
+          {isAdminMode && (
+            <GmBtn onClick={() => setVoiceFx(v => !v)} icon="graphic_eq" label={voiceFx ? 'صوت طبيعي' : 'غيّر الصوت'} blue={voiceFx} />
+          )}
           <GmBtn onClick={toggleShare} icon={sharing ? 'stop_screen_share' : 'screen_share'} label={sharing ? 'إيقاف المشاركة' : 'مشاركة الشاشة'} blue={sharing} />
           {isAdminMode && (
             <GmBtn icon="fiber_manual_record" label={`REC ${fmtDur(recDuration)}`} red style={{ opacity: 1 }} />
