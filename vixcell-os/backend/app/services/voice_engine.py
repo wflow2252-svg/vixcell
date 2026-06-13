@@ -212,6 +212,12 @@ OPEN_APP_RE = re.compile(
     r"(?:برنامج\s+|تطبيق\s+|app\s+)?(.+)$"
 )
 SEARCH_WEB_HINTS = ["جوجل", "قوقل", "النت", "الانترنت", "الويب", "google", "the web", "internet"]
+VISION_TRIGGERS = [
+    "حلل الشاشة", "حلل اللي قدامك", "حلل اللي قدامي", "بص على الشاشة", "بص الشاشة",
+    "شوف الشاشة", "شوف اللي قدامك", "ايه اللي على الشاشة", "ايه اللي قدامي",
+    "اللي على الشاشة", "اقرا الشاشة", "حلل الصورة", "تحليل الشاشة",
+    "what's on my screen", "analyze my screen", "look at my screen", "read my screen",
+]
 CONTENT_TRIGGERS = ["اكتب", "اكتبلي", "اعمل", "اعملي", "أنشئ", "انشئ", "جهز", "جهزلي", "write", "create", "generate"]
 CONTENT_TYPES = {
     "facebook_post":     ["منشور فيس", "بوست فيس", "منشور", "بوست", "facebook", "post"],
@@ -240,7 +246,7 @@ for _lst in (NAV_TRIGGERS, STATS_TRIGGERS, LEAD_TRIGGERS, FIND_LEADS_TRIGGERS,
              SEARCH_LEAD_TRIGGERS, EXPORT_TRIGGERS, HELP_TRIGGERS, STOP_TRIGGERS,
              CONTENT_TRIGGERS, MEETING_TRIGGERS, TASKS_TRIGGERS, REMEMBER_TRIGGERS,
              RECALL_TRIGGERS, SEARCH_WEB_HINTS, SYSINFO_TRIGGERS,
-             WHATSAPP_TRIGGERS, SEND_TRIGGERS):
+             WHATSAPP_TRIGGERS, SEND_TRIGGERS, VISION_TRIGGERS):
     _lst[:] = [_normalize(t) for t in _lst]
 
 
@@ -276,6 +282,14 @@ def parse_intent(text: str) -> dict:
                       "وكمان أقولك حالة جهازك ومواصفاته. "
                       "جرب: افتحلي كلود كود، أو مواصفات الجهاز، أو كام رام فاضية، أو وريني التاسكات.",
         }
+
+    # 0.5 Vision — "حلل اللي على الشاشة" / "بص على الشاشة"
+    if any(t in norm for t in VISION_TRIGGERS):
+        # carry any trailing question after the trigger
+        qm = re.search(r"(?:الشاشة|قدامي|قدامك|screen)\s+(.+)$", norm)
+        return {"action": "analyze_screen",
+                "params": {"question": qm.group(1).strip() if qm else ""},
+                "speech": "ثانية ببص على الشاشة"}
 
     # 1. Stats / summary readout
     if any(t in norm for t in STATS_TRIGGERS):
@@ -460,6 +474,7 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
         'read_tasks = show/read the work tasks. '
         'system_info = user asks about THIS machine (specs, ram, disk, cpu, battery, gpu); params: {"topic": "overview|ram|disk|cpu|battery|gpu"}. '
         'send_whatsapp = send a WhatsApp message; params: {"to": person name or number, "message": literal text} OR {"to": ..., "topic": subject to auto-write}. '
+        'analyze_screen = user wants the assistant to look at / describe what is on the screen; params: {"question": optional}. '
         'remember = store a fact about the user; params: {"content": the fact}.'
     )
     try:
@@ -472,7 +487,7 @@ def llm_intent_fallback(text: str) -> Optional[dict]:
         if data.get("action") in {"navigate", "read_stats", "create_lead", "find_leads",
                                   "export_leads", "search_leads", "generate_content",
                                   "open_app", "search_web", "open_meeting", "read_tasks",
-                                  "system_info", "send_whatsapp", "remember"}:
+                                  "system_info", "send_whatsapp", "analyze_screen", "remember"}:
             data.setdefault("params", {})
             data["speech"] = None
             return data

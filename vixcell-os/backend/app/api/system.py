@@ -8,8 +8,9 @@ from pydantic import BaseModel
 
 from app.api.dependencies import get_current_active_user
 from app.models.user import User
-from app.services import system_control, system_info
+from app.services import system_control, system_info, vision_service
 from app.services.system_control import SystemControlError
+from app.services.vision_service import VisionError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,6 +19,31 @@ router = APIRouter()
 class OpenIn(BaseModel):
     kind: str            # app | url | folder | search
     target: str
+
+
+class AnalyzeScreenIn(BaseModel):
+    question: str = ""   # optional specific question about the screen
+
+
+@router.get("/vision/status")
+def vision_status(current_user: User = Depends(get_current_active_user)):
+    """Whether a local vision model is installed (drives the 'analyze screen' UI)."""
+    from app.services import ai_engine
+    model = ai_engine.installed_vision_model() if ai_engine.is_running() else None
+    return {"available": bool(model), "model": model}
+
+
+@router.post("/analyze-screen")
+def analyze_screen(body: AnalyzeScreenIn, current_user: User = Depends(get_current_active_user)):
+    """Capture the screen and have the local vision model describe/answer it."""
+    try:
+        return vision_service.analyze_screen(body.question)
+    except VisionError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"analyze-screen failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="حصلت مشكلة في تحليل الشاشة")
 
 
 @router.get("/info")

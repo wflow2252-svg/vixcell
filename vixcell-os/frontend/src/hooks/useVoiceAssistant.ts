@@ -159,6 +159,18 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
       return
     }
 
+    if (action === 'analyze_screen') {
+      await say(intent.speech || 'ثانية ببص على الشاشة')
+      setState('processing')
+      try {
+        const res = await systemAPI.analyzeScreen(params?.question || '')
+        await say(res.data.text)
+      } catch (err: any) {
+        await say(err?.response?.data?.detail || 'معرفتش أحلّل الشاشة — اتأكد إن نموذج الرؤية متنزّل')
+      }
+      return
+    }
+
     if (action === 'search_web' && params?.query) {
       try {
         await systemAPI.open('search', params.query)

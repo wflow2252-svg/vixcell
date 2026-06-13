@@ -142,6 +142,46 @@ def warm_preferred_model_async() -> None:
     threading.Thread(target=_warm, daemon=True, name="ollama-warmup").start()
 
 
+# Vision-capable local models, in preference order.
+VISION_MODELS = ["llava", "llava:7b", "llama3.2-vision", "qwen2.5vl", "bakllava", "moondream"]
+
+
+def installed_vision_model() -> Optional[str]:
+    """First installed vision model (prefix match on the tag), else None."""
+    try:
+        installed = [m["name"] for m in list_local_models()]
+    except Exception:
+        return None
+    for pref in VISION_MODELS:
+        for name in installed:
+            if name == pref or name.startswith(pref + ":") or name.split(":")[0] == pref:
+                return name
+    return None
+
+
+def vision(model: str, prompt: str, image_b64: str,
+           temperature: float = 0.2, timeout: float = 300.0,
+           max_tokens: int = 600) -> str:
+    """
+    Multimodal single-shot: send a base64 PNG/JPEG + prompt to a local vision
+    model (llava etc.) via Ollama /api/generate. Returns the description.
+    """
+    r = httpx.post(
+        f"{OLLAMA_BASE}/api/generate",
+        json={
+            "model": model,
+            "prompt": prompt,
+            "images": [image_b64],
+            "stream": False,
+            "options": {"temperature": temperature, "num_predict": max_tokens},
+            "keep_alive": "15m",
+        },
+        timeout=timeout,
+    )
+    r.raise_for_status()
+    return _strip_think((r.json().get("response") or "").strip())
+
+
 def _strip_think(text: str) -> str:
     """Removes <think>...</think> reasoning blocks some models emit inline."""
     if "</think>" in text:

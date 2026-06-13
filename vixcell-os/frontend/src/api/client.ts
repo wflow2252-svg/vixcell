@@ -169,6 +169,8 @@ export const systemAPI = {
     api.post('/system/open', { kind, target }),
   info: () => api.get('/system/info'),
   infoSpeak: (topic = 'overview') => api.get('/system/info/speak', { params: { topic } }),
+  visionStatus: () => api.get('/system/vision/status'),
+  analyzeScreen: (question = '') => api.post('/system/analyze-screen', { question }, { timeout: 180000 }),
 }
 
 // ── Website bridge (vixcell.com tasks / projects / meeting) ──────────────────
