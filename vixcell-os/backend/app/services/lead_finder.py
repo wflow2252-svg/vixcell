@@ -181,10 +181,57 @@ def _nominatim_freetext(what: str, where: str, limit: int) -> list[dict]:
     return leads
 
 
-def find_businesses(what: str, where: str, limit: int = 30) -> dict:
+def find_google_places(what: str, where: str, api_key: str, limit: int = 30) -> dict:
     """
-    Main entry: business type + area → list of lead candidates.
-    Returns {"items": [...], "area": display_name, "source": "..."}.
+    Official Google Places (Text Search + Details) — richer than OSM: real
+    phone numbers, ratings, websites, addresses. Used when a Google API key is
+    configured. Honest + ToS-compliant (no scraping).
+    """
+    try:
+        r = httpx.get(
+            "https://maps.googleapis.com/maps/api/place/textsearch/json",
+            params={"query": f"{what} in {where}", "key": api_key, "language": "ar"},
+            timeout=20,
+        )
+        r.raise_for_status()
+        data = r.json()
+    except httpx.HTTPError as e:
+        raise LeadFinderError(f"تعذر الوصول لخدمة جوجل — اتأكد من المفتاح والإنترنت ({e.__class__.__name__})")
+    if data.get("status") not in ("OK", "ZERO_RESULTS"):
+        raise LeadFinderError(f"جوجل رفض الطلب ({data.get('status')}) — اتأكد إن Places API مفعّل على المفتاح")
+
+    items = []
+    for p in data.get("results", [])[:limit]:
+        pid = p.get("place_id")
+        phone = website = None
+        if pid:
+            try:
+                d = httpx.get(
+                    "https://maps.googleapis.com/maps/api/place/details/json",
+                    params={"place_id": pid, "key": api_key, "language": "ar",
+                            "fields": "formatted_phone_number,international_phone_number,website"},
+                    timeout=15,
+                ).json().get("result", {})
+                phone = d.get("international_phone_number") or d.get("formatted_phone_number")
+                website = d.get("website")
+            except Exception:
+                pass
+        items.append({
+            "name": (p.get("name") or "").strip(),
+            "phone": phone, "email": None, "website": website,
+            "address": p.get("formatted_address") or where,
+            "lat": (p.get("geometry") or {}).get("location", {}).get("lat"),
+            "lon": (p.get("geometry") or {}).get("location", {}).get("lng"),
+            "osm_type": (p.get("types") or [None])[0],
+        })
+    items.sort(key=lambda x: (bool(x["phone"]), bool(x["website"])), reverse=True)
+    return {"items": items, "area": where, "source": "Google Places"}
+
+
+def find_businesses(what: str, where: str, limit: int = 30, google_key: str = "") -> dict:
+    """
+    Main entry: business type + area → list of lead candidates. Uses Google
+    Places when a key is provided (richer data), else free OpenStreetMap.
     """
     what = (what or "").strip()
     where = (where or "").strip()
@@ -192,6 +239,14 @@ def find_businesses(what: str, where: str, limit: int = 30) -> dict:
         raise LeadFinderError("قول نوع النشاط — مثلًا: مطاعم، صيدليات، جيمات")
     if not where:
         raise LeadFinderError("قول المكان — مثلًا: القاهرة، الإسكندرية، مدينة نصر")
+
+    if google_key and google_key.strip():
+        try:
+            return find_google_places(what, where, google_key.strip(), limit)
+        except LeadFinderError:
+            raise
+        except Exception as e:
+            logger.warning(f"Google Places failed, falling back to OSM: {e}")
 
     selectors = _match_category(what)
     if selectors:

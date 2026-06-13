@@ -173,8 +173,22 @@ def discover_leads(
     e.g. what="مطاعم", where="القاهرة". Marks candidates that already
     exist in this tenant's leads. Nothing is saved at this stage.
     """
+    # Use Google Places when the tenant configured a Google API key (richer
+    # data: real phones/ratings), else free OpenStreetMap.
+    google_key = ""
     try:
-        result = lead_finder.find_businesses(body.what, body.where, min(body.limit, 50))
+        from app.models.integration import IntegrationConfig
+        row = (db.query(IntegrationConfig)
+               .filter(IntegrationConfig.tenant_id == current_user.tenant_id,
+                       IntegrationConfig.provider == "google_business",
+                       IntegrationConfig.enabled == True)  # noqa: E712
+               .first())
+        google_key = ((row.config or {}).get("api_key") or "") if row else ""
+    except Exception:
+        google_key = ""
+    try:
+        result = lead_finder.find_businesses(body.what, body.where, min(body.limit, 50),
+                                             google_key=google_key)
     except LeadFinderError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
