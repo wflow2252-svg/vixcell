@@ -321,7 +321,7 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
   // Shared Media Stream State
   const [localStream, setLocalStream] = useState(null)
   const localStreamRef = useRef(null)
-  const [camOn, setCamOn] = useState(true)
+  const [camOn, setCamOn] = useState(false)
   const [micOn, setMicOn] = useState(true)
 
   const clearSessionStorage = useCallback(() => {
@@ -448,7 +448,7 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
     return () => { active = false }
   }, [])
 
-  // Manage Local Media Stream at Parent Level
+  // Manage Local Media Stream at Parent Level (Audio Only — Camera Removed)
   useEffect(() => {
     if (isTabletMode) return
     let active = true
@@ -457,27 +457,15 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
     async function acquireStream() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: { echoCancellation: true, noiseSuppression: true }
         })
         if (active) {
           localStreamRef.current = stream
           setLocalStream(stream)
-          stream.getVideoTracks().forEach(t => { t.enabled = camOn })
           stream.getAudioTracks().forEach(t => { t.enabled = micOn })
         }
       } catch (e) {
-        console.warn("Camera + Mic acquisition failed, trying audio only:", e)
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          if (active) {
-            localStreamRef.current = stream
-            setLocalStream(stream)
-            stream.getAudioTracks().forEach(t => { t.enabled = micOn })
-          }
-        } catch (err) {
-          console.error("Audio and camera both failed:", err)
-        }
+        console.error("Audio acquisition failed:", e)
       }
     }
 
@@ -495,13 +483,7 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
   }, [isTabletMode])
 
   const toggleCam = useCallback(() => {
-    setCamOn(prev => {
-      const next = !prev
-      if (localStreamRef.current) {
-        localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = next })
-      }
-      return next
-    })
+    // Camera is completely removed
   }, [])
 
   const toggleMic = useCallback(() => {
@@ -822,20 +804,33 @@ function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream
         <h2 style={pre.title}>جاهز للانضمام؟</h2>
 
         <div style={pre.grid}>
-          {/* Preview */}
+          {/* Audio & Participant Card */}
           <div style={pre.previewWrap}>
-            <div style={pre.preview}>
-              {camOn && localStream
-                ? <video ref={videoRef} autoPlay muted playsInline style={pre.video} />
-                : <div style={pre.noVideo}><Icon name="videocam_off" size={48} style={{ color: C.text3 }} /></div>
-              }
-              <div style={pre.previewName}>{displayName}</div>
+            <div style={{ ...pre.preview, background: C.bg2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+              <div style={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 32,
+                fontWeight: 700,
+                boxShadow: '0 8px 24px rgba(26,115,232,0.3)',
+                animation: micOn ? 'recPulse 1.5s infinite' : 'none'
+              }}>
+                {displayName ? displayName[0] : 'ع'}
+              </div>
+              <div style={{ color: C.text, fontWeight: 700, fontSize: 16, fontFamily: FONT }}>{displayName}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: micOn ? C.green : C.red }} />
+                <span style={{ color: C.text2, fontSize: 12, fontFamily: FONT }}>{micOn ? 'الميكروفون مفعّل' : 'الميكروفون مكتوم'}</span>
+              </div>
               <div style={pre.previewCtrls}>
                 <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(255,255,255,0.12)' : C.red }}>
                   <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#fff' }} />
-                </button>
-                <button onClick={() => toggleCam()} style={{ ...pre.ctrl, background: camOn ? 'rgba(255,255,255,0.12)' : C.red }}>
-                  <Icon name={camOn ? 'videocam' : 'videocam_off'} size={22} style={{ color: '#fff' }} />
                 </button>
               </div>
             </div>
@@ -915,6 +910,32 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
   const firstPeer = peers[0]
   const isReconnecting = firstPeer && (firstPeer.presenceOffline || firstPeer.conn === 'disconnected' || firstPeer.conn === 'failed')
+  const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0
+
+  // Spacebar toggle mic for Admin
+  useEffect(() => {
+    if (!isAdminMode) return
+
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' || e.key === ' ') {
+        const active = document.activeElement
+        if (
+          active &&
+          (active.tagName === 'INPUT' ||
+            active.tagName === 'TEXTAREA' ||
+            active.isContentEditable)
+        ) {
+          return
+        }
+
+        e.preventDefault()
+        toggleMic()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isAdminMode, toggleMic])
 
   const tools = [
     { id: 'select', icon: 'near_me', label: 'تحديد وتحريك' },
@@ -952,6 +973,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const recChunks    = useRef([])
   const [recDuration, setRecDuration] = useState(0)
   const recTimer = useRef(null)
+  const partCountRef = useRef(1)
+  const lastAssignedStreamRef = useRef(null)
+  const lastAssignedVersionRef = useRef(-1)
 
   const [elapsed, setElapsed]   = useState(0)
   const [panel, setPanel]       = useState(null)
@@ -1398,10 +1422,12 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       setRemoteStream(firstPeer.remoteStream)
       const el = remoteVideoRef.current
       if (el) {
-        // Re-set srcObject only when it actually changed — nulling it on every
-        // render aborted in-flight play() calls and flashed the video.
-        if (el.srcObject !== firstPeer.remoteStream) {
+        // Re-set srcObject when the stream or its version (track state) changed.
+        // This ensures new tracks (like screen sharing starting) render properly.
+        if (el.srcObject !== firstPeer.remoteStream || lastAssignedVersionRef.current !== streamVersion) {
           el.srcObject = firstPeer.remoteStream
+          lastAssignedStreamRef.current = firstPeer.remoteStream
+          lastAssignedVersionRef.current = streamVersion
         }
         el.play()
           .then(() => setAutoplayBlocked(false))
@@ -1415,21 +1441,79 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     } else {
       setRemoteStream(null)
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null
+      lastAssignedStreamRef.current = null
+      lastAssignedVersionRef.current = -1
     }
   }, [peers, streamVersion])
 
-  /* ── AUTO RECORDING (Admin only) ── */
+  /* ── AUTO RECORDING & SEGMENTATION (Admin only) ── */
+  const saveRecordingSegment = useCallback(async () => {
+    if (!isAdminMode || !recorderRef.current) return
+
+    const rec = recorderRef.current
+    const chunks = recChunks.current
+
+    try {
+      rec.stop()
+    } catch (e) {
+      console.warn("Stopping recorder failed:", e)
+    }
+
+    await new Promise(r => setTimeout(r, 600))
+
+    if (chunks.length > 0) {
+      const partId = `${meetingId}_part_${partCountRef.current}`
+      const blob = new Blob(chunks, { type: 'video/webm' })
+      const videoUrl = URL.createObjectURL(blob)
+
+      const record = {
+        id: partId,
+        date: nowDate(),
+        duration: recDuration,
+        host: `${displayName} (الجزء ${partCountRef.current})`,
+        transcript: [...transcript],
+        summary: `تسجيل تلقائي - الجزء ${partCountRef.current}`,
+        tasks: [],
+        videoUrl,
+        videoBlob: blob,
+      }
+
+      await saveMeeting(record).catch(() => {})
+      partCountRef.current += 1
+    }
+
+    recChunks.current = []
+    setRecDuration(0)
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const st = await navigator.mediaDevices.getUserMedia({ audio: true })
+        const newRec = new MediaRecorder(st, { mimeType: 'video/webm;codecs=vp9,opus' })
+        newRec.ondataavailable = e => { if (e.data.size > 0) recChunks.current.push(e.data) }
+        newRec.start(1000)
+        recorderRef.current = newRec
+      } catch (err) {
+        console.warn('Failed to restart MediaRecorder:', err)
+      }
+    }
+  }, [meetingId, displayName, transcript, recDuration, isAdminMode])
+
+  useEffect(() => {
+    if (recDuration >= 1800) {
+      saveRecordingSegment()
+    }
+  }, [recDuration, saveRecordingSegment])
+
   useEffect(() => {
     if (!isAdminMode || isTabletMode) return
-    let rec, chunks = []
+    let rec
     const startRec = () => {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(st => {
-          chunks = []
-          recChunks.current = chunks
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(st => {
+          recChunks.current = []
           try {
             rec = new MediaRecorder(st, { mimeType: 'video/webm;codecs=vp9,opus' })
-            rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+            rec.ondataavailable = e => { if (e.data.size > 0) recChunks.current.push(e.data) }
             rec.start(1000)
             recorderRef.current = rec
             recTimer.current = setInterval(() => setRecDuration(d => d + 1), 1000)
@@ -1442,7 +1526,10 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     startRec()
     return () => {
       try { rec?.stop() } catch {}
-      if (recTimer.current) clearInterval(recTimer.current)
+      if (recTimer.current) {
+        clearInterval(recTimer.current)
+        recTimer.current = null
+      }
     }
   }, [isAdminMode, isTabletMode])
 
@@ -1560,8 +1647,11 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   async function endMeeting() {
     if (isAdminMode && recorderRef.current) {
       recorderRef.current.stop()
-      clearInterval(recTimer.current)
-      await new Promise(r => setTimeout(r, 500))
+      if (recTimer.current) {
+        clearInterval(recTimer.current)
+        recTimer.current = null
+      }
+      await new Promise(r => setTimeout(r, 600))
 
       let aiSummary = '', aiTasks = []
       if (transcript.length > 0) {
@@ -1583,12 +1673,12 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       }
 
       const record = {
-        id: meetingId,
+        id: `${meetingId}_part_${partCountRef.current}`,
         date: nowDate(),
-        duration: elapsed,
-        host: displayName,
+        duration: recDuration || elapsed,
+        host: `${displayName} (الجزء ${partCountRef.current})`,
         transcript,
-        summary: aiSummary,
+        summary: aiSummary || `تسجيل تلقائي - الجزء ${partCountRef.current}`,
         tasks: aiTasks,
         videoUrl,
         videoBlob: chunks.length > 0 ? new Blob(chunks, { type: 'video/webm' }) : null,
@@ -2310,7 +2400,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 <span>أنت تشارك شاشتك حالياً للجميع</span>
               </div>
             </div>
-          ) : (
+          ) : hasRemoteVideo ? (
             <div style={{ width: '100%', height: '100%', position: 'relative' }}>
               <video
                 ref={el => {
@@ -2328,9 +2418,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 autoPlay
                 playsInline
                 onDoubleClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
-                style={{ ...rm.mainVideo, objectFit: videoFit, display: remoteStream ? 'block' : 'none', cursor: 'pointer' }}
+                style={{ ...rm.mainVideo, objectFit: videoFit, display: 'block', cursor: 'pointer' }}
               />
-              {remoteStream && isReconnecting && (
+              {isReconnecting && (
                 <div style={{
                   position: 'absolute',
                   inset: 0,
@@ -2350,16 +2440,6 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                   padding: 24,
                   textAlign: 'center'
                 }}>
-                  <style>{`
-                    @keyframes spin {
-                      0% { transform: rotate(0deg); }
-                      100% { transform: rotate(360deg); }
-                    }
-                    @keyframes fadeIn {
-                      from { opacity: 0; }
-                      to { opacity: 1; }
-                    }
-                  `}</style>
                   <div style={{
                     width: 56,
                     height: 56,
@@ -2396,70 +2476,82 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                   <span>تفعيل الصوت والفيديو</span>
                 </button>
               )}
-              {remoteStream && (
-                <button
-                  onClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
-                  style={{
-                    position: 'absolute', top: 20, left: 20,
-                    background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.1)',
-                    padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
-                    color: '#fff', cursor: 'pointer', fontFamily: FONT,
-                    display: 'flex', alignItems: 'center', gap: 6, zIndex: 10,
-                    transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
-                  }}
-                >
-                  <Icon name={videoFit === 'contain' ? 'zoom_in' : 'zoom_out'} size={16} />
-                  <span>{videoFit === 'contain' ? 'ملء الشاشة (تكبير)' : 'ملاءمة الشاشة (تصغير)'}</span>
-                </button>
-              )}
-              {remoteStream && (
-                <div style={{
-                  position: 'absolute', bottom: 20, left: 20,
-                  background: 'rgba(0,0,0,0.6)', padding: '4px 10px',
-                  borderRadius: 6, fontSize: 12, color: '#fff',
-                  fontFamily: FONT, zIndex: 5
-                }}>
-                  {remoteName || 'مشارك خارجي'}
-                </div>
-              )}
-              {!remoteStream && (
-                <div style={rm.mainPlaceholder}>
-                  <div style={rm.waitingPulse}>
-                    <Icon name="groups" size={64} style={{ color: 'rgba(255,255,255,0.12)' }} />
+              <button
+                onClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
+                style={{
+                  position: 'absolute', top: 20, left: 20,
+                  background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.1)',
+                  padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                  color: '#fff', cursor: 'pointer', fontFamily: FONT,
+                  display: 'flex', alignItems: 'center', gap: 6, zIndex: 10,
+                  transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                }}
+              >
+                <Icon name={videoFit === 'contain' ? 'zoom_in' : 'zoom_out'} size={16} />
+                <span>{videoFit === 'contain' ? 'ملء الشاشة (تكبير)' : 'ملاءمة الشاشة (تصغير)'}</span>
+              </button>
+              <div style={{
+                position: 'absolute', bottom: 20, left: 20,
+                background: 'rgba(0,0,0,0.6)', padding: '4px 10px',
+                borderRadius: 6, fontSize: 12, color: '#fff',
+                fontFamily: FONT, zIndex: 5
+              }}>
+                {remoteName || 'مشارك خارجي'}
+              </div>
+            </div>
+          ) : (
+            <div style={{ ...rm.mainPlaceholder, background: '#0e0e11', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{
+                width: 140, height: 140, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1a73e8, #a142f4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 12px 36px rgba(26,115,232,0.15)',
+                position: 'relative',
+                animation: (firstPeer && firstPeer.mic) ? 'recPulse 1.5s infinite' : 'none'
+              }}>
+                <Icon name="mic" size={56} style={{ color: '#fff' }} />
+                {firstPeer && !firstPeer.mic && (
+                  <div style={{
+                    position: 'absolute', bottom: 5, right: 5,
+                    width: 36, height: 36, borderRadius: '50%', background: C.red,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '3px solid #0e0e11'
+                  }}>
+                    <Icon name="mic_off" size={18} style={{ color: '#fff' }} />
                   </div>
-                  <p style={{ color: C.text3, marginTop: 16, fontFamily: FONT, fontSize: 15 }}>
-                    {isAdminMode ? 'شارك الرابط مع العميل لبدء الاجتماع' : 'في انتظار بدء الاجتماع...'}
-                  </p>
-                  {isAdminMode && (
-                    <button onClick={copyInvite} style={rm.waitingCopyBtn}>
-                      <Icon name={inviteCopied ? 'check_circle' : 'link'} size={18} />
-                      {inviteCopied ? 'تم نسخ الرابط!' : 'نسخ رابط الاجتماع للعميل'}
-                    </button>
-                  )}
-                </div>
+                )}
+              </div>
+              
+              <h3 style={{ color: C.text, fontSize: 18, fontWeight: 700, marginTop: 24, marginBottom: 8, fontFamily: FONT }}>
+                {remoteName || (firstPeer ? firstPeer.name : 'في انتظار انضمام الطرف الآخر...')}
+              </h3>
+              
+              <p style={{ color: C.text3, fontSize: 13, fontFamily: FONT }}>
+                {firstPeer ? (firstPeer.mic ? 'متصل بالصوت' : 'مكتوم الصوت') : 'شارك الرابط للبدء'}
+              </p>
+              
+              {isAdminMode && !firstPeer && (
+                <button onClick={copyInvite} style={rm.waitingCopyBtn}>
+                  <Icon name={inviteCopied ? 'check_circle' : 'link'} size={18} />
+                  {inviteCopied ? 'تم نسخ الرابط!' : 'نسخ رابط الاجتماع للعميل'}
+                </button>
               )}
             </div>
           )}
 
-        {/* PiP */}
-        <div style={rm.pip}>
-          {camOn && localStream ? (
-            <video
-              ref={el => {
-                localVideoRef.current = el;
-                if (el && localStream) {
-                  el.srcObject = localStream;
-                }
-              }}
-              autoPlay
-              muted
-              playsInline
-              style={rm.pipVideo}
-            />
-          ) : (
-            <div style={rm.pipOff}><Icon name="videocam_off" size={24} style={{ color: C.text3 }} /></div>
-          )}
-          <div style={rm.pipLabel}>{displayName}</div>
+        {/* Local Audio Pill instead of video PiP */}
+        <div style={{ ...rm.pip, border: `1px solid ${micOn ? 'rgba(26,115,232,0.35)' : 'rgba(234,67,53,0.35)'}` }}>
+          <div style={{ ...rm.pipOff, background: C.bg2, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: micOn ? 'linear-gradient(135deg, #1a73e8, #4a90e2)' : C.bg3,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: micOn ? '0 4px 10px rgba(26,115,232,0.2)' : 'none'
+            }}>
+              <Icon name={micOn ? 'mic' : 'mic_off'} size={14} style={{ color: '#fff' }} />
+            </div>
+            <span style={{ color: C.text, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>{displayName}</span>
+          </div>
         </div>
         </div>
 
@@ -2661,7 +2753,6 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       <div style={rm.controls}>
         <div style={rm.ctrlGroup}>
           <GmBtn onClick={toggleMic} icon={micOn ? 'mic' : 'mic_off'} label={micOn ? 'كتم' : 'الصوت'} red={!micOn} />
-          <GmBtn onClick={toggleCam} icon={camOn ? 'videocam' : 'videocam_off'} label={camOn ? 'إيقاف' : 'الكاميرا'} red={!camOn} />
           <GmBtn onClick={toggleShare} icon={sharing ? 'stop_screen_share' : 'screen_share'} label={sharing ? 'إيقاف المشاركة' : 'مشاركة الشاشة'} blue={sharing} />
           {isAdminMode && (
             <GmBtn icon="fiber_manual_record" label={`REC ${fmtDur(recDuration)}`} red style={{ opacity: 1 }} />
@@ -2858,20 +2949,33 @@ function ClientLobby({ logoUrl, localStream, camOn, micOn, toggleCam, toggleMic,
         )}
 
         <div style={pre.grid}>
-          {/* Camera Preview */}
+          {/* Audio & Participant Card */}
           <div style={pre.previewWrap}>
-            <div style={pre.preview}>
-              {camOn && localStream
-                ? <video ref={videoRef} autoPlay muted playsInline style={pre.video} />
-                : <div style={pre.noVideo}><Icon name="videocam_off" size={48} style={{ color: C.text3 }} /></div>
-              }
-              <div style={pre.previewName}>{name || 'الاسم'}</div>
+            <div style={{ ...pre.preview, background: C.bg2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+              <div style={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 32,
+                fontWeight: 700,
+                boxShadow: '0 8px 24px rgba(26,115,232,0.3)',
+                animation: micOn ? 'recPulse 1.5s infinite' : 'none'
+              }}>
+                {(name || 'ع')[0]}
+              </div>
+              <div style={{ color: C.text, fontWeight: 700, fontSize: 16, fontFamily: FONT }}>{name || 'الاسم'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: micOn ? C.green : C.red }} />
+                <span style={{ color: C.text2, fontSize: 12, fontFamily: FONT }}>{micOn ? 'الميكروفون مفعّل' : 'الميكروفون مكتوم'}</span>
+              </div>
               <div style={pre.previewCtrls}>
                 <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(255,255,255,0.12)' : C.red }}>
                   <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#fff' }} />
-                </button>
-                <button onClick={() => toggleCam()} style={{ ...pre.ctrl, background: camOn ? 'rgba(255,255,255,0.12)' : C.red }}>
-                  <Icon name={camOn ? 'videocam' : 'videocam_off'} size={22} style={{ color: '#fff' }} />
                 </button>
               </div>
             </div>
