@@ -20,6 +20,10 @@ export default function WhatsAppPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [leadOptions, setLeadOptions] = useState<{ name: string; phone?: string }[]>([])
+  const [savedContacts, setSavedContacts] = useState<Contact[]>([])
+  const [newName, setNewName] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const [savingContact, setSavingContact] = useState(false)
 
   const loadHistory = useCallback(async () => {
     try {
@@ -29,12 +33,30 @@ export default function WhatsAppPage() {
     } catch { /* ignore */ }
   }, [])
 
+  const loadContacts = useCallback(async () => {
+    try { setSavedContacts((await whatsappAPI.contacts()).data.items) } catch { /* ignore */ }
+  }, [])
+
   useEffect(() => {
     loadHistory()
+    loadContacts()
     leadsAPI.list({ page_size: 100 }).then(res => {
       setLeadOptions(res.data.items.filter((l: any) => l.phone).map((l: any) => ({ name: l.name, phone: l.phone })))
     }).catch(() => {})
-  }, [loadHistory])
+  }, [loadHistory, loadContacts])
+
+  const saveContact = async () => {
+    if (!newName.trim() || !newPhone.trim()) { toast.error(isAr ? 'اكتب الاسم والرقم' : 'Enter name and number'); return }
+    setSavingContact(true)
+    try {
+      await whatsappAPI.addContact(newName.trim(), newPhone.trim())
+      toast.success(isAr ? `تم حفظ ${newName}` : `Saved ${newName}`)
+      setNewName(''); setNewPhone('')
+      loadContacts()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || (isAr ? 'فشل الحفظ' : 'Save failed'))
+    } finally { setSavingContact(false) }
+  }
 
   const generate = async () => {
     if (!topic.trim()) { toast.error(isAr ? 'اكتب الموضوع الأول' : 'Enter a topic'); return }
@@ -90,7 +112,8 @@ export default function WhatsAppPage() {
             <input className="input-field" dir="auto" value={to} onChange={e => setTo(e.target.value)}
               list="wa-leads" placeholder={isAr ? 'مثال: أحمد، أو 01001234567' : 'e.g. Ahmed, or a number'} />
             <datalist id="wa-leads">
-              {leadOptions.map((l, i) => <option key={i} value={l.name}>{l.phone}</option>)}
+              {savedContacts.map((c, i) => <option key={'c' + i} value={c.name || c.phone}>{c.phone}</option>)}
+              {leadOptions.map((l, i) => <option key={'l' + i} value={l.name}>{l.phone}</option>)}
             </datalist>
           </div>
 
@@ -118,8 +141,36 @@ export default function WhatsAppPage() {
           </button>
         </div>
 
-        {/* Recent */}
-        <div className="glass-card p-5">
+        {/* Add contact + Recent */}
+        <div className="glass-card p-5 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Icon name="person_add" size={16} className="text-emerald-400" />{isAr ? 'احفظ عميل (اسم + رقم)' : 'Save a contact'}
+            </h3>
+            <div className="space-y-2">
+              <input className="input-field text-sm" value={newName} onChange={e => setNewName(e.target.value)}
+                placeholder={isAr ? 'اسم العميل' : 'Contact name'} />
+              <input className="input-field text-sm" dir="ltr" value={newPhone} onChange={e => setNewPhone(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveContact()}
+                placeholder={isAr ? 'الرقم — مثال 01001234567' : 'Number'} />
+              <button onClick={saveContact} disabled={savingContact} className="btn-primary w-full text-sm flex items-center justify-center gap-2">
+                {savingContact ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="save" size={16} />}
+                {isAr ? 'حفظ' : 'Save'}
+              </button>
+            </div>
+            {savedContacts.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {savedContacts.slice(0, 8).map(c => (
+                  <button key={c.id} onClick={() => setTo(c.name || c.phone)}
+                    className="badge badge-blue text-[10px] hover:opacity-80" title={c.phone}>
+                    {c.name || c.phone}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-line pt-3">
           <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
             <Icon name="history" size={16} />{isAr ? 'آخر اللي بعتّه' : 'Recent'}
           </h3>
@@ -142,6 +193,7 @@ export default function WhatsAppPage() {
               })}
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

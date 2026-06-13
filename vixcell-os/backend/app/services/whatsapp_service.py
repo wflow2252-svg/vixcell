@@ -71,8 +71,19 @@ def resolve_recipient(db: Session, tenant_id: str, who: str) -> dict:
         return {"phone": phone, "name": match.name if match else None,
                 "lead_id": match.id if match else None, "found": True}
 
-    # Lead name lookup (Arabic/!exact — use ilike contains)
     like = f"%{who}%"
+    # 1) Saved WhatsApp contacts (the explicit address book) come first.
+    contact = (
+        db.query(WaContact)
+        .filter(WaContact.tenant_id == tenant_id, WaContact.name.ilike(like))
+        .order_by(WaContact.last_sent_at.desc().nullslast(), WaContact.created_at.desc())
+        .first()
+    )
+    if contact:
+        return {"phone": contact.phone, "name": contact.name,
+                "lead_id": contact.lead_id, "found": True}
+
+    # 2) Otherwise fall back to a matching lead.
     lead = (
         db.query(Lead)
         .filter(Lead.tenant_id == tenant_id, Lead.phone.isnot(None),
@@ -81,7 +92,7 @@ def resolve_recipient(db: Session, tenant_id: str, who: str) -> dict:
         .first()
     )
     if not lead:
-        raise WhatsAppError(f"ملقتش رقم لـ «{who}» في العملاء — ضيف رقمه أو قول الرقم")
+        raise WhatsAppError(f"ملقتش رقم لـ «{who}» — اكتب اسمه ورقمه وهيتحفظ، أو قول الرقم")
     phone = normalize_phone(lead.phone)
     if not phone:
         raise WhatsAppError(f"رقم «{lead.name}» مش مظبوط في العملاء")
@@ -115,6 +126,34 @@ def _upsert_contact(db: Session, tenant_id: str, phone: str, name: Optional[str]
             contact.lead_id = lead_id
     contact.last_sent_at = datetime.now(timezone.utc)
     return contact
+
+
+def add_contact(db: Session, tenant_id: str, name: str, phone_raw: str) -> dict:
+    """Save a WhatsApp contact (name + number) so it resolves by name later."""
+    name = (name or "").strip()
+    phone = normalize_phone(phone_raw)
+    if not name:
+        raise WhatsAppError("اكتب اسم العميل")
+    if not phone:
+        raise WhatsAppError("الرقم مش مظبوط")
+    contact = _upsert_contact(db, tenant_id, phone, name, None)
+    # _upsert_contact only fills an EMPTY name; for an explicit add, force it.
+    contact.name = name
+    db.commit()
+    db.refresh(contact)
+    return {"id": contact.id, "name": contact.name, "phone": contact.phone}
+
+
+def list_contacts(db: Session, tenant_id: str) -> list:
+    rows = (
+        db.query(WaContact)
+        .filter(WaContact.tenant_id == tenant_id)
+        .order_by(WaContact.last_sent_at.desc().nullslast(), WaContact.created_at.desc())
+        .all()
+    )
+    return [{"id": c.id, "name": c.name, "phone": c.phone,
+             "last_sent_at": c.last_sent_at.isoformat() if c.last_sent_at else None}
+            for c in rows]
 
 
 def prepare_send(db: Session, tenant_id: str, who: str, text: str,

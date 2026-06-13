@@ -189,6 +189,8 @@ export const whatsappAPI = {
     api.post('/whatsapp/send', { to, text, sent_by }),
   resolve: (q: string) => api.get('/whatsapp/resolve', { params: { q } }),
   history: (contact_id?: string) => api.get('/whatsapp/history', { params: contact_id ? { contact_id } : undefined }),
+  contacts: () => api.get('/whatsapp/contacts'),
+  addContact: (name: string, phone: string) => api.post('/whatsapp/contacts', { name, phone }),
 }
 
 // ── Assistant memory ──────────────────────────────────────────────────────────

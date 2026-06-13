@@ -24,6 +24,33 @@ class SendIn(BaseModel):
     sent_by: str = "user"   # user | ai
 
 
+class ContactIn(BaseModel):
+    name: str
+    phone: str
+
+
+@router.get("/contacts")
+def list_contacts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Saved WhatsApp contacts (the name→number address book)."""
+    return {"items": whatsapp_service.list_contacts(db, current_user.tenant_id)}
+
+
+@router.post("/contacts", status_code=status.HTTP_201_CREATED)
+def add_contact(
+    body: ContactIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Save a client's name + number so 'send to <name>' works afterwards."""
+    try:
+        return whatsapp_service.add_contact(db, current_user.tenant_id, body.name, body.phone)
+    except WhatsAppError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.post("/send")
 def send_whatsapp(
     body: SendIn,
