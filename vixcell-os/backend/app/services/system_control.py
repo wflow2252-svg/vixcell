@@ -30,26 +30,38 @@ START_MENU_DIRS = [
     Path(os.environ.get("APPDATA", "")) / "Microsoft/Windows/Start Menu/Programs",
 ]
 
-# Arabic / phonetic spoken names → canonical app search terms
+# Arabic / phonetic spoken names → canonical app search terms.
+# Keys are normalized at module load (see _normalize_tables) so spelling
+# variants (ة/ه، ى/ي، تشكيل) all match.
 APP_ALIASES = {
     "كلود كود": "claude", "كلاود كود": "claude", "كلود": "claude", "كلاود": "claude",
     "claude code": "claude", "cloud code": "claude",
-    "كروم": "chrome", "جوجل كروم": "chrome",
+    "واتساب": "whatsapp", "واتس اب": "whatsapp", "الواتس": "whatsapp", "واتس": "whatsapp",
+    "الواتساب": "whatsapp",
+    "كروم": "chrome", "جوجل كروم": "chrome", "الكروم": "chrome",
+    "المتصفح": "chrome", "متصفح": "chrome", "المستعرض": "chrome", "البراوزر": "chrome",
     "ايدج": "edge", "ميكروسوفت ايدج": "edge",
     "فايرفوكس": "firefox",
-    "نوت باد": "notepad", "نوتباد": "notepad", "المفكرة": "notepad",
-    "الاله الحاسبة": "calculator", "كالكوليتور": "calculator", "حاسبة": "calculator",
+    "نوت باد": "notepad", "نوتباد": "notepad", "المفكرة": "notepad", "مفكرة": "notepad",
+    "الاله الحاسبة": "calculator", "الالة الحاسبة": "calculator", "كالكوليتور": "calculator",
+    "حاسبة": "calculator", "الحاسبة": "calculator", "الاله الحاسبه": "calculator",
+    "الاعدادات": "settings", "اعدادات": "settings", "الضبط": "settings", "الاعدادت": "settings",
     "وورد": "word", "اكسل": "excel", "بوربوينت": "powerpoint", "باور بوينت": "powerpoint",
-    "اوتلوك": "outlook",
+    "اوتلوك": "outlook", "الايميل": "outlook", "البريد": "outlook", "الميل": "outlook",
     "فوتوشوب": "photoshop", "اليستريتور": "illustrator",
-    "في اس كود": "visual studio code", "فيجوال ستوديو كود": "visual studio code", "vs code": "visual studio code",
+    "في اس كود": "visual studio code", "فيجوال ستوديو كود": "visual studio code",
+    "vs code": "visual studio code", "الكود": "visual studio code",
     "تيرمينال": "terminal", "التيرمينال": "terminal", "سي ام دي": "cmd",
     "باور شيل": "powershell",
-    "سبوتيفاي": "spotify",
-    "ديسكورد": "discord", "تيليجرام": "telegram", "تلجرام": "telegram",
+    "سبوتيفاي": "spotify", "سبوتفاي": "spotify",
+    "ديسكورد": "discord", "تيليجرام": "telegram", "تلجرام": "telegram", "تليجرام": "telegram",
     "زوم": "zoom",
     "بلندر": "blender",
     "اوبس": "obs", "او بي اس": "obs",
+    "مستكشف الملفات": "explorer", "الملفات": "explorer", "اكسبلورر": "explorer",
+    "الكاميرا": "camera", "كاميرا": "camera",
+    "المتجر": "store", "ستور": "store",
+    "الرسام": "paint", "بينت": "paint",
 }
 
 # Spoken site names → URLs (things people "open" that are websites, not apps)
@@ -59,7 +71,6 @@ SITE_MAP = {
     "انستجرام": "https://www.instagram.com", "انستقرام": "https://www.instagram.com", "instagram": "https://www.instagram.com",
     "جيميل": "https://mail.google.com", "gmail": "https://mail.google.com",
     "جوجل": "https://www.google.com", "google": "https://www.google.com",
-    "واتساب": "https://web.whatsapp.com", "واتس اب": "https://web.whatsapp.com", "whatsapp": "https://web.whatsapp.com",
     "تويتر": "https://x.com", "اكس": "https://x.com", "twitter": "https://x.com",
     "لينكد ان": "https://www.linkedin.com", "لينكدان": "https://www.linkedin.com", "linkedin": "https://www.linkedin.com",
     "تيك توك": "https://www.tiktok.com", "tiktok": "https://www.tiktok.com",
@@ -146,8 +157,16 @@ def list_apps(force_refresh: bool = False) -> dict:
 def _normalize(text: str) -> str:
     text = (text or "").strip().lower()
     text = re.sub(r"[أإآ]", "ا", text)
+    text = re.sub(r"[ًٌٍَُِّْـ]", "", text)   # tashkeel + tatweel
+    text = text.replace("ة", "ه").replace("ى", "ي")  # spelling variants
     text = re.sub(r"\s+", " ", text)
     return text
+
+
+# Normalize the lookup tables once so spoken spelling variants always match.
+APP_ALIASES = {_normalize(k): v for k, v in APP_ALIASES.items()}
+SITE_MAP = {_normalize(k): v for k, v in SITE_MAP.items()}
+FOLDER_MAP = {_normalize(k): v for k, v in FOLDER_MAP.items()}
 
 
 def match_app(query: str) -> Optional[tuple]:
@@ -198,12 +217,20 @@ def open_app(query: str) -> dict:
         logger.info(f"Opened app '{name}' for query '{query}'")
         return {"opened": name, "kind": "app"}
 
-    url = SITE_MAP.get(_normalize(query))
+    nq = _normalize(query)
+    url = SITE_MAP.get(nq)
     if url:
         webbrowser.open(url)
         return {"opened": url, "kind": "url"}
 
-    raise SystemControlError(f"مش لاقي برنامج اسمه «{query}» على الجهاز")
+    # Last resort: maybe they meant a folder ("افتح التنزيلات")
+    if nq in FOLDER_MAP or any(k in nq for k in FOLDER_MAP):
+        try:
+            return open_folder(query)
+        except SystemControlError:
+            pass
+
+    raise SystemControlError(f"مش لاقي حاجة اسمها «{query}» على الجهاز — جرب اسم تاني")
 
 
 def open_url(target: str) -> dict:
