@@ -199,6 +199,7 @@ def chat(
     # spends tokens reasoning before the closing tag and the real answer.
     # _strip_think removes the reasoning; the cap must cover both parts.
     max_tokens: int = 1400,
+    repeat_penalty: Optional[float] = None,
 ) -> str:
     """Single-turn chat completion. Raises httpx errors upward for the API layer."""
     # Qwen3-family soft switch: appending /no_think to the system prompt
@@ -212,6 +213,13 @@ def chat(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
+    options = {"temperature": temperature, "num_predict": max_tokens}
+    # Higher repeat penalty curbs the "بس بس بس" degeneration small quantized
+    # models fall into on free-form Arabic prose.
+    if repeat_penalty is not None:
+        options["repeat_penalty"] = repeat_penalty
+        options["repeat_last_n"] = 64
+
     r = httpx.post(
         f"{OLLAMA_BASE}/api/chat",
         json={
@@ -219,9 +227,7 @@ def chat(
             "messages": messages,
             "stream": False,
             "think": False,
-            # Cap output length and keep the model warm between requests —
-            # essential on modest hardware
-            "options": {"temperature": temperature, "num_predict": max_tokens},
+            "options": options,
             "keep_alive": "30m",
         },
         timeout=timeout,

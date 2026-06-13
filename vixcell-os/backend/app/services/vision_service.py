@@ -68,15 +68,56 @@ def analyze_screen(question: str = "") -> dict:
         raise VisionError("محتاج تنزّل نموذج رؤية الأول (مثلاً llava) من صفحة النماذج")
 
     img = capture_screen_b64()
-    base = (
-        "انت مساعد بيبص على لقطة شاشة لجهاز المستخدم. "
-        "اوصف بإيجاز وباللهجة المصرية اللي ظاهر على الشاشة وأهم التفاصيل المفيدة. "
+    # llava is strong in English, weak in Arabic — describe in English first,
+    # then render a natural Egyptian-Arabic answer with the text model (qwen).
+    en_prompt = (
+        "You are looking at a screenshot of the user's screen. Describe clearly "
+        "what is open and the useful details (apps, windows, visible text). "
     )
-    prompt = base + (f"وجاوب على السؤال ده تحديدًا: {question}" if question.strip()
-                     else "قول للمستخدم هو شايف إيه دلوقتي.")
+    en_prompt += (f"Then specifically answer: {question}" if question.strip()
+                  else "Tell the user what they are looking at right now.")
     try:
-        text = ai_engine.vision(model, prompt, img)
+        english = ai_engine.vision(model, en_prompt, img)
     except Exception as e:
         logger.error(f"Vision analysis failed: {e}")
         raise VisionError("حصلت مشكلة في تحليل الشاشة — جرب تاني")
-    return {"text": text or "مش قادر أوصف الشاشة دلوقتي", "model": model}
+    if not english:
+        return {"text": "مش قادر أوصف الشاشة دلوقتي", "model": model}
+
+    # Translate/condense to Egyptian Arabic via the text model when available.
+    txt_model = _pick_text_model()
+    if txt_model:
+        try:
+            instr = ("لخّص الوصف ده في جملتين أو تلاتة بالعامية المصرية موجّهة "
+                     "للمستخدم تبدأ بـ «انت فاتح» أو «على شاشتك». رد بالترجمة بس")
+            if question.strip():
+                instr += f"، وركّز على إجابة: {question}"
+            ar = ai_engine.chat(model=txt_model, prompt=f"{instr}:\n\n{english}",
+                                system=None, temperature=0.4, max_tokens=240,
+                                timeout=90.0, repeat_penalty=1.4)
+            if ar.strip() and not _looks_degenerate(ar):
+                return {"text": ar.strip(), "model": f"{model}+{txt_model}"}
+        except Exception as e:
+            logger.warning(f"Vision AR translation failed, returning English: {e}")
+    return {"text": english, "model": model}
+
+
+def _looks_degenerate(text: str) -> bool:
+    """True if the model fell into a repeated-token loop."""
+    words = text.split()
+    run = 1
+    for i in range(1, len(words)):
+        run = run + 1 if words[i] == words[i - 1] else 1
+        if run >= 4:
+            return True
+    return False
+
+
+def _pick_text_model():
+    if not ai_engine.is_running():
+        return None
+    try:
+        installed = {m["name"] for m in ai_engine.list_local_models()}
+    except Exception:
+        return None
+    return next((m for m in ai_engine.PREFERRED_MODELS if m in installed), None)
