@@ -223,12 +223,18 @@ def open_app(query: str) -> dict:
         webbrowser.open(url)
         return {"opened": url, "kind": "url"}
 
-    # Last resort: maybe they meant a folder ("افتح التنزيلات")
+    # Maybe they meant a folder ("افتح التنزيلات")
     if nq in FOLDER_MAP or any(k in nq for k in FOLDER_MAP):
         try:
             return open_folder(query)
         except SystemControlError:
             pass
+
+    # Last resort: a file/image by name in the common folders
+    try:
+        return open_file(query)
+    except SystemControlError:
+        pass
 
     raise SystemControlError(f"مش لاقي حاجة اسمها «{query}» على الجهاز — جرب اسم تاني")
 
@@ -267,3 +273,44 @@ def open_folder(target: str) -> dict:
         raise SystemControlError(f"مش لاقي المكان «{target}»")
     os.startfile(str(path))  # noqa: S606
     return {"opened": str(path), "kind": "folder"}
+
+
+# Where to look for files/images by spoken name (newest match wins).
+_SEARCH_DIRS = ["Desktop", "Downloads", "Documents", "Pictures", "Videos", "Music"]
+_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff"}
+
+
+def open_file(query: str, images_only: bool = False) -> dict:
+    """
+    Open a file/image by spoken name — searches the common user folders for a
+    name match and opens the best (most recent) hit with its default app.
+    """
+    if os.name != "nt":
+        raise SystemControlError("فتح الملفات متاح على ويندوز بس")
+    q = _normalize(query)
+    # drop filler words the user might say ("ملف", "صورة", "افتح")
+    q = re.sub(r"\b(ملف|الملف|صوره|الصوره|صورة|افتح|ال)\b", " ", q).strip()
+    if not q:
+        raise SystemControlError("قول اسم الملف")
+    home = Path.home()
+    candidates = []
+    for d in _SEARCH_DIRS:
+        base = home / d
+        if not base.exists():
+            continue
+        try:
+            for p in base.rglob("*"):
+                if not p.is_file():
+                    continue
+                if images_only and p.suffix.lower() not in _IMAGE_EXT:
+                    continue
+                if q in _normalize(p.stem):
+                    candidates.append(p)
+        except OSError:
+            continue
+    if not candidates:
+        raise SystemControlError(f"ملقتش ملف اسمه «{query}» في الفولدرات المعتادة")
+    # most-recently-modified match
+    best = max(candidates, key=lambda p: p.stat().st_mtime)
+    os.startfile(str(best))  # noqa: S606 — user-initiated open
+    return {"opened": best.name, "path": str(best), "kind": "file"}

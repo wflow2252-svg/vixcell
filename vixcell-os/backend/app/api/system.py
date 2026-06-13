@@ -93,6 +93,10 @@ def open_target(
             return system_control.open_folder(body.target)
         if body.kind == "search":
             return system_control.web_search(body.target)
+        if body.kind == "file":
+            return system_control.open_file(body.target)
+        if body.kind == "image":
+            return system_control.open_file(body.target, images_only=True)
     except SystemControlError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
@@ -100,4 +104,4 @@ def open_target(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail="معرفتش أنفذ الأمر — جرب تاني")
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="kind must be app | url | folder | search")
+                        detail="kind must be app | url | folder | search | file | image")

@@ -31,10 +31,11 @@ def model_ready() -> bool:
 def model_loading() -> bool:
     return _model_loading
 
-# small + beam 5 + the Arabic re-detect guard is the sweet spot on busy
-# consumer CPUs — medium proved too slow there (requests timed out).
-# Users can still pick medium/large in Settings on stronger machines.
-WHISPER_SIZE = "small"
+# User asked for high accuracy. 'medium' is the practical high on this CPU —
+# clearly better Egyptian Arabic than small; the startup preload + the /transcribe
+# loading-503 guard keep it from ever hanging the user. large-v3 is selectable
+# in Settings for max accuracy (slower).
+WHISPER_SIZE = "medium"
 ALLOWED_WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
 
 # Domain vocabulary the recognizer should be biased towards (mixed ar/en —
