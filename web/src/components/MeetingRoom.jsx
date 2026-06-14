@@ -2538,7 +2538,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* ── VIDEO AREA ── */}
-        <div style={{ flex: 1, position: 'relative', background: '#000', overflow: 'hidden' }}>
+        <div style={{ flex: 1, position: 'relative', background: '#000', overflow: 'hidden', margin: 10, borderRadius: 18 }}>
           {whiteboardActive ? (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: C.bg, position: 'relative', zIndex: 10 }}>
               <div style={{ ...rm.wbBar, flexWrap: 'wrap', height: 'auto', minHeight: 48, padding: '8px 16px', gap: 6 }}>
@@ -3049,6 +3049,8 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
           )}
           <GmBtn onClick={toggleFullscreen} icon={fullscreen ? 'fullscreen_exit' : 'fullscreen'} label="شاشة كاملة" />
         </div>
+
+        <div style={rm.ctrlDivider} />
 
         <div style={rm.ctrlGroup}>
           <PanelBtn icon="chat" label="Chat" active={panel==='chat'} onClick={() => setPanel(p => p==='chat'?null:'chat')} badge={messages.filter(m=>!m.system).length} />
@@ -4020,12 +4022,20 @@ const rm = {
     cursor: 'pointer', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 5,
     fontWeight: 600, transition: 'all .25s',
   },
+  // Floating, centered, rounded control bar that hovers over the video — the
+  // signature Google-Meet / Jitsi look (instead of a full-width docked bar).
   controls: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '16px 32px', background: C.bg, borderTop: `1px solid ${C.border}`,
-    flexShrink: 0,
+    position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20,
+    padding: '10px 24px',
+    background: 'rgba(18,18,22,0.72)', backdropFilter: 'blur(18px)',
+    WebkitBackdropFilter: 'blur(18px)',
+    border: `1px solid ${C.border}`, borderRadius: 40,
+    boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
+    zIndex: 40, maxWidth: 'calc(100% - 24px)', flexWrap: 'wrap',
   },
-  ctrlGroup: { display: 'flex', alignItems: 'flex-start', gap: 16 },
+  ctrlGroup: { display: 'flex', alignItems: 'center', gap: 16 },
+  ctrlDivider: { width: 1, height: 34, background: C.border, margin: '0 2px' },
 }
 
 const arc = {
