@@ -1236,6 +1236,17 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     boardElementsRef.current = boardElements
   }, [boardElements])
 
+  // ── Multiple boards (Miro-style pages) — additive: default is a single board,
+  // so existing behaviour is unchanged unless the user adds a page. Each board is
+  // a canvas snapshot (dataURL) + its overlay elements, synced to the client.
+  const [boards, setBoards]           = useState([1])
+  const [activeBoard, setActiveBoard] = useState(1)
+  const boardsRef       = useRef([1])
+  const activeBoardRef  = useRef(1)
+  const boardSnaps      = useRef({})   // boardNo -> { img, elements }
+  useEffect(() => { boardsRef.current = boards }, [boards])
+  useEffect(() => { activeBoardRef.current = activeBoard }, [activeBoard])
+
   const channelRef = useRef(null)
   const lobbyChannelRef = useRef(null)
   const peersMapRef = useRef(new Map())
@@ -1552,6 +1563,22 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         ctx.fillRect(0, 0, c.width / (window.devicePixelRatio || 1), c.height / (window.devicePixelRatio || 1))
       }
       setBoardElements([])
+    })
+    ch.on('broadcast', { event: 'board_switch' }, ({ payload }) => {
+      if (payload.boards) { setBoards(payload.boards); boardsRef.current = payload.boards }
+      setActiveBoard(payload.no); activeBoardRef.current = payload.no
+      const c = wbRef.current; const ctx = ctxRef.current
+      if (c && ctx) {
+        const dpr = window.devicePixelRatio || 1
+        ctx.fillStyle = C.bg
+        ctx.fillRect(0, 0, c.width / dpr, c.height / dpr)
+        setBoardElements(payload.elements || [])
+        if (payload.img) {
+          const im = new Image()
+          im.onload = () => { try { ctx.drawImage(im, 0, 0, c.width / dpr, c.height / dpr) } catch {} }
+          im.src = payload.img
+        }
+      }
     })
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
       setMessages(prev => prev.some(m => m.id === payload.id) ? prev : [...prev, payload])
@@ -2331,6 +2358,51 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     }
   }
 
+  // ── Multiple-boards helpers ──
+  function snapshotCurrentBoard() {
+    const c = wbRef.current
+    let img = null
+    try { if (c && c.width > 0) img = c.toDataURL('image/webp', 0.7) } catch {}
+    boardSnaps.current[activeBoardRef.current] = { img, elements: boardElementsRef.current }
+  }
+  function paintBoard(snap) {
+    const c = wbRef.current; const ctx = ctxRef.current
+    if (!c || !ctx) return
+    const dpr = window.devicePixelRatio || 1
+    ctx.fillStyle = C.bg
+    ctx.fillRect(0, 0, c.width / dpr, c.height / dpr)
+    setBoardElements((snap && snap.elements) || [])
+    if (snap && snap.img) {
+      const im = new Image()
+      im.onload = () => { try { ctx.drawImage(im, 0, 0, c.width / dpr, c.height / dpr) } catch {} }
+      im.src = snap.img
+    }
+  }
+  function goToBoard(no) {
+    if (no === activeBoardRef.current) return
+    snapshotCurrentBoard()
+    const target = boardSnaps.current[no] || { img: null, elements: [] }
+    setActiveBoard(no); activeBoardRef.current = no
+    paintBoard(target)
+    if (channelRef.current) channelRef.current.send({
+      type: 'broadcast', event: 'board_switch',
+      payload: { no, img: target.img, elements: target.elements || [], boards: boardsRef.current },
+    })
+  }
+  function addBoard() {
+    snapshotCurrentBoard()
+    const no = (boardsRef.current[boardsRef.current.length - 1] || 0) + 1
+    const next = [...boardsRef.current, no]
+    setBoards(next); boardsRef.current = next
+    boardSnaps.current[no] = { img: null, elements: [] }
+    setActiveBoard(no); activeBoardRef.current = no
+    paintBoard(boardSnaps.current[no])
+    if (channelRef.current) channelRef.current.send({
+      type: 'broadcast', event: 'board_switch',
+      payload: { no, img: null, elements: [], boards: next },
+    })
+  }
+
   async function handleImageUpload(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -2559,6 +2631,28 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 
                 <div style={rm.wbDiv} />
                 
+                {/* ── Boards (pages) ── */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {boards.map(no => (
+                    <button key={no} onClick={() => goToBoard(no)} title={`بورد ${no}`}
+                      style={{
+                        height: 28, minWidth: 28, padding: '0 9px', borderRadius: 8, cursor: 'pointer',
+                        background: activeBoard === no ? 'rgba(26,115,232,0.18)' : 'transparent',
+                        border: activeBoard === no ? '1px solid rgba(26,115,232,0.35)' : `1px solid ${C.border}`,
+                        color: activeBoard === no ? C.blue : C.text2, fontSize: 11, fontWeight: 700, fontFamily: FONT,
+                      }}>
+                      {no}
+                    </button>
+                  ))}
+                  <button onClick={addBoard} title="بورد جديد"
+                    style={{ height: 28, width: 28, borderRadius: 8, cursor: 'pointer', background: 'transparent',
+                      border: `1px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="add" size={16} style={{ color: C.text2 }} />
+                  </button>
+                </div>
+
+                <div style={rm.wbDiv} />
+
                 <input type="file" accept="image/*" id="desktop-wb-image-upload" onChange={handleImageUpload} style={{ display: 'none' }} />
                 <button onClick={() => document.getElementById('desktop-wb-image-upload')?.click()} style={{
                   ...rm.wbTool,
