@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Meeting window (vixcell.com room as a desktop window, admin role)
   openMeeting: (url) => ipcRenderer.invoke('open-meeting', url),
 
+  // Whiteboard handwriting → text via the LOCAL vision AI (llava). Runs in the
+  // main process (Node), so it reaches the local backend with no browser
+  // CORS / Private-Network-Access restrictions.
+  wbOcr: (imageBase64) => ipcRenderer.invoke('wb-ocr', imageBase64),
+
   // Floating assistant bar
   barToggle: () => ipcRenderer.invoke('bar-toggle'),
   barHide: () => ipcRenderer.send('bar-hide'),

@@ -138,6 +138,33 @@ ipcMain.handle('get-config', () => ({
 
 ipcMain.handle('open-external', (_, url) => shell.openExternal(url))
 
+// Whiteboard handwriting → text: POST the board image to the LOCAL backend's
+// public OCR endpoint from the Node side, so there are no browser CORS /
+// Private-Network-Access limits (which block the page from calling 127.0.0.1).
+ipcMain.handle('wb-ocr', async (_e, imageBase64) => {
+  const http = require('http')
+  const data = JSON.stringify({ image: imageBase64 })
+  return await new Promise((resolve, reject) => {
+    const req = http.request({
+      host: '127.0.0.1', port: backendPort, path: '/api/v1/public/wb-ocr', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+    }, (res) => {
+      let body = ''
+      res.on('data', (c) => { body += c })
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(body || '{}')
+          if (res.statusCode === 200) resolve(j.text || '')
+          else reject(new Error(j.detail || ('HTTP ' + res.statusCode)))
+        } catch (_) { reject(new Error('bad response')) }
+      })
+    })
+    req.setTimeout(200000, () => { req.destroy(); reject(new Error('timeout')) })
+    req.on('error', reject)
+    req.write(data); req.end()
+  })
+})
+
 ipcMain.handle('get-storage-root', () => getStorageRoot())
 
 // ─── Floating Assistant Bar (iPhone Dynamic Island style) ─────────────────────
@@ -236,6 +263,7 @@ ipcMain.handle('open-meeting', (_e, url) => {
       contextIsolation: true,
       nodeIntegration: false,
       partition: 'persist:meeting', // own session keeps site login/devices
+      preload: path.join(__dirname, 'preload.js'), // exposes electronAPI.wbOcr (local AI bridge)
     },
   })
   // Camera + mic + clipboard for the meeting session. Clipboard is what lets

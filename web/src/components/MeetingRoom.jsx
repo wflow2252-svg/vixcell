@@ -299,6 +299,15 @@ async function findLocalBackend() {
   return null
 }
 async function localHandwritingToText(imageBase64) {
+  // Preferred path: when the meeting runs inside the Vixcell desktop app, go
+  // through Electron IPC (Node → local backend) — no browser CORS / private-
+  // network limits, which otherwise block a website from calling 127.0.0.1.
+  const eAPI = (typeof window !== 'undefined') ? window.electronAPI : null
+  if (eAPI && eAPI.wbOcr) {
+    try { return (await eAPI.wbOcr(imageBase64)) || '' }
+    catch (err) { const e = new Error(err && err.message || 'ocr'); e.code = 'ocr'; throw e }
+  }
+  // Fallback: plain browser → localhost (works only if the browser allows it).
   const base = await findLocalBackend()
   if (!base) { const e = new Error('local-app-not-found'); e.code = 'no-app'; throw e }
   const r = await fetch(`${base}/wb-ocr`, {
@@ -1196,6 +1205,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const tools = [
     { id: 'select', icon: 'near_me', label: 'تحديد وتحريك' },
     { id: 'pen', icon: 'edit', label: 'قلم' },
+    { id: 'highlighter', icon: 'ink_highlighter', label: 'تظليل' },
     { id: 'eraser', icon: 'ink_eraser', label: 'ممحاة' },
     { id: 'rect', icon: 'rectangle', label: 'مستطيل' },
     { id: 'circle', icon: 'circle', label: 'دائرة' },
@@ -1558,12 +1568,16 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     ch.on('broadcast', { event: 'draw' }, ({ payload }) => {
       const ctx = ctxRef.current
       if (!ctx) return
+      const isHi = payload.tool === 'highlighter'
+      if (isHi) ctx.save()
       ctx.beginPath()
       ctx.moveTo(payload.x0, payload.y0)
       ctx.lineTo(payload.x1, payload.y1)
       ctx.strokeStyle = payload.tool === 'eraser' ? C.bg : payload.color
-      ctx.lineWidth   = payload.tool === 'eraser' ? payload.size * 5 : payload.size
+      ctx.lineWidth   = payload.tool === 'eraser' ? payload.size * 5 : (isHi ? payload.size * 4 : payload.size)
+      if (isHi) ctx.globalAlpha = 0.32
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke()
+      if (isHi) ctx.restore()
     })
     ch.on('broadcast', { event: 'element_add' }, ({ payload }) => {
       setBoardElements(prev => {
@@ -2081,12 +2095,16 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       }
       ctx.stroke()
     } else {
+      const isHi = wbTool === 'highlighter'
+      if (isHi) ctx.save()
       ctx.beginPath()
       ctx.moveTo(lastPos.current.x, lastPos.current.y)
       ctx.lineTo(pos.x, pos.y)
       ctx.strokeStyle = wbTool === 'eraser' ? C.bg : wbColor
-      ctx.lineWidth   = wbTool === 'eraser' ? wbSize * 5 : wbSize
+      ctx.lineWidth   = wbTool === 'eraser' ? wbSize * 5 : (isHi ? wbSize * 4 : wbSize)
+      if (isHi) ctx.globalAlpha = 0.32
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke()
+      if (isHi) ctx.restore()
 
       // Do NOT broadcast raw drawings to remote peer for post-processing AI tools
       if (channelRef.current && !['correction', 'text_ai'].includes(wbTool)) {
@@ -3629,6 +3647,7 @@ function TabletWhiteboard({
   const tools = [
     { id: 'select', icon: 'near_me', label: 'تحديد وتحريك' },
     { id: 'pen', icon: 'edit', label: 'قلم' },
+    { id: 'highlighter', icon: 'ink_highlighter', label: 'تظليل' },
     { id: 'eraser', icon: 'ink_eraser', label: 'ممحاة' },
     { id: 'rect', icon: 'rectangle', label: 'مستطيل' },
     { id: 'circle', icon: 'circle', label: 'دائرة' },
