@@ -279,46 +279,31 @@ async function loadIceServers() {
   return servers
 }
 
-/* ─── Local AI bridge ──────────────────────────────────────────────
-   The meeting runs on vixcell.com but the AI (llava) lives in the desktop app
-   on the admin's own machine. The admin's browser can reach it on 127.0.0.1.
-   The app's port is dynamic (starts at 8000), so probe a small range once and
-   cache the one that answers. Only works on the admin's machine with the app
-   open — that's by design. */
-let _localApiBase = null
-async function findLocalBackend() {
-  if (_localApiBase) return _localApiBase
-  for (let port = 8000; port <= 8014; port++) {
-    try {
-      const r = await fetch(`http://127.0.0.1:${port}/api/v1/public/ping`, {
-        method: 'GET', signal: AbortSignal.timeout(1200),
-      })
-      if (r.ok) { _localApiBase = `http://127.0.0.1:${port}/api/v1/public`; return _localApiBase }
-    } catch {}
-  }
-  return null
+/* ─── Handwriting → text (in-browser OCR) ──────────────────────────
+   Runs entirely in the page with Tesseract.js — no server, no local app, no
+   browser-security hurdles. Works for the admin AND the client. Reads English +
+   Arabic; best on clear/printed writing. The wasm + language data download once
+   (lazy) from the CDN on first use. */
+let _tessPromise = null
+function loadTesseract() {
+  if (typeof window !== 'undefined' && window.Tesseract) return Promise.resolve(window.Tesseract)
+  if (_tessPromise) return _tessPromise
+  _tessPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'
+    s.async = true
+    s.onload = () => resolve(window.Tesseract)
+    s.onerror = () => reject(new Error('tesseract-load'))
+    document.body.appendChild(s)
+  })
+  return _tessPromise
 }
 async function localHandwritingToText(imageBase64) {
-  // Preferred path: when the meeting runs inside the Vixcell desktop app, go
-  // through Electron IPC (Node → local backend) — no browser CORS / private-
-  // network limits, which otherwise block a website from calling 127.0.0.1.
-  const eAPI = (typeof window !== 'undefined') ? window.electronAPI : null
-  if (eAPI && eAPI.wbOcr) {
-    try { return (await eAPI.wbOcr(imageBase64)) || '' }
-    catch (err) { const e = new Error(err && err.message || 'ocr'); e.code = 'ocr'; throw e }
-  }
-  // Fallback: plain browser → localhost (works only if the browser allows it).
-  const base = await findLocalBackend()
-  if (!base) { const e = new Error('local-app-not-found'); e.code = 'no-app'; throw e }
-  const r = await fetch(`${base}/wb-ocr`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageBase64 }), signal: AbortSignal.timeout(200000),
-  })
-  if (!r.ok) {
-    const j = await r.json().catch(() => ({}))
-    const e = new Error(j.detail || 'ocr-failed'); e.code = 'ocr'; throw e
-  }
-  return ((await r.json()).text || '')
+  let T
+  try { T = await loadTesseract() }
+  catch { const e = new Error('ocr-engine'); e.code = 'engine'; throw e }
+  const { data } = await T.recognize(imageBase64, 'eng+ara')
+  return (data && data.text ? data.text.trim() : '')
 }
 
 /* ─── AI helpers (local Ollama) ──────────────── */
@@ -1594,13 +1579,29 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     ch.on('broadcast', { event: 'sync_wb_elements' }, ({ payload }) => {
       setBoardElements(payload)
     })
+    // Paint a full board image pushed by an existing peer (so freehand drawings
+    // made before you joined show up — fixes "appears on one side only").
+    ch.on('broadcast', { event: 'sync_wb_canvas' }, ({ payload }) => {
+      const c = wbRef.current; const ctx = ctxRef.current
+      if (!c || !ctx || !payload || !payload.img) return
+      const dpr = window.devicePixelRatio || 1
+      const im = new Image()
+      im.onload = () => { try { ctx.drawImage(im, 0, 0, c.width / dpr, c.height / dpr) } catch {} }
+      im.src = payload.img
+    })
     ch.on('broadcast', { event: 'request_wb_sync' }, () => {
-      if (boardElementsRef.current.length > 0 && channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'sync_wb_elements',
-          payload: boardElementsRef.current
-        })
+      if (!channelRef.current) return
+      // Share overlay elements...
+      if (boardElementsRef.current.length > 0) {
+        channelRef.current.send({ type: 'broadcast', event: 'sync_wb_elements', payload: boardElementsRef.current })
+      }
+      // ...and the freehand canvas pixels, so the late joiner sees both sides.
+      const c = wbRef.current
+      if (c && c.width > 0) {
+        try {
+          const img = c.toDataURL('image/webp', 0.5)
+          channelRef.current.send({ type: 'broadcast', event: 'sync_wb_canvas', payload: { img } })
+        } catch {}
       }
     })
     ch.on('broadcast', { event: 'clear' }, () => {
@@ -2352,12 +2353,10 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
           }
         }
       } catch (err) {
-        console.error('Failed to correct handwriting via AI:', err)
-        if (err && err.code === 'no-app') {
-          alert('عشان تحويل الخط لنص بالذكاء: لازم برنامج Vixcell يكون مفتوح على نفس الجهاز.')
-        } else {
-          alert('مقدرتش أحوّل الخط لنص — اتأكد إن نموذج الرؤية (llava) متنزّل في البرنامج.')
-        }
+        console.error('Handwriting OCR failed:', err)
+        alert(err && err.code === 'engine'
+          ? 'مقدرتش أحمّل محرّك قراءة الخط — اتأكد من النت وجرّب تاني.'
+          : 'مقدرتش أقرا الخط — جرّب تكتب أوضح أو أكبر شوية وحاول تاني.')
       } finally {
         setIsOCRProcessing(false)
       }
