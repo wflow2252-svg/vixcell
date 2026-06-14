@@ -1643,11 +1643,34 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       if (voiceFx && localStream && localStream.getAudioTracks()[0]) {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)()
+          try { await ctx.resume() } catch {}
           const src = ctx.createMediaStreamSource(localStream)
+
+          // 1) cut subsonic rumble so the low boost stays clean, not muddy
+          const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 70
+
+          // 2) pitch DOWN — moderate (~-0.27) so it stays natural; deeper shifts
+          //    start sounding robotic/warbly. Depth comes from EQ below instead.
           const shifter = createPitchShifter(ctx)
-          shifter.setPitchOffset(-0.32)
+          shifter.setPitchOffset(-0.27)
+
+          // 3) body + chest resonance → "تخين" (thick/deep) without over-shifting
+          const lowShelf = ctx.createBiquadFilter(); lowShelf.type = 'lowshelf'; lowShelf.frequency.value = 220; lowShelf.gain.value = 5.5
+          const chest = ctx.createBiquadFilter(); chest.type = 'peaking'; chest.frequency.value = 115; chest.Q.value = 1.0; chest.gain.value = 3.5
+          // 4) tame thin/harsh highs → warmer, more human
+          const hiTame = ctx.createBiquadFilter(); hiTame.type = 'highshelf'; hiTame.frequency.value = 6500; hiTame.gain.value = -3
+
+          // 5) compress for an even, full, "radio" body, then make up the level
+          const comp = ctx.createDynamicsCompressor()
+          comp.threshold.value = -22; comp.knee.value = 22; comp.ratio.value = 3
+          comp.attack.value = 0.004; comp.release.value = 0.25
+          const makeup = ctx.createGain(); makeup.gain.value = 1.25
+
           const dest = ctx.createMediaStreamDestination()
-          src.connect(shifter.input); shifter.output.connect(dest)
+          src.connect(hp); hp.connect(shifter.input)
+          shifter.output.connect(lowShelf); lowShelf.connect(chest); chest.connect(hiTame)
+          hiTame.connect(comp); comp.connect(makeup); makeup.connect(dest)
+
           fxCtxRef.current = ctx
           fxTrackRef.current = dest.stream.getAudioTracks()[0]
         } catch (e) { console.warn('voiceFx setup failed', e); return }
