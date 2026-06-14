@@ -2572,7 +2572,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 <div style={rm.wbDiv} />
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
+                  {['#1a73e8','#00bcd4','#34a853','#fbbc04','#ff9800','#ea4335','#e91e63','#a142f4','#795548','#9aa0a6','#000000','#ffffff'].map(col => (
                     <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
                       style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 18, height: 18 }} />
                   ))}
@@ -2582,7 +2582,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Icon name="line_weight" size={16} style={{ color: C.text2 }} />
-                  <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
+                  <input type="range" min="1" max="40" value={wbSize} onChange={e => setWbSize(+e.target.value)}
                     style={{ width: 60, accentColor: C.blue }} />
                 </div>
 
@@ -3629,7 +3629,7 @@ function TabletWhiteboard({
         <div style={tabWb.divider} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {['#1a73e8','#34a853','#ea4335','#fbbc04','#a142f4','#ffffff'].map(col => (
+          {['#1a73e8','#00bcd4','#34a853','#fbbc04','#ff9800','#ea4335','#e91e63','#a142f4','#795548','#9aa0a6','#000000','#ffffff'].map(col => (
             <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
               style={{ ...tabWb.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 24, height: 24 }} />
           ))}
@@ -3639,7 +3639,7 @@ function TabletWhiteboard({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="line_weight" size={18} style={{ color: C.text2 }} />
-          <input type="range" min="1" max="16" value={wbSize} onChange={e => setWbSize(+e.target.value)}
+          <input type="range" min="1" max="40" value={wbSize} onChange={e => setWbSize(+e.target.value)}
             style={{ width: 80, accentColor: C.blue }} />
         </div>
 
