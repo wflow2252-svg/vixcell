@@ -1862,6 +1862,12 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   }, [recDuration, saveRecordingSegment])
 
   useEffect(() => {
+    // Auto-recording disabled: it used to start the moment the admin joined and
+    // continuously capture the raw mic (all ambient/external sound), which the
+    // user didn't want. (Left here, gated off, so it's easy to re-enable behind
+    // a manual button later.)
+    return
+    // eslint-disable-next-line no-unreachable
     if (!isAdminMode || isTabletMode) return
     let rec
     const startRec = () => {
@@ -2638,7 +2644,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <img src="/logo.png" alt="Vixcell" style={{ height: 22 }} />
           <div style={rm.timer}>{fmtDur(elapsed)}</div>
-          {isAdminMode && (
+          {false && isAdminMode && (
             <div style={rm.recBadge}>
               <span style={rm.recDot} />
               <span>REC {fmtDur(recDuration)}</span>
@@ -3198,7 +3204,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
             <GmBtn onClick={() => setVoiceFx(v => !v)} icon="graphic_eq" label={voiceFx ? 'صوت طبيعي' : 'غيّر الصوت'} blue={voiceFx} />
           )}
           <GmBtn onClick={toggleShare} icon={sharing ? 'stop_screen_share' : 'screen_share'} label={sharing ? 'إيقاف المشاركة' : 'مشاركة الشاشة'} blue={sharing} />
-          {isAdminMode && (
+          {false && isAdminMode && (
             <GmBtn icon="fiber_manual_record" label={`REC ${fmtDur(recDuration)}`} red style={{ opacity: 1 }} />
           )}
           <GmBtn onClick={toggleFullscreen} icon={fullscreen ? 'fullscreen_exit' : 'fullscreen'} label="شاشة كاملة" />

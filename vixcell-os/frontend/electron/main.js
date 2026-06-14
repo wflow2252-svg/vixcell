@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, session, globalShortcut, screen, Tray, Menu, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, session, globalShortcut, screen, Tray, Menu, nativeImage, desktopCapturer } = require('electron')
 const { spawn } = require('child_process')
 const path = require('path')
 const crypto = require('crypto')
@@ -276,6 +276,21 @@ ipcMain.handle('open-meeting', (_e, url) => {
   })
   meetingWindow.webContents.session.setPermissionCheckHandler((_wc, permission) =>
     meetingPerms.includes(permission) || permission === 'clipboard-read')
+
+  // Screen sharing in Electron: getDisplayMedia() does nothing unless we answer
+  // the display-media request. Show the OS picker; fall back to the primary
+  // screen so the admin can always share from the desktop app.
+  try {
+    meetingWindow.webContents.session.setDisplayMediaRequestHandler((_request, callback) => {
+      desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
+        const primary = sources.find(s => s.id.startsWith('screen:')) || sources[0]
+        callback(primary ? { video: primary } : {})
+      }).catch(() => callback({}))
+    }, { useSystemPicker: true })
+  } catch (e) {
+    console.warn('[Electron] setDisplayMediaRequestHandler failed:', e?.message)
+  }
+
   meetingWindow.once('ready-to-show', () => meetingWindow.show())
 
   // If the room URL can't load (site offline / wrong API base), show a clear
