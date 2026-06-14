@@ -224,10 +224,13 @@ export const memoryAPI = {
   delete: (id: string) => api.delete(`/memory/${id}`),
 }
 
-// ── Automation Agent ────────────────────────────────────────────────────────────
+// ── Automation Agent / Cowork ────────────────────────────────────────────────────
 export const automationAPI = {
   tools: () => api.get('/automation/tools'),
   run: (goal: string) => api.post('/automation/run', { goal }, { timeout: 180000 }),
+  plan: (goal: string) => api.post('/automation/plan', { goal }, { timeout: 120000 }),
+  runSteps: (goal: string, steps: any[]) =>
+    api.post('/automation/run-steps', { goal, steps }, { timeout: 600000 }),
 }
 
 // ── Training Center ─────────────────────────────────────────────────────────────

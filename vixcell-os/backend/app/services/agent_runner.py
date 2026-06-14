@@ -26,6 +26,9 @@ TOOLS = {
     "analyze_screen": 'تصوير وتحليل الشاشة الحالية. args: {"question": "اختياري"}',
     "scroll":         'عمل سكورول في الشاشة. args: {"amount": رقم سالب لتحت موجب لفوق (مثلا -600)}',
     "press_key":      'كبس زرار أو اختصار. args: {"keys": "enter" أو "ctrl+s"}',
+    "type_text":      'كتابة نص على الجهاز (في الحقل المفتوح). args: {"text": "..."}',
+    "send_whatsapp":  'إرسال رسالة واتساب لعميل (بالاسم أو الرقم). args: {"to": "اسم أو رقم", "text": "الرسالة"}',
+    "generate_content": 'كتابة محتوى/منشور بالذكاء. args: {"topic": "الموضوع", "content_type": "facebook_post اختياري"}',
     "wait":           'انتظار ثواني قبل الخطوة اللي بعدها. args: {"seconds": رقم}',
 }
 
@@ -105,6 +108,26 @@ def _run_step(db: Session, tenant_id: str, tool: str, args: dict) -> dict:
     if tool == "press_key":
         from app.services import computer_control
         return computer_control.press(args.get("keys", "enter"))
+    if tool == "type_text":
+        from app.services import computer_control
+        return computer_control.type_text(args.get("text", ""))
+    if tool == "send_whatsapp":
+        from app.services import whatsapp_service
+        info = whatsapp_service.send_now(db, tenant_id, args.get("to", ""),
+                                         args.get("text", ""), sent_by="ai")
+        return {"sent_to": info.get("name") or info.get("phone"), "sent": info.get("sent")}
+    if tool == "generate_content":
+        from app.services import ai_engine
+        mdl = _pick_model()
+        if not mdl:
+            return {"error": "محرك الذكاء مش شغّال"}
+        txt = ai_engine.generate_content(mdl, args.get("content_type", "facebook_post"),
+                                         args.get("topic", ""), language="ar-eg", tone="friendly") \
+            if hasattr(ai_engine, "generate_content") else ai_engine.chat(
+                model=mdl, prompt=args.get("topic", ""),
+                system="اكتب منشور قصير احترافي بالعربي المصري.", temperature=0.7,
+                max_tokens=400, repeat_penalty=1.3)
+        return {"content": (txt or "").strip()[:1500]}
     if tool == "wait":
         import time as _t
         _t.sleep(min(float(args.get("seconds", 1)), 8))
@@ -123,6 +146,28 @@ def run(db: Session, tenant_id: str, goal: str) -> dict:
         entry = {"tool": tool, "args": args, "status": "done"}
         try:
             entry["result"] = _run_step(db, tenant_id, tool, args)
+        except Exception as e:
+            entry["status"] = "error"
+            entry["result"] = {"error": str(e)}
+        results.append(entry)
+    ok = sum(1 for r in results if r["status"] == "done")
+    return {"goal": goal, "steps": results, "message": f"نفّذت {ok} من {len(results)} خطوة"}
+
+
+def run_steps(db: Session, tenant_id: str, goal: str, steps: list) -> dict:
+    """Execute an already-approved plan (list of {tool, args}). Used by Cowork
+    so the user reviews the plan before anything runs."""
+    valid = [s for s in (steps or []) if isinstance(s, dict) and s.get("tool") in TOOLS]
+    if not valid:
+        return {"goal": goal, "steps": [], "message": "مفيش خطوات صالحة للتنفيذ"}
+    results = []
+    for s in valid:
+        tool, args = s.get("tool"), s.get("args") or {}
+        entry = {"tool": tool, "args": args, "status": "done"}
+        try:
+            entry["result"] = _run_step(db, tenant_id, tool, args)
+            if isinstance(entry["result"], dict) and entry["result"].get("error"):
+                entry["status"] = "error"
         except Exception as e:
             entry["status"] = "error"
             entry["result"] = {"error": str(e)}
