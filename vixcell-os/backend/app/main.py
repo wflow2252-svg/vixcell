@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.database import engine, Base
-from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice, system, website, memory, whatsapp, projects, tasks, meetings, training, automation
+from app.api import auth, tenants, settings as settings_api, leads, crm, dashboard, ai, voice, system, website, memory, whatsapp, projects, tasks, meetings, training, automation, public
 import logging
 
 # Initialize Logging
@@ -45,7 +45,10 @@ async def verify_internal_app_key(request: Request, call_next):
         "/health"
     ]
 
-    if path in bypass_paths or path.startswith("/static/"):
+    # /public/* is reachable WITHOUT the internal key: it's used by the
+    # vixcell.com meeting (running in the admin's own browser) to call the local
+    # vision AI for the whiteboard. Safe — the server binds to 127.0.0.1 only.
+    if path in bypass_paths or path.startswith("/static/") or path.startswith(f"{settings.API_V1_STR}/public/"):
         return await call_next(request)
         
     # Check for internal key header
@@ -76,6 +79,17 @@ app.add_middleware(
 )
 
 
+# Chrome "Private Network Access": a public site (vixcell.com) calling this
+# localhost API must receive this header or the browser blocks the preflight.
+# Added LAST → runs outermost, so it also tags the CORS-handled OPTIONS response.
+@app.middleware("http")
+async def allow_private_network(request: Request, call_next):
+    response = await call_next(request)
+    if request.method == "OPTIONS" or request.headers.get("access-control-request-private-network"):
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
+
+
 # Register API Routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
 app.include_router(tenants.router, prefix=f"{settings.API_V1_STR}/tenants", tags=["Tenants"])
@@ -94,6 +108,7 @@ app.include_router(tasks.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["T
 app.include_router(meetings.router, prefix=f"{settings.API_V1_STR}/meetings", tags=["Meetings AI"])
 app.include_router(training.router, prefix=f"{settings.API_V1_STR}/training", tags=["Training Center"])
 app.include_router(automation.router, prefix=f"{settings.API_V1_STR}/automation", tags=["Automation"])
+app.include_router(public.router, prefix=f"{settings.API_V1_STR}/public", tags=["Public (local AI bridge)"])
 
 
 @app.on_event("startup")

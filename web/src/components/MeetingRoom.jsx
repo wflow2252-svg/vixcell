@@ -279,6 +279,39 @@ async function loadIceServers() {
   return servers
 }
 
+/* ─── Local AI bridge ──────────────────────────────────────────────
+   The meeting runs on vixcell.com but the AI (llava) lives in the desktop app
+   on the admin's own machine. The admin's browser can reach it on 127.0.0.1.
+   The app's port is dynamic (starts at 8000), so probe a small range once and
+   cache the one that answers. Only works on the admin's machine with the app
+   open — that's by design. */
+let _localApiBase = null
+async function findLocalBackend() {
+  if (_localApiBase) return _localApiBase
+  for (let port = 8000; port <= 8014; port++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/api/v1/public/ping`, {
+        method: 'GET', signal: AbortSignal.timeout(1200),
+      })
+      if (r.ok) { _localApiBase = `http://127.0.0.1:${port}/api/v1/public`; return _localApiBase }
+    } catch {}
+  }
+  return null
+}
+async function localHandwritingToText(imageBase64) {
+  const base = await findLocalBackend()
+  if (!base) { const e = new Error('local-app-not-found'); e.code = 'no-app'; throw e }
+  const r = await fetch(`${base}/wb-ocr`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: imageBase64 }), signal: AbortSignal.timeout(200000),
+  })
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}))
+    const e = new Error(j.detail || 'ocr-failed'); e.code = 'ocr'; throw e
+  }
+  return ((await r.json()).text || '')
+}
+
 /* ─── AI helpers (local Ollama) ──────────────── */
 async function askOllama(prompt) {
   try {
@@ -2262,16 +2295,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       const croppedBase64 = tempCanvas.toDataURL('image/png')
 
       try {
-        const response = await fetch('/api/ai/correct-handwriting', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: croppedBase64
-          })
-        })
-        const resJson = await response.json()
-        if (resJson.success && resJson.data && resJson.data.text) {
-          const correctedText = resJson.data.text.trim().replace(/^"|"$/g, '')
+        // Use the LOCAL AI (llava) on the admin's machine via the desktop app.
+        const correctedText = (await localHandwritingToText(croppedBase64)).trim().replace(/^"|"$/g, '')
+        if (correctedText) {
           
           const containerRect = c.parentElement.getBoundingClientRect()
           const charsCount = correctedText.length
@@ -2309,6 +2335,11 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         }
       } catch (err) {
         console.error('Failed to correct handwriting via AI:', err)
+        if (err && err.code === 'no-app') {
+          alert('عشان تحويل الخط لنص بالذكاء: لازم برنامج Vixcell يكون مفتوح على نفس الجهاز.')
+        } else {
+          alert('مقدرتش أحوّل الخط لنص — اتأكد إن نموذج الرؤية (llava) متنزّل في البرنامج.')
+        }
       } finally {
         setIsOCRProcessing(false)
       }
