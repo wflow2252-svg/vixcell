@@ -446,7 +446,12 @@ export default function MeetingRoom({ isAdmin = false, onViewChange, joinMeeting
   })
   const [joinId, setJoinId]             = useState('')
   const [logoUrl, setLogoUrl]           = useState('/logo.png')
-  
+
+  // Prefetch the relay (TURN) config during the lobby/pre-meeting so it's ready
+  // BEFORE any peer connection is created in the Room. Without this the first
+  // peer could be built with the weak default relay and fail cross-network.
+  useEffect(() => { loadIceServers() }, [])
+
   // Shared Media Stream State
   const [localStream, setLocalStream] = useState(null)
   const localStreamRef = useRef(null)
@@ -1091,8 +1096,19 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const myIdRef = useRef('p-' + Math.random().toString(36).substring(2, 10))
   // ICE/TURN servers — loaded once (admin's shared relay config or defaults).
   // A ref so new peers always read the latest without re-creating callbacks.
-  const iceServersRef = useRef(DEFAULT_ICE)
-  useEffect(() => { loadIceServers().then(s => { iceServersRef.current = s }) }, [])
+  // Start from the cache if the lobby already fetched it (no race); else default.
+  const iceServersRef = useRef(_iceCache || DEFAULT_ICE)
+  useEffect(() => {
+    loadIceServers().then(s => {
+      iceServersRef.current = s
+      // Safety net: if any peer was created before the relay config finished
+      // loading (it would've used the weak default → fails on mobile/other
+      // networks), upgrade it to the real relay and re-gather ICE now.
+      peersMapRef.current.forEach(p => {
+        try { p.pc.setConfiguration({ iceServers: s }); p.pc.restartIce() } catch {}
+      })
+    })
+  }, [])
 
   const localVideoRef  = useRef(null)
   const remoteVideoRef = useRef(null)
