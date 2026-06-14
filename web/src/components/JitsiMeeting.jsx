@@ -12,7 +12,10 @@
 ═══════════════════════════════════════════════════ */
 import React, { useEffect, useRef, useState } from 'react'
 
-const JITSI_DOMAIN = 'meet.jit.si'
+// Open Jitsi instance that lets people join WITHOUT a login (meet.jit.si now
+// forces a Google/email moderator login, which blocks our clients). Freifunk
+// München runs a free public instance with no login wall.
+const JITSI_DOMAIN = 'meet.ffmuc.net'
 const ROOM_PREFIX = 'VixcellMeet'
 
 const C = {
