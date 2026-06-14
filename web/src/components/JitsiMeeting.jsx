@@ -141,6 +141,13 @@ export default function JitsiMeeting({ isAdmin = false, onViewChange }) {
 function JitsiStage({ code, displayName, onLeave, onError, error }) {
   const ref = useRef(null)
   const apiRef = useRef(null)
+  const [elapsed, setElapsed] = useState(0)
+  const logo = `${window.location.origin}/logo.png`
+
+  useEffect(() => {
+    const t = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -160,15 +167,30 @@ function JitsiStage({ code, displayName, onLeave, onError, error }) {
             startWithVideoMuted: false,
             enableClosePage: false,
             disableProfile: true,
-            // help connectivity on strict networks
-            p2p: { enabled: true },
+            disableThirdPartyRequests: true,   // no gravatar/3rd-party branding calls
+            hideConferenceSubject: false,
+            subject: 'Vixcell',
+            p2p: { enabled: true },             // direct path when possible (cleaner audio)
+            toolbarButtons: [
+              'microphone', 'camera', 'desktop', 'chat', 'raisehand',
+              'tileview', 'fullscreen', 'settings', 'hangup', 'whiteboard',
+            ],
           },
           interfaceConfigOverwrite: {
-            MOBILE_APP_PROMO: false,
+            // ── strip Jitsi/instance branding so it reads as Vixcell ──
             SHOW_JITSI_WATERMARK: false,
             SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false,
+            SHOW_POWERED_BY: false,
+            HIDE_DEEP_LINKING_LOGO: true,
+            JITSI_WATERMARK_LINK: 'https://vixcell.com',
+            DEFAULT_LOGO_URL: logo,
+            DEFAULT_WELCOME_PAGE_LOGO_URL: logo,
+            MOBILE_APP_PROMO: false,
             SHOW_CHROME_EXTENSION_BANNER: false,
             DISABLE_DEEP_LINKING: true,
+            DEFAULT_BACKGROUND: '#0f0f11',
+            DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
             TOOLBAR_BUTTONS: [
               'microphone', 'camera', 'desktop', 'chat', 'raisehand',
               'tileview', 'fullscreen', 'settings', 'hangup', 'whiteboard',
@@ -176,28 +198,48 @@ function JitsiStage({ code, displayName, onLeave, onError, error }) {
           },
         })
         apiRef.current = api
-        api.addEventListener('readyToClose', () => { try { api.dispose() } catch {} ; onLeave && onLeave() })
-        api.addEventListener('errorOccurred', (e) => {
-          console.warn('[Jitsi] error', e)
+        // Reinforce Vixcell branding once the conference is up
+        api.addEventListener('videoConferenceJoined', () => {
+          try { api.executeCommand('subject', 'Vixcell') } catch {}
         })
+        api.addEventListener('readyToClose', () => { try { api.dispose() } catch {} ; onLeave && onLeave() })
+        api.addEventListener('errorOccurred', (e) => { console.warn('[Jitsi] error', e) })
       })
-      .catch(err => { if (!cancelled) onError && onError('مش قادر أحمّل خدمة الاجتماع — اتأكد من النت وجرّب تاني') })
+      .catch(() => { if (!cancelled) onError && onError('مش قادر أحمّل خدمة الاجتماع — اتأكد من النت وجرّب تاني') })
 
     return () => {
       cancelled = true
       try { apiRef.current && apiRef.current.dispose() } catch {}
     }
-  }, [code, displayName, onLeave, onError])
+  }, [code, displayName, onLeave, onError, logo])
+
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
+  const ss = String(elapsed % 60).padStart(2, '0')
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 9999 }}>
+    <div style={{ position: 'fixed', inset: 0, background: C.bg, zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+      {/* Vixcell branded top bar */}
+      <div style={{ height: 52, flexShrink: 0, background: C.bg2, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src={logo} alt="Vixcell" style={{ height: 26 }} onError={e => { e.target.style.display = 'none' }} />
+          <span style={{ color: C.text, fontFamily: FONT, fontWeight: 800, fontSize: 15 }}>اجتماع Vixcell</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ color: C.text2, fontFamily: FONT, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{mm}:{ss}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: C.green, fontFamily: FONT, fontSize: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.green }} /> مباشر
+          </span>
+        </div>
+      </div>
+
       {error && (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, background: '#7f1d1d', color: '#fff', padding: 12, textAlign: 'center', fontFamily: FONT, fontSize: 14 }}>
+        <div style={{ background: '#7f1d1d', color: '#fff', padding: 12, textAlign: 'center', fontFamily: FONT, fontSize: 14 }}>
           {error}
           <button onClick={onLeave} style={{ marginInlineStart: 12, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>خروج</button>
         </div>
       )}
-      <div ref={ref} style={{ width: '100%', height: '100%' }} />
+
+      <div ref={ref} style={{ flex: 1, minHeight: 0, width: '100%', background: '#000' }} />
     </div>
   )
 }

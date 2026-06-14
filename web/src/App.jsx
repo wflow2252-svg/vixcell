@@ -13,7 +13,7 @@ import StartProjectForm from './components/StartProjectForm'
 import FeedbackForm from './components/FeedbackForm'
 import AdminDashboard from './components/AdminDashboard'
 import PortfolioPage from './pages/PortfolioPage'
-import MeetingRoom from './components/MeetingRoom'
+import JitsiMeeting from './components/JitsiMeeting'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -116,7 +116,7 @@ function App() {
   if (view === 'meeting') {
     const queryParams = new URLSearchParams(window.location.search)
     const isAdminRole = queryParams.get('role')?.toLowerCase() === 'admin'
-    return <MeetingRoom isAdmin={isAdminRole} onViewChange={setView} />
+    return <JitsiMeeting isAdmin={isAdminRole} onViewChange={setView} />
   }
 
   // Landing
