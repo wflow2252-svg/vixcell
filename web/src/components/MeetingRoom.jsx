@@ -1647,28 +1647,28 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
           const src = ctx.createMediaStreamSource(localStream)
 
           // 1) cut subsonic rumble so the low boost stays clean, not muddy
-          const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 70
+          const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 75
 
-          // 2) pitch DOWN — moderate (~-0.27) so it stays natural; deeper shifts
-          //    start sounding robotic/warbly. Depth comes from EQ below instead.
+          // 2) gentle pitch DOWN — a SMALL shift means far less of the metallic
+          //    "ring"/warble the shifter produces. Just makes the voice heavier.
           const shifter = createPitchShifter(ctx)
-          shifter.setPitchOffset(-0.27)
+          shifter.setPitchOffset(-0.2)
 
-          // 3) body + chest resonance → "تخين" (thick/deep) without over-shifting
-          const lowShelf = ctx.createBiquadFilter(); lowShelf.type = 'lowshelf'; lowShelf.frequency.value = 220; lowShelf.gain.value = 5.5
-          const chest = ctx.createBiquadFilter(); chest.type = 'peaking'; chest.frequency.value = 115; chest.Q.value = 1.0; chest.gain.value = 3.5
-          // 4) tame thin/harsh highs → warmer, more human
-          const hiTame = ctx.createBiquadFilter(); hiTame.type = 'highshelf'; hiTame.frequency.value = 6500; hiTame.gain.value = -3
+          // 3) warmth/body via a SMOOTH low shelf ONLY — no resonant peak, which
+          //    was the source of the "رنة" (ringing). Clean weight, no boom.
+          const lowShelf = ctx.createBiquadFilter(); lowShelf.type = 'lowshelf'; lowShelf.frequency.value = 180; lowShelf.gain.value = 4
+          // 4) softly tame harsh highs → warmer, more human
+          const hiTame = ctx.createBiquadFilter(); hiTame.type = 'highshelf'; hiTame.frequency.value = 7000; hiTame.gain.value = -2
 
-          // 5) compress for an even, full, "radio" body, then make up the level
+          // 5) light compression for an even level (gentle, no pumping)
           const comp = ctx.createDynamicsCompressor()
-          comp.threshold.value = -22; comp.knee.value = 22; comp.ratio.value = 3
-          comp.attack.value = 0.004; comp.release.value = 0.25
-          const makeup = ctx.createGain(); makeup.gain.value = 1.25
+          comp.threshold.value = -20; comp.knee.value = 26; comp.ratio.value = 2.5
+          comp.attack.value = 0.006; comp.release.value = 0.28
+          const makeup = ctx.createGain(); makeup.gain.value = 1.12
 
           const dest = ctx.createMediaStreamDestination()
           src.connect(hp); hp.connect(shifter.input)
-          shifter.output.connect(lowShelf); lowShelf.connect(chest); chest.connect(hiTame)
+          shifter.output.connect(lowShelf); lowShelf.connect(hiTame)
           hiTame.connect(comp); comp.connect(makeup); makeup.connect(dest)
 
           fxCtxRef.current = ctx
