@@ -445,10 +445,10 @@ export function useVoiceAssistant({ navigate, isAr }: Options) {
       ctx.createMediaStreamSource(stream).connect(analyser)
       const buf = new Uint8Array(analyser.fftSize)
 
-      const SPEAK = 0.025        // RMS above this counts as speech (quiet mics included)
-      const SILENCE_MS = 1500    // stop this long after the last word — mid-sentence pauses survive
-      const NO_SPEECH_MS = 6000  // give up if nothing is ever said
-      const MAX_MS = 25000       // hard cap
+      const SPEAK = 0.016        // RMS above this counts as speech — lower so quiet mics are heard
+      const SILENCE_MS = 2600    // stop this long after the last word — long enough that natural mid-sentence pauses don't cut you off
+      const NO_SPEECH_MS = 9000  // give up only if nothing is said for a while
+      const MAX_MS = 30000       // hard cap
       const startedAt = performance.now()
       let sawSpeech = false
       let lastVoiceAt = startedAt
