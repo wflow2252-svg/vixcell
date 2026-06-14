@@ -25,6 +25,8 @@ MODEL_CATALOG = [
     {"name": "llama3.1:8b",     "label": "Llama 3.1 8B",    "size": "4.9 GB", "languages": "English (Arabic OK)", "good_for": "Reasoning, summaries"},
     {"name": "mistral:7b",      "label": "Mistral 7B",      "size": "4.1 GB", "languages": "English",          "good_for": "Fast drafting"},
     {"name": "deepseek-r1:8b",  "label": "DeepSeek R1 8B",  "size": "5.2 GB", "languages": "English + Arabic", "good_for": "Deep reasoning"},
+    {"name": "qwen2.5vl:7b",    "label": "Qwen2.5-VL 7B (رؤية)", "size": "6.0 GB", "languages": "Arabic + English", "good_for": "Reading handwriting/whiteboard → text (vision OCR)"},
+    {"name": "qwen2.5vl:3b",    "label": "Qwen2.5-VL 3B (رؤية، أخف)", "size": "3.2 GB", "languages": "Arabic + English", "good_for": "Lighter vision OCR for weaker machines"},
 ]
 
 # Preferred default for generation when installed (instruct = no think blocks)
@@ -143,7 +145,9 @@ def warm_preferred_model_async() -> None:
 
 
 # Vision-capable local models, in preference order.
-VISION_MODELS = ["llava", "llava:7b", "llama3.2-vision", "qwen2.5vl", "bakllava", "moondream"]
+# Qwen2.5-VL first: far better at multilingual OCR (incl. Arabic handwriting)
+# than llava, so it's preferred for the whiteboard handwriting→text feature.
+VISION_MODELS = ["qwen2.5vl", "qwen2.5vl:7b", "qwen2.5vl:3b", "llava", "llava:7b", "llama3.2-vision", "bakllava", "moondream"]
 
 
 def installed_vision_model() -> Optional[str]:
