@@ -182,6 +182,29 @@ def vision(model: str, prompt: str, image_b64: str,
     return _strip_think((r.json().get("response") or "").strip())
 
 
+def gemini_vision(image_b64: str, api_key: str, prompt: str,
+                  model: str = "gemini-2.0-flash", timeout: float = 60.0) -> str:
+    """
+    Image → text via Google Gemini (free tier). Far better at Arabic handwriting
+    than local models. `image_b64` is raw base64 (no dataURL prefix).
+    """
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    r = httpx.post(url, json={
+        "contents": [{"parts": [
+            {"text": prompt},
+            {"inline_data": {"mime_type": "image/png", "data": image_b64}},
+        ]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 800},
+    }, timeout=timeout)
+    r.raise_for_status()
+    data = r.json()
+    try:
+        parts = data["candidates"][0]["content"]["parts"]
+        return "".join(p.get("text", "") for p in parts).strip()
+    except (KeyError, IndexError):
+        return ""
+
+
 def _strip_think(text: str) -> str:
     """Removes <think>...</think> reasoning blocks some models emit inline."""
     if "</think>" in text:

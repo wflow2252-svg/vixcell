@@ -299,10 +299,22 @@ function loadTesseract() {
   return _tessPromise
 }
 async function localHandwritingToText(imageBase64) {
+  // Best path: inside the Vixcell desktop app → device AI (Gemini if a key is
+  // set, great for Arabic handwriting; else local llava). Via Electron IPC, so
+  // no browser-security hurdles.
+  const eAPI = (typeof window !== 'undefined') ? window.electronAPI : null
+  if (eAPI && eAPI.wbOcr) {
+    try {
+      const t = await eAPI.wbOcr(imageBase64)
+      if (t && t.trim()) return t.trim()
+    } catch (err) { console.warn('app OCR failed, trying in-browser:', err) }
+  }
+  // Fallback (e.g. the client's plain browser): in-browser Tesseract. Weaker,
+  // especially for Arabic handwriting.
   let T
   try { T = await loadTesseract() }
   catch { const e = new Error('ocr-engine'); e.code = 'engine'; throw e }
-  const { data } = await T.recognize(imageBase64, 'eng+ara')
+  const { data } = await T.recognize(imageBase64, 'ara+eng')
   return (data && data.text ? data.text.trim() : '')
 }
 

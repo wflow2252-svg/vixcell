@@ -72,6 +72,15 @@ INTEGRATION_PROVIDERS: Dict[str, Dict[str, Any]] = {
             {"key": "voice_id", "label": "Voice ID (اختياري)", "secret": False},
         ],
     },
+    "gemini": {
+        "label": "Google Gemini (قراءة خط اليد في السبورة)",
+        "icon": "🔎",
+        "help": "اعمل مفتاح مجاني من Google AI Studio → Get API key، والصقه هنا. بيُستخدم لتحويل خط اليد (عربي/إنجليزي) لنص في السبورة.",
+        "setup_url": "https://aistudio.google.com/app/apikey",
+        "fields": [
+            {"key": "api_key", "label": "API Key", "secret": True},
+        ],
+    },
     "smtp": {
         "label": "Email (SMTP)",
         "icon": "✉️",
