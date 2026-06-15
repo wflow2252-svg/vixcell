@@ -85,10 +85,28 @@ export default function CoworkPage() {
   }
   const toggleVoice = () => (recording ? stopVoice() : startVoice())
 
+  // Shrink big images before upload — a full-res photo makes CPU vision time out
+  // / overflow the model context. ~1280px is plenty for reading text.
+  const downscaleImage = (file: File, max = 1280): Promise<File> => new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      let w = img.width, h = img.height
+      if (w <= max && h <= max) { resolve(file); return }
+      if (w >= h) { h = Math.round(h * max / w); w = max } else { w = Math.round(w * max / h); h = max }
+      const c = document.createElement('canvas'); c.width = w; c.height = h
+      c.getContext('2d')?.drawImage(img, 0, 0, w, h)
+      c.toBlob(b => resolve(b ? new File([b], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file),
+        'image/jpeg', 0.85)
+    }
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
+
   // ── File analysis: upload → AI (vision for images, LLM for text) ──
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
+    let f = e.target.files?.[0]
     if (!f) return
+    if (f.type.startsWith('image/')) { try { f = await downscaleImage(f) } catch {} }
     setAnalyzing(true); setFileResult(null)
     const t = toast.loading(isAr ? 'بحلّل الملف...' : 'Analyzing...')
     try {
