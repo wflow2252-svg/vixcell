@@ -177,7 +177,7 @@ def vision(model: str, prompt: str, image_b64: str,
             "prompt": prompt,
             "images": [image_b64],
             "stream": False,
-            "options": {"temperature": temperature, "num_predict": max_tokens},
+            "options": {"temperature": temperature, "num_predict": max_tokens, "num_ctx": 8192},
             "keep_alive": "15m",
         },
         timeout=timeout,
@@ -240,7 +240,10 @@ def chat(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    options = {"temperature": temperature, "num_predict": max_tokens}
+    # num_ctx capped so the KV cache stays small — without it Ollama can try to
+    # allocate the model's full (256K) context and OOM, especially when a vision
+    # model is also loaded (Cowork + whiteboard OCR together).
+    options = {"temperature": temperature, "num_predict": max_tokens, "num_ctx": 8192}
     # Higher repeat penalty curbs the "بس بس بس" degeneration small quantized
     # models fall into on free-form Arabic prose.
     if repeat_penalty is not None:
