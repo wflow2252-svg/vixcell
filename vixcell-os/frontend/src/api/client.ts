@@ -231,6 +231,14 @@ export const automationAPI = {
   plan: (goal: string) => api.post('/automation/plan', { goal }, { timeout: 120000 }),
   runSteps: (goal: string, steps: any[]) =>
     api.post('/automation/run-steps', { goal, steps }, { timeout: 600000 }),
+  analyzeFile: (file: File, question = '') => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    form.append('question', question)
+    return api.post('/automation/analyze-file', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000,
+    })
+  },
 }
 
 // ── Training Center ─────────────────────────────────────────────────────────────

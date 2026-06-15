@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 TOOLS = {
     "open_app":       'فتح برنامج على الجهاز. args: {"target": "اسم البرنامج"}',
     "open_url":       'فتح موقع. args: {"target": "اسم الموقع أو الرابط"}',
+    "play_youtube":   'فتح يوتيوب على نتيجة أغنية/فيديو جاهزة للتشغيل (مش بحث جوجل). args: {"query": "اسم الأغنية/الفيديو"}',
     "open_folder":    'فتح فولدر. args: {"target": "اسم الفولدر"}',
     "search_web":     'بحث في جوجل. args: {"query": "..."}',
     "create_task":    'إضافة مهمة. args: {"title": "..."}',
@@ -61,6 +62,11 @@ def plan(goal: str) -> list:
     system = (
         "انت وكيل أتمتة. حوّل هدف المستخدم لخطوات منفّذة بالأدوات دي بس:\n"
         f"{tool_lines}\n"
+        "قواعد مهمة:\n"
+        "- لو قال «افتح» أو «شغّل» أغنية/فيديو/يوتيوب → استخدم play_youtube (مش search_web).\n"
+        "- لو قال يفتح موقع أو برنامج معيّن → open_url/open_app يروح للمكان الفعلي مباشرة.\n"
+        "- استخدم search_web بس لو طلب «ابحث» أو «دوّر» صراحة.\n"
+        '- ابعت واتساب بـ send_whatsapp لما يقول «ابعت/كلّم». اكتب محتوى بـ generate_content.\n'
         'رجّع JSON بس: {"steps": [{"tool": "...", "args": {...}}]}. '
         "بحد أقصى 6 خطوات، بالترتيب المنطقي. لو الهدف مش ينفّذ بالأدوات دي رجّع steps فاضية."
     )
@@ -85,6 +91,10 @@ def _run_step(db: Session, tenant_id: str, tool: str, args: dict) -> dict:
         return system_control.open_app(args.get("target", ""))
     if tool == "open_url":
         return system_control.open_url(args.get("target", ""))
+    if tool == "play_youtube":
+        from urllib.parse import quote
+        q = (args.get("query") or args.get("target") or "").strip()
+        return system_control.open_url(f"https://www.youtube.com/results?search_query={quote(q)}")
     if tool == "open_folder":
         return system_control.open_folder(args.get("target", ""))
     if tool == "search_web":

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import toast from 'react-hot-toast'
 import Icon from '@/components/Icon'
-import { automationAPI } from '@/api/client'
+import { automationAPI, voiceAPI } from '@/api/client'
 import { useAppStore } from '@/store'
 
 interface Step { tool: string; args: Record<string, any>; status?: string; result?: any }
@@ -45,6 +45,63 @@ export default function CoworkPage() {
   const [steps, setSteps] = useState<Step[]>([])
   const [phase, setPhase] = useState<'idle' | 'planning' | 'review' | 'running' | 'done'>('idle')
   const [resultMsg, setResultMsg] = useState('')
+  const [recording, setRecording] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [fileResult, setFileResult] = useState<{ name: string; analysis: string } | null>(null)
+  const recRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // ── Voice input: record → Whisper transcribe → fill the goal ──
+  const startVoice = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      chunksRef.current = []
+      const rec = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      recRef.current = rec
+      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        if (blob.size < 1000) return
+        const t = toast.loading(isAr ? 'بسمعك...' : 'Transcribing...')
+        try {
+          const res = await voiceAPI.transcribe(blob)
+          const txt = res.data.text
+          if (txt) setGoal(g => (g ? g + ' ' : '') + txt)
+          toast.dismiss(t)
+        } catch (err: any) {
+          toast.error(err?.response?.data?.detail || (isAr ? 'مش قادر أسمع — جرّب تاني' : 'Transcribe failed'), { id: t })
+        }
+      }
+      rec.start(); setRecording(true)
+    } catch {
+      toast.error(isAr ? 'مفيش صلاحية مايك' : 'Mic permission denied')
+    }
+  }
+  const stopVoice = () => {
+    if (recRef.current?.state === 'recording') recRef.current.stop()
+    setRecording(false)
+  }
+  const toggleVoice = () => (recording ? stopVoice() : startVoice())
+
+  // ── File analysis: upload → AI (vision for images, LLM for text) ──
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setAnalyzing(true); setFileResult(null)
+    const t = toast.loading(isAr ? 'بحلّل الملف...' : 'Analyzing...')
+    try {
+      const res = await automationAPI.analyzeFile(f, goal.trim())
+      setFileResult({ name: res.data.name || f.name, analysis: res.data.analysis || '' })
+      toast.dismiss(t)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || (isAr ? 'فشل تحليل الملف' : 'Analyze failed'), { id: t })
+    } finally {
+      setAnalyzing(false)
+      if (e.target) e.target.value = ''
+    }
+  }
 
   const makePlan = async () => {
     if (!goal.trim()) { toast.error(isAr ? 'اكتب اللي عايزه' : 'Type a goal'); return }
@@ -99,6 +156,19 @@ export default function CoworkPage() {
           disabled={busy}
           placeholder={isAr ? 'مثال: افتحلي واتساب وابعت لأحمد إن الاجتماع اتأجل لبكرة' : 'e.g. Open WhatsApp and message Ahmed...'} />
         <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={toggleVoice} title={isAr ? 'اتكلّم بدل ما تكتب' : 'Speak'}
+            className={`btn-ghost text-sm flex items-center gap-2 ${recording ? 'border border-red-500/50 text-red-300' : ''}`}>
+            <Icon name={recording ? 'stop_circle' : 'mic'} size={16} />
+            {recording ? (isAr ? 'بسمعك… اقفل' : 'Listening… stop') : (isAr ? 'بالصوت' : 'Speak')}
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} disabled={analyzing}
+            title={isAr ? 'ارفع ملف/صورة والذكاء يحلّلها' : 'Analyze a file'}
+            className="btn-ghost text-sm flex items-center gap-2">
+            {analyzing ? <span className="w-4 h-4 border-2 border-slate-500 border-t-brand-500 rounded-full animate-spin" /> : <Icon name="attach_file" size={16} />}
+            {isAr ? 'حلّل ملف' : 'Analyze file'}
+          </button>
+          <input ref={fileInputRef} type="file" onChange={onFile} className="hidden"
+            accept="image/*,.txt,.md,.csv,.json,.log" />
           {(phase === 'idle' || phase === 'review' || phase === 'done') && (
             <button onClick={makePlan} disabled={busy} className="btn-primary text-sm flex items-center gap-2">
               <Icon name="auto_awesome" size={16} />{isAr ? 'اعمل خطة' : 'Plan'}
@@ -127,6 +197,18 @@ export default function CoworkPage() {
           </div>
         )}
       </div>
+
+      {/* File analysis result */}
+      {fileResult && (
+        <div className="glass-card p-4">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-2">
+            <Icon name="description" size={16} className="text-brand-400" />
+            {isAr ? 'تحليل الملف' : 'File analysis'}:
+            <span className="text-slate-400 font-normal truncate">{fileResult.name}</span>
+          </h3>
+          <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed" dir="auto">{fileResult.analysis}</p>
+        </div>
+      )}
 
       {/* Plan / execution */}
       {steps.length > 0 && (
