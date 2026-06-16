@@ -2620,6 +2620,19 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
     setPendingKnocks(prev => prev.filter(k => k.senderId !== knock.senderId))
   }
 
+  // ── Google-Meet style layout state ──
+  // "presenting" = something is on the main stage (a screen share / whiteboard),
+  // so participants collapse into the side filmstrip. Otherwise they fill the
+  // stage as a responsive tile grid (side-by-side, like Meet).
+  const presenting = whiteboardActive || (sharing && !!screenStream) || hasRemoteVideo
+  const tiles = [
+    { key: 'local', name: displayName, mic: micOn, isLocal: true, isHost: isAdminMode, stream: localStream },
+    ...peers.map(p => {
+      const pe = peersMapRef.current.get(p.id)
+      return { key: p.id, name: p.name, mic: p.mic, isLocal: false, isHost: !isAdminMode, stream: (pe && pe.remoteStream) || null }
+    }),
+  ]
+
   return (
     <div ref={roomRef} style={{ ...rm.root, ...(fullscreen ? rm.rootFull : {}) }}>
 
@@ -2675,8 +2688,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
       {/* ── BODY ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* ── VIDEO AREA ── */}
-        <div style={{ flex: 1, position: 'relative', background: '#000', overflow: 'hidden', margin: 10, borderRadius: 18 }}>
+        {/* ── VIDEO AREA (Google-Meet style: stage + filmstrip) ── */}
+        <div style={rm.stageOuter}>
+        <div style={rm.stageMain}>
           {whiteboardActive ? (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', background: C.bg, position: 'relative', zIndex: 10 }}>
               <div style={{ ...rm.wbBar, flexWrap: 'wrap', height: 'auto', minHeight: 48, padding: '8px 16px', gap: 6 }}>
@@ -2930,60 +2944,24 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
               </div>
             </div>
           ) : (
-            <div style={{ ...rm.mainPlaceholder, background: '#0e0e11', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{
-                width: 140, height: 140, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #1a73e8, #a142f4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 12px 36px rgba(26,115,232,0.15)',
-                position: 'relative',
-                animation: (firstPeer && firstPeer.mic) ? 'recPulse 1.5s infinite' : 'none'
-              }}>
-                <Icon name="mic" size={56} style={{ color: '#fff' }} />
-                {firstPeer && !firstPeer.mic && (
-                  <div style={{
-                    position: 'absolute', bottom: 5, right: 5,
-                    width: 36, height: 36, borderRadius: '50%', background: C.red,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: '3px solid #0e0e11'
-                  }}>
-                    <Icon name="mic_off" size={18} style={{ color: '#fff' }} />
-                  </div>
-                )}
-              </div>
-              
-              <h3 style={{ color: C.text, fontSize: 18, fontWeight: 700, marginTop: 24, marginBottom: 8, fontFamily: FONT }}>
-                {remoteName || (firstPeer ? firstPeer.name : 'في انتظار انضمام الطرف الآخر...')}
-              </h3>
-              
-              <p style={{ color: C.text3, fontSize: 13, fontFamily: FONT }}>
-                {firstPeer ? (firstPeer.mic ? 'متصل بالصوت' : 'مكتوم الصوت') : 'شارك الرابط للبدء'}
-              </p>
-              
-              {isAdminMode && !firstPeer && (
-                <button onClick={copyInvite} style={rm.waitingCopyBtn}>
-                  <Icon name={inviteCopied ? 'check_circle' : 'link'} size={18} />
-                  {inviteCopied ? 'تم نسخ الرابط!' : 'نسخ رابط الاجتماع للعميل'}
-                </button>
-              )}
-            </div>
+            <ParticipantGrid
+              tiles={tiles}
+              isAdminMode={isAdminMode}
+              inviteCopied={inviteCopied}
+              onCopyInvite={copyInvite}
+            />
           )}
 
-        {/* Local Audio Pill instead of video PiP */}
-        <div style={{ ...rm.pip, border: `1px solid ${micOn ? 'rgba(26,115,232,0.35)' : 'rgba(234,67,53,0.35)'}` }}>
-          <div style={{ ...rm.pipOff, background: C.bg2, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: micOn ? 'linear-gradient(135deg, #1a73e8, #4a90e2)' : C.bg3,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: micOn ? '0 4px 10px rgba(26,115,232,0.2)' : 'none'
-            }}>
-              <Icon name={micOn ? 'mic' : 'mic_off'} size={14} style={{ color: '#fff' }} />
-            </div>
-            <span style={{ color: C.text, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>{displayName}</span>
+        </div>{/* stageMain */}
+
+        {presenting && tiles.length > 0 && (
+          <div style={rm.filmstrip}>
+            {tiles.map(t => (
+              <ParticipantTile key={t.key} name={t.name} mic={t.mic} isLocal={t.isLocal} isHost={t.isHost} stream={t.stream} small />
+            ))}
           </div>
-        </div>
-        </div>
+        )}
+        </div>{/* stageOuter */}
 
         {/* ── SIDE PANEL ── */}
         {!!panel && (
@@ -3263,6 +3241,141 @@ function PanelBtn({ icon, label, active, onClick, badge }) {
         }}>{badge}</span>
       )}
       <span style={{ color: active ? C.blue : C.text2, fontSize: 10, fontFamily: FONT }}>{label}</span>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════
+   PARTICIPANT TILES (Google-Meet style)
+═══════════════════════════════════════════════ */
+// One shared AudioContext for ALL tiles — avoids hitting the browser's per-page
+// AudioContext limit when there are many participants. Never closed; reused.
+let _tileAudioCtx = null
+function tileAudioCtx() {
+  if (typeof window === 'undefined') return null
+  const AC = window.AudioContext || window.webkitAudioContext
+  if (!AC) return null
+  if (!_tileAudioCtx || _tileAudioCtx.state === 'closed') {
+    try { _tileAudioCtx = new AC() } catch { return null }
+  }
+  if (_tileAudioCtx.state === 'suspended') _tileAudioCtx.resume().catch(() => {})
+  return _tileAudioCtx
+}
+
+// Active-speaker detection: true while the stream's audio is above a small
+// threshold (with hysteresis so the speaking ring doesn't flicker). Returns
+// false for muted/absent audio. The analyser is read-only — never routed to
+// output, so there's no echo.
+function useSpeaking(stream) {
+  const [speaking, setSpeaking] = useState(false)
+  useEffect(() => {
+    const tracks = stream && stream.getAudioTracks ? stream.getAudioTracks() : []
+    if (!tracks.length) { setSpeaking(false); return }
+    const ctx = tileAudioCtx()
+    if (!ctx) { setSpeaking(false); return }
+    let src, analyser
+    try {
+      src = ctx.createMediaStreamSource(stream)
+      analyser = ctx.createAnalyser()
+      analyser.fftSize = 512
+      analyser.smoothingTimeConstant = 0.6
+      src.connect(analyser)
+    } catch { setSpeaking(false); return }
+    const data = new Uint8Array(analyser.frequencyBinCount)
+    let hold = 0
+    const timer = setInterval(() => {
+      analyser.getByteFrequencyData(data)
+      let sum = 0
+      for (let i = 0; i < data.length; i++) sum += data[i]
+      const avg = sum / data.length
+      hold = avg > 16 ? Math.min(hold + 2, 6) : Math.max(hold - 1, 0)
+      const next = hold >= 3
+      setSpeaking(prev => (prev === next ? prev : next))
+    }, 140)
+    return () => {
+      clearInterval(timer)
+      try { src.disconnect() } catch {}
+      try { analyser.disconnect() } catch {}
+    }
+  }, [stream])
+  return speaking
+}
+
+function ParticipantTile({ name, mic = true, isLocal = false, isHost = false, stream = null, small = false }) {
+  // Only watch the stream for the speaking ring when the mic is live.
+  const speaking = useSpeaking(mic ? stream : null)
+  const label = (name || 'مشارك').trim()
+  const initial = (label[0] || 'م').toUpperCase()
+  const av = small ? 46 : 90
+  return (
+    <div style={{
+      ...rm.tile,
+      ...(small ? rm.tileSmall : {}),
+      border: speaking ? '2px solid rgba(52,168,83,0.95)' : `1px solid ${C.border}`,
+      boxShadow: speaking
+        ? '0 0 0 4px rgba(52,168,83,0.18), 0 10px 30px rgba(0,0,0,0.35)'
+        : '0 10px 30px rgba(0,0,0,0.35)',
+    }}>
+      <div style={{
+        ...rm.tileAvatar,
+        width: av, height: av, fontSize: Math.round(av * 0.42),
+        background: isLocal
+          ? 'linear-gradient(135deg, #1a73e8, #4a90e2)'
+          : 'linear-gradient(135deg, #34a853, #1e7e34)',
+        animation: speaking ? 'recPulse 1.5s ease-in-out infinite' : 'none',
+      }}>{initial}</div>
+
+      <div style={rm.tileName}>
+        <Icon name={mic ? 'mic' : 'mic_off'} size={small ? 12 : 14} style={{ color: mic ? '#fff' : C.red }} />
+        <span style={{
+          color: '#fff', fontSize: small ? 11 : 13, fontWeight: 600, fontFamily: FONT,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>{label}{isLocal ? ' (أنت)' : ''}</span>
+      </div>
+
+      {isHost && <span style={rm.tileHostTag}>مضيف</span>}
+    </div>
+  )
+}
+
+function gridCols(n) {
+  if (n <= 1) return 1
+  if (n <= 4) return 2
+  if (n <= 9) return 3
+  return 4
+}
+
+function ParticipantGrid({ tiles, isAdminMode, inviteCopied, onCopyInvite }) {
+  // Alone in the room → show one big tile + an invite prompt (admin).
+  if (tiles.length <= 1) {
+    const t = tiles[0]
+    return (
+      <div style={rm.gridWrap}>
+        <div style={rm.soloTile}>
+          {t && <ParticipantTile name={t.name} mic={t.mic} isLocal={t.isLocal} isHost={t.isHost} stream={t.stream} />}
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: C.text2, fontSize: 14, fontWeight: 600, fontFamily: FONT, margin: '0 0 12px' }}>
+            في انتظار انضمام الآخرين…
+          </p>
+          {isAdminMode && (
+            <button onClick={onCopyInvite} style={rm.waitingCopyBtn}>
+              <Icon name={inviteCopied ? 'check_circle' : 'link'} size={18} />
+              {inviteCopied ? 'تم نسخ الرابط!' : 'نسخ رابط الاجتماع للعميل'}
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+  const cols = gridCols(tiles.length)
+  return (
+    <div style={rm.gridWrap}>
+      <div style={{ ...rm.grid, gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+        {tiles.map(t => (
+          <ParticipantTile key={t.key} name={t.name} mic={t.mic} isLocal={t.isLocal} isHost={t.isHost} stream={t.stream} />
+        ))}
+      </div>
     </div>
   )
 }
@@ -4197,6 +4310,43 @@ const rm = {
   },
   ctrlGroup: { display: 'flex', alignItems: 'center', gap: 16 },
   ctrlDivider: { width: 1, height: 34, background: C.border, margin: '0 2px' },
+
+  // ── Google-Meet style stage + participant tiles ──
+  stageOuter: { flex: 1, display: 'flex', gap: 10, margin: 10, minWidth: 0, minHeight: 0 },
+  stageMain: { flex: 1, position: 'relative', background: '#000', borderRadius: 18, overflow: 'hidden', minWidth: 0 },
+  filmstrip: {
+    width: 208, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10,
+    overflowY: 'auto', overflowX: 'hidden', paddingBottom: 84,
+  },
+  gridWrap: {
+    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 18, padding: '20px 20px 92px',
+  },
+  grid: { display: 'grid', gap: 12, width: '100%', height: '100%', gridAutoRows: '1fr' },
+  soloTile: { width: 'min(72%, 520px)', aspectRatio: '16 / 10', maxHeight: '58vh' },
+  tile: {
+    position: 'relative', width: '100%', height: '100%', minWidth: 0, minHeight: 0,
+    background: 'radial-gradient(120% 120% at 50% 0%, #23232b 0%, #131318 100%)',
+    border: `1px solid ${C.border}`, borderRadius: 18,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.35)', transition: 'border-color .2s, box-shadow .2s',
+  },
+  tileSmall: { width: '100%', height: 140, minHeight: 140, flexShrink: 0, borderRadius: 14 },
+  tileAvatar: {
+    borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#fff', fontWeight: 700, fontFamily: FONT, boxShadow: '0 8px 22px rgba(0,0,0,0.4)',
+  },
+  tileName: {
+    position: 'absolute', bottom: 10, insetInlineStart: 10,
+    display: 'flex', alignItems: 'center', gap: 5, maxWidth: 'calc(100% - 20px)',
+    background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+    borderRadius: 10, padding: '4px 10px',
+  },
+  tileHostTag: {
+    position: 'absolute', top: 10, insetInlineEnd: 10,
+    background: 'rgba(26,115,232,0.9)', color: '#fff', fontSize: 10, fontWeight: 700,
+    borderRadius: 8, padding: '2px 9px', fontFamily: FONT,
+  },
 }
 
 const arc = {
