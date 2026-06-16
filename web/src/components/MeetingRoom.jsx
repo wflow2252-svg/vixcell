@@ -1043,32 +1043,16 @@ function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream
         <h2 style={pre.title}>جاهز للانضمام؟</h2>
 
         <div style={pre.grid}>
-          {/* Audio & Participant Card */}
+          {/* Vixcell logo animation (hero) + mic toggle */}
           <div style={pre.previewWrap}>
-            <div style={{ ...pre.preview, background: C.bg2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-              <div style={{
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontSize: 32,
-                fontWeight: 700,
-                boxShadow: '0 8px 24px rgba(26,115,232,0.3)',
-                animation: micOn ? 'recPulse 1.5s infinite' : 'none'
-              }}>
-                {displayName ? displayName[0] : 'ع'}
-              </div>
-              <div style={{ color: C.text, fontWeight: 700, fontSize: 16, fontFamily: FONT }}>{displayName}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: micOn ? C.green : C.red }} />
-                <span style={{ color: C.text2, fontSize: 12, fontFamily: FONT }}>{micOn ? 'الميكروفون مفعّل' : 'الميكروفون مكتوم'}</span>
+            <div style={{ ...pre.preview, background: 'transparent', boxShadow: 'none' }}>
+              <VixcellIntro />
+              <div style={pre.previewName}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: micOn ? C.green : C.red, display: 'inline-block', marginInlineEnd: 6 }} />
+                {displayName} · {micOn ? 'الميكروفون مفعّل' : 'مكتوم'}
               </div>
               <div style={pre.previewCtrls}>
-                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(255,255,255,0.12)' : C.red }}>
+                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(0,0,0,0.45)' : C.red }}>
                   <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#fff' }} />
                 </button>
               </div>
@@ -1169,6 +1153,11 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   const [voiceFx, setVoiceFx] = useState(false)
   const fxTrackRef = useRef(null)
   const fxCtxRef = useRef(null)
+
+  // Entry splash (Vixcell logo animation) shown briefly when joining, and a
+  // collapsible participant strip (opens/closes) for the presenting layout.
+  const [showIntro, setShowIntro] = useState(true)
+  const [stripOpen, setStripOpen] = useState(true)
 
   const firstPeer = peers[0]
   const isReconnecting = firstPeer && (firstPeer.presenceOffline || firstPeer.conn === 'disconnected' || firstPeer.conn === 'failed')
@@ -2636,6 +2625,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
   return (
     <div ref={roomRef} style={{ ...rm.root, ...(fullscreen ? rm.rootFull : {}) }}>
 
+      {/* ── ENTRY SPLASH (Vixcell logo animation) ── */}
+      {showIntro && <VixcellIntro splash onDone={() => setShowIntro(false)} />}
+
       {/* ── KNOCK NOTIFICATION (admin only) ── */}
       {isAdminMode && pendingKnocks.map(knock => (
         <div key={knock.senderId} style={rm.knockBanner}>
@@ -2955,11 +2947,24 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
         </div>{/* stageMain */}
 
         {presenting && tiles.length > 0 && (
-          <div style={rm.filmstrip}>
-            {tiles.map(t => (
-              <ParticipantTile key={t.key} name={t.name} mic={t.mic} isLocal={t.isLocal} isHost={t.isHost} stream={t.stream} small />
-            ))}
-          </div>
+          stripOpen ? (
+            <div style={rm.filmstrip}>
+              <button onClick={() => setStripOpen(false)} style={rm.stripHeaderBtn} title="إخفاء المشاركين">
+                <Icon name="chevron_right" size={18} style={{ color: C.text2 }} />
+                <span style={{ color: C.text2, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
+                  المشاركون · {tiles.length}
+                </span>
+              </button>
+              {tiles.map(t => (
+                <ParticipantTile key={t.key} name={t.name} mic={t.mic} isLocal={t.isLocal} isHost={t.isHost} stream={t.stream} small />
+              ))}
+            </div>
+          ) : (
+            <button onClick={() => setStripOpen(true)} style={rm.stripReopen} title="إظهار المشاركين">
+              <Icon name="group" size={20} style={{ color: '#fff' }} />
+              <span style={rm.stripToggleCount}>{tiles.length}</span>
+            </button>
+          )
         )}
         </div>{/* stageOuter */}
 
@@ -3246,6 +3251,59 @@ function PanelBtn({ icon, label, active, onClick, badge }) {
 }
 
 /* ═══════════════════════════════════════════════
+   VIXCELL LOGO INTRO — an orange spark flies in with a
+   comet trail and lands as the dot of the "i" in Vixcell.
+   `splash`  → full-screen overlay that fades out (on entering the meeting).
+   otherwise → inline hero used on the pre-join screens.
+═══════════════════════════════════════════════ */
+const vxSplashRoot = {
+  position: 'absolute', inset: 0, zIndex: 9000,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  background: 'linear-gradient(180deg, #f5f6f8 0%, #e7e9ee 100%)',
+  animation: 'vxIntroOut 2.6s ease forwards',
+}
+const vxHeroRoot = {
+  width: '100%', height: '100%', minHeight: 220,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  background: 'linear-gradient(180deg, #f6f7f9 0%, #eceef2 100%)',
+  borderRadius: 20, overflow: 'hidden', position: 'relative',
+}
+const vxWordStyle = {
+  fontSize: 'clamp(34px, 6vw, 60px)', fontWeight: 700, letterSpacing: '0.06em',
+  color: '#1f2024', display: 'inline-flex', alignItems: 'baseline',
+  animation: 'vxWordIn .9s ease both', whiteSpace: 'nowrap', userSelect: 'none',
+}
+const vxDotStyle = {
+  position: 'absolute', top: '-0.22em', left: '50%', width: '0.16em', height: '0.16em',
+  marginLeft: '-0.08em', borderRadius: '50%',
+  background: 'radial-gradient(circle at 35% 30%, #ffd2a8, #ff7a18 55%, #ef5a05)',
+  boxShadow: '0 0 0.5em 0.12em rgba(255,110,0,0.55)',
+  animation: 'vxSparkFly 1.5s cubic-bezier(.18,.7,.2,1) both',
+}
+function VixcellIntro({ splash = false, onDone }) {
+  useEffect(() => {
+    if (!splash) return
+    const t = setTimeout(() => { if (onDone) onDone() }, 2600)
+    return () => clearTimeout(t)
+  }, [splash, onDone])
+
+  const word = (
+    <div className="vxWord" style={vxWordStyle}>
+      <span>V</span>
+      <span style={{ position: 'relative', display: 'inline-block' }}>
+        {'ı'}{/* dotless ı — the spark becomes its dot */}
+        <span className="vxDot" style={vxDotStyle} />
+      </span>
+      <span>xcell</span>
+    </div>
+  )
+
+  return splash
+    ? <div style={vxSplashRoot}>{word}</div>
+    : <div style={vxHeroRoot}>{word}</div>
+}
+
+/* ═══════════════════════════════════════════════
    PARTICIPANT TILES (Google-Meet style)
 ═══════════════════════════════════════════════ */
 // One shared AudioContext for ALL tiles — avoids hitting the browser's per-page
@@ -3442,14 +3500,9 @@ function WaitingRoom({ meetingId, displayName, logoUrl, onAdmitted, onBack }) {
       <div style={wait.card}>
         <img src={logoUrl || '/logo.png'} alt="Vixcell" style={{ height: 28, marginBottom: 24 }} />
 
-        {/* Pulse animation */}
-        <div style={wait.pulseWrap}>
-          <div style={wait.pulse3} />
-          <div style={wait.pulse2} />
-          <div style={wait.pulse1} />
-          <div style={wait.icon}>
-            <Icon name="person" size={32} style={{ color: '#fff' }} />
-          </div>
+        {/* Vixcell logo animation */}
+        <div style={{ width: '100%', height: 170, marginBottom: 10 }}>
+          <VixcellIntro />
         </div>
 
         <h2 style={wait.title}>في انتظار الموافقة{dots}</h2>
@@ -3514,32 +3567,16 @@ function ClientLobby({ logoUrl, localStream, camOn, micOn, toggleCam, toggleMic,
         )}
 
         <div style={pre.grid}>
-          {/* Audio & Participant Card */}
+          {/* Vixcell logo animation (hero) + mic toggle */}
           <div style={pre.previewWrap}>
-            <div style={{ ...pre.preview, background: C.bg2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-              <div style={{
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontSize: 32,
-                fontWeight: 700,
-                boxShadow: '0 8px 24px rgba(26,115,232,0.3)',
-                animation: micOn ? 'recPulse 1.5s infinite' : 'none'
-              }}>
-                {(name || 'ع')[0]}
-              </div>
-              <div style={{ color: C.text, fontWeight: 700, fontSize: 16, fontFamily: FONT }}>{name || 'الاسم'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: micOn ? C.green : C.red }} />
-                <span style={{ color: C.text2, fontSize: 12, fontFamily: FONT }}>{micOn ? 'الميكروفون مفعّل' : 'الميكروفون مكتوم'}</span>
+            <div style={{ ...pre.preview, background: 'transparent', boxShadow: 'none' }}>
+              <VixcellIntro />
+              <div style={pre.previewName}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: micOn ? C.green : C.red, display: 'inline-block', marginInlineEnd: 6 }} />
+                {name || 'الاسم'} · {micOn ? 'الميكروفون مفعّل' : 'مكتوم'}
               </div>
               <div style={pre.previewCtrls}>
-                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(255,255,255,0.12)' : C.red }}>
+                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(0,0,0,0.45)' : C.red }}>
                   <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#fff' }} />
                 </button>
               </div>
@@ -4046,7 +4083,7 @@ const pre = {
     fontFamily: FONT, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24,
   },
   title: { color: C.text, fontSize: 28, fontWeight: 800, marginBottom: 28, textAlign: 'center' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 },
+  grid: { display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 28, alignItems: 'center' },
   previewWrap: {},
   preview: {
     background: '#000', borderRadius: 20, overflow: 'hidden',
@@ -4117,7 +4154,7 @@ const pre = {
 const rm = {
   root: {
     display: 'flex', flexDirection: 'column', height: '100vh',
-    background: '#050507', fontFamily: FONT, overflow: 'hidden', position: 'relative',
+    background: '#202124', fontFamily: FONT, overflow: 'hidden', position: 'relative',
   },
   rootFull: { position: 'fixed', inset: 0, zIndex: 9999 },
   topBar: {
@@ -4312,12 +4349,26 @@ const rm = {
   ctrlDivider: { width: 1, height: 34, background: C.border, margin: '0 2px' },
 
   // ── Google-Meet style stage + participant tiles ──
-  stageOuter: { flex: 1, display: 'flex', gap: 10, margin: 10, minWidth: 0, minHeight: 0 },
-  stageMain: { flex: 1, position: 'relative', background: '#000', borderRadius: 18, overflow: 'hidden', minWidth: 0 },
+  stageOuter: { flex: 1, position: 'relative', display: 'flex', gap: 10, margin: 10, minWidth: 0, minHeight: 0 },
+  stageMain: { flex: 1, position: 'relative', background: '#16171a', borderRadius: 18, overflow: 'hidden', minWidth: 0 },
   filmstrip: {
     width: 208, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10,
     overflowY: 'auto', overflowX: 'hidden', paddingBottom: 84,
+    animation: 'vxStripIn .22s ease',
   },
+  stripHeaderBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%',
+    background: 'rgba(255,255,255,0.04)', border: `1px solid ${C.border}`, borderRadius: 10,
+    padding: '7px 10px', cursor: 'pointer', flexShrink: 0,
+  },
+  stripReopen: {
+    position: 'absolute', top: '50%', insetInlineEnd: 10, transform: 'translateY(-50%)', zIndex: 30,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+    width: 46, height: 54, borderRadius: 12,
+    background: 'rgba(32,33,36,0.85)', backdropFilter: 'blur(10px)', border: `1px solid ${C.border}`,
+    cursor: 'pointer', boxShadow: '0 6px 18px rgba(0,0,0,0.5)',
+  },
+  stripToggleCount: { color: '#fff', fontSize: 11, fontWeight: 700, fontFamily: FONT },
   gridWrap: {
     position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center', gap: 18, padding: '20px 20px 92px',
@@ -4326,7 +4377,7 @@ const rm = {
   soloTile: { width: 'min(72%, 520px)', aspectRatio: '16 / 10', maxHeight: '58vh' },
   tile: {
     position: 'relative', width: '100%', height: '100%', minWidth: 0, minHeight: 0,
-    background: 'radial-gradient(120% 120% at 50% 0%, #23232b 0%, #131318 100%)',
+    background: 'radial-gradient(120% 120% at 50% 0%, #3c4043 0%, #2a2b2e 100%)',
     border: `1px solid ${C.border}`, borderRadius: 18,
     display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     boxShadow: '0 10px 30px rgba(0,0,0,0.35)', transition: 'border-color .2s, box-shadow .2s',
@@ -4495,6 +4546,13 @@ if (typeof document !== 'undefined' && !document.getElementById('vx-meet-kf')) {
     @keyframes recPulse { 0%,100%{opacity:1} 50%{opacity:0.15} }
     @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
     @keyframes waitPulse { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(1.8);opacity:0} }
+    @keyframes vxSparkFly { 0%{transform:translate(2.2em,-2.6em) scale(.4);opacity:0} 12%{opacity:1} 55%{transform:translate(.7em,-1em) scale(.85);opacity:1} 82%{transform:translate(-.05em,.06em) scale(1.18)} 100%{transform:translate(0,0) scale(1);opacity:1} }
+    @keyframes vxTrail { 0%{opacity:0;height:0} 18%{opacity:.95;height:1.4em} 65%{opacity:.6;height:.7em} 100%{opacity:0;height:0} }
+    @keyframes vxWordIn { from{opacity:0;letter-spacing:.24em;filter:blur(5px)} to{opacity:1;letter-spacing:.06em;filter:blur(0)} }
+    @keyframes vxIntroOut { 0%,72%{opacity:1;visibility:visible} 100%{opacity:0;visibility:hidden} }
+    @keyframes vxStripIn { from{opacity:0;transform:translateX(12px)} to{opacity:1;transform:translateX(0)} }
+    .vxWord { font-family:'Outfit','Cairo',sans-serif !important; }
+    .vxDot::before { content:''; position:absolute; left:50%; bottom:45%; width:.07em; transform:translateX(-50%); background:linear-gradient(to top, rgba(255,110,0,0), rgba(255,150,40,.95)); filter:blur(1.5px); border-radius:1em; animation:vxTrail 1.5s ease-out both; }
     * { font-family: 'Cairo', 'Outfit', sans-serif !important; }
     .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
     button:hover { filter: brightness(1.1); }
