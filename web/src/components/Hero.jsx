@@ -15,12 +15,12 @@ export default function Hero({ onStartProject, lang }) {
     const ctx = gsap.context(() => {
       // Fade in text elements
       gsap.fromTo(contentRef.current.querySelectorAll('.hero-fade-in'), 
-        { opacity: 0, y: 35 },
+        { opacity: 0, y: 30 },
         { opacity: 1, y: 0, duration: 1.2, stagger: 0.15, ease: 'power4.out', delay: 0.2 }
       )
       // Fade in mockup frame
       gsap.fromTo(mockupRef.current,
-        { opacity: 0, scale: 0.96, y: 40 },
+        { opacity: 0, scale: 0.95, y: 40 },
         { opacity: 1, scale: 1, y: 0, duration: 1.5, ease: 'power3.out', delay: 0.6 }
       )
     }, heroRef)
@@ -28,375 +28,255 @@ export default function Hero({ onStartProject, lang }) {
     return () => ctx.revert()
   }, [])
 
+  const scrollToGemma = () => {
+    const el = document.getElementById('gemma-playground')
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
+  }
+
   return (
     <section className="hero" ref={heroRef} style={{
       position: 'relative',
       minHeight: '100vh',
       display: 'flex',
-      flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
-      padding: '128px 24px 64px',
-      overflow: 'hidden',
-      backgroundColor: '#ffffff',
-      textAlign: 'center',
-      color: '#000000',
-      direction: lang === 'ar' ? 'rtl' : 'ltr'
+      padding: '120px 0 80px',
+      backgroundColor: '#050507',
+      overflow: 'hidden'
     }}>
-      
-      {/* ─── FLOATING DESIGN TOOLS (Left & Right Sides PNG Assets) ─── */}
-      {/* Left side: Exact user-provided design assets image */}
-      <div style={{
+      {/* Ambient Background 3D Logo / Grid */}
+      <div className="logo-3d-wrapper" style={{
         position: 'absolute',
-        left: '3%',
-        top: '10%',
-        display: 'block',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        opacity: 0.25,
         pointerEvents: 'none',
-        userSelect: 'none',
-        width: '300px',
-        zIndex: 2
-      }} className="floating-left-asset">
-        <img
-          src="/vixcell_left_design_assets.png"
-          alt="Design Assets"
-          style={{
-            width: '100%',
-            height: 'auto',
-            opacity: 0.95,
-            filter: 'drop-shadow(0px 4px 10px rgba(0,0,0,0.05))'
-          }}
-        />
+        zIndex: 1
+      }}>
+        <ErrorBoundary>
+          <ThreeDLogo />
+        </ErrorBoundary>
       </div>
 
-      {/* Right side: Golden Ratio and Blue cylinder elements */}
-      <div style={{
-        position: 'absolute',
-        right: '4%',
-        top: '18%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '40px',
-        pointerEvents: 'none',
-        userSelect: 'none',
-        alignItems: 'flex-end',
-        maxWidth: '260px',
-        zIndex: 2
-      }} className="floating-right-asset">
-        {/* Golden Ratio card */}
-        <div style={{
-          border: '1px solid #e5e7eb',
-          padding: '4px',
-          borderRadius: '16px',
-          backgroundColor: '#ffffff',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
-          overflow: 'hidden'
-        }}>
-          <svg style={{ width: '192px', height: '128px' }} viewBox="0 0 100 60" fill="none">
-            <rect x="2" y="2" width="96" height="56" rx="4" stroke="#e5e7eb" strokeWidth="0.3" />
-            <path d="M50 2V58M2 30H98" stroke="#e5e7eb" strokeWidth="0.3" />
-            <path d="M50,30 A20,20 0 0,1 70,30 A40,40 0 0,1 30,30 A80,80 0 0,1 98,30" strokeWidth="0.3" stroke="#CCCCCC" />
-          </svg>
-        </div>
-
-        {/* Small floating blue cylinder/stylus decoration element */}
-        <div style={{
-          width: '80px',
-          height: '24px',
-          background: 'linear-gradient(90deg, #22d3ee 0%, #8b5cf6 100%)',
-          borderRadius: '9999px',
-          transform: 'rotate(12deg)',
-          opacity: 0.8,
-          boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-          border: '1px solid rgba(255,255,255,0.2)'
-        }} />
-      </div>
-
-      {/* Grid lines background (Subtle light grid) */}
+      {/* Grid lines background */}
       <div style={{
         position: 'absolute',
         inset: 0,
-        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.03) 0%, transparent 60%), linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px)',
+        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 60%), linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px)',
         backgroundSize: '100% 100%, 40px 40px, 40px 40px',
         zIndex: 1,
         pointerEvents: 'none'
       }} />
 
-      <div ref={contentRef} style={{
+      <div className="container" style={{
         position: 'relative',
-        zIndex: 3,
+        zIndex: 2,
         width: '100%',
-        maxWidth: '900px',
+        maxWidth: '1400px',
         margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '24px'
+        padding: '0 2rem'
       }}>
-        
-        {/* Small Centered Badge */}
-        <div className="hero-fade-in" style={{
-          fontSize: '10px',
-          fontWeight: 900,
-          color: '#22C55E',
-          letterSpacing: '0.15em',
-          textTransform: 'uppercase'
-        }}>
-          {t('OPEN SOURCE DESIGN WORKSPACE', 'بديل وكالات التصميم بنظام ذكاء اصطناعي محلي 100%')}
-        </div>
-
-        {/* ─── FIGMA SELECTION BOX TITLE (Original Static Layout) ─── */}
-        <div className="hero-fade-in" style={{
-          border: '2px solid #22C55E',
-          padding: '48px 32px',
-          position: 'relative',
-          maxWidth: '650px',
-          width: '100%',
-          margin: '0 auto',
-          borderRadius: '4px',
-          backgroundColor: '#ffffff',
-          userSelect: 'none'
-        }}>
-          {/* Corner nodes (Handles) */}
-          <div style={{ position: 'absolute', top: '-6px', left: '-6px', width: '10px', height: '10px', backgroundColor: '#ffffff', border: '2px solid #22C55E', borderRadius: '1px' }} />
-          <div style={{ position: 'absolute', top: '-6px', right: '-6px', width: '10px', height: '10px', backgroundColor: '#ffffff', border: '2px solid #22C55E', borderRadius: '1px' }} />
-          <div style={{ position: 'absolute', bottom: '-6px', left: '-6px', width: '10px', height: '10px', backgroundColor: '#ffffff', border: '2px solid #22C55E', borderRadius: '1px' }} />
-          <div style={{ position: 'absolute', bottom: '-6px', right: '-6px', width: '10px', height: '10px', backgroundColor: '#ffffff', border: '2px solid #22C55E', borderRadius: '1px' }} />
-
-          {/* Heading content */}
-          <h1 style={{
-            fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
-            fontWeight: 800,
-            letterSpacing: '-0.02em',
-            lineHeight: 1.05,
-            margin: 0,
-            color: '#000000'
-          }}>
-            <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 'normal', display: 'block', marginBottom: '8px' }}>Vixcell</span>
-            <span style={{ fontFamily: 'sans-serif', fontWeight: 900, fontSize: 'clamp(1.8rem, 4vw, 3rem)', display: 'block' }}>
-              {t('The Vibe Design Workspace', 'منصة تصميم الواجهات الذكية')}
-            </span>
-          </h1>
-        </div>
-
-        {/* Centered CTA Buttons */}
-        <div className="hero-fade-in" style={{
-          display: 'flex',
-          gap: '12px',
-          marginTop: '16px',
-          flexWrap: 'wrap',
-          justifyContent: 'center'
-        }}>
-          <button
-            onClick={onStartProject}
-            style={{
-              backgroundColor: '#000000',
-              color: '#ffffff',
-              fontWeight: 700,
-              padding: '14px 32px',
-              borderRadius: '9999px',
-              fontSize: '12px',
-              letterSpacing: '0.05em',
-              transition: 'all 0.2s ease',
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-            }}
-            className="hover-scale-btn"
-          >
-            {t('Download workspace · Windows', 'تحميل منصة العمل · ويندوز')}
-          </button>
-
-          <a
-            href="mailto:hello@vixcell.com"
-            style={{
-              border: '1px solid #e5e7eb',
-              backgroundColor: '#ffffff',
-              color: '#000000',
-              fontWeight: 700,
-              padding: '14px 32px',
-              borderRadius: '9999px',
-              fontSize: '12px',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
-            }}
-            className="hover-glow-btn"
-          >
-            {t('Book a Strategy Call', 'احجز جلسة استشارية')}
-          </a>
-        </div>
-
-        {/* Centered Support Text */}
-        <p className="hero-fade-in" style={{
-          fontSize: 'clamp(11px, 1.5vw, 13px)',
-          color: '#71717A',
-          maxWidth: '650px',
-          lineHeight: 1.6,
-          margin: '8px 0 0',
-          textAlign: 'center'
-        }}>
-          {t(
-            'Vixcell is the open-source, local vibe design workspace — it turns the coding agents you already run into a design engine that carries you from idea to prototype, web, slides, and HTML video, all finished on your own machine. Agent-native, with 21 coding agents, 129 design systems, and an Apache-2.0 license.',
-            'فيكسل هي بيئة عمل مفتوحة المصدر ومحلية لتصميم الواجهات الرقمية — تقوم بتحويل مساعدي البرمجة لديك لمحرك تصميم متكامل ينقلك من الفكرة إلى النموذج الأولي، الويب، الشرائح، وفيديو HTML، كل ذلك على جهازك المحلي وبخصوصية كاملة.'
-          )}
-        </p>
-
-        {/* ─── INNER WORKSPACE PREVIEW WINDOW (From Video) ─── */}
-        <div ref={mockupRef} style={{
-          width: '100%',
-          marginTop: '64px',
-          position: 'relative',
-          border: '1px solid #e5e7eb',
-          backgroundColor: '#ffffff',
-          padding: '8px',
-          borderRadius: '16px',
-          boxShadow: '0 15px 50px rgba(0,0,0,0.06)',
-          overflow: 'hidden'
-        }} className="hero-mockup-window">
-          {/* Mockup bar */}
-          <div style={{
-            display: 'flex',
-            padding: '8px 12px',
-            borderBottom: '1px solid #e5e7eb',
-            marginBottom: '8px',
-            backgroundColor: '#f9fafb',
-            justifyContent: 'between',
-            alignItems: 'center'
-          }} className="mockup-bar">
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1.1fr 1fr',
+          gap: '40px',
+          alignItems: 'center'
+        }} className="hero-split-grid">
+          
+          {/* Left Column: Headline and CTAs */}
+          <div ref={contentRef} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="hero-fade-in" style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: '100px',
+              padding: '6px 16px',
+              width: 'fit-content'
+            }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                🚀 {t('LOCAL-FIRST AI STUDIO', 'استوديو الذكاء الاصطناعي المحلي')}
+              </span>
             </div>
-            <div style={{ fontSize: '9px', color: '#A1A1AA', fontFamily: 'monospace', letterSpacing: '0.1em', margin: '0 auto' }}>VIXCELL WORKSPACE CLIENT</div>
-            <div style={{ width: '32px' }} />
-          </div>
 
-          {/* Interactive workspace interior screenshot */}
-          <div style={{
-            backgroundColor: '#FAF9F6',
-            padding: '16px',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            display: 'flex',
-            flexDirection: 'row',
-            gap: '16px',
-            textAlign: 'left'
-          }} className="mockup-interior">
-            {/* Left sidebar info panel */}
-            <div style={{
-              width: '32%',
+            <h1 className="hero-fade-in" style={{
+              fontSize: 'clamp(2.2rem, 5vw, 3.8rem)',
+              fontWeight: 900,
+              lineHeight: 1.05,
+              letterSpacing: '-0.03em',
+              margin: 0,
+              color: '#fff',
+              textAlign: lang === 'ar' ? 'right' : 'left'
+            }}>
+              {t(
+                <>We engineer <span style={{ background: 'linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>next-gen</span> digital products.</>,
+                <>نحن نصمم <span style={{ background: 'linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>الجيل القادم</span> من المنتجات الرقمية.</>
+              )}
+            </h1>
+
+            <p className="hero-fade-in" style={{
+              fontSize: 'clamp(1rem, 1.5vw, 1.25rem)',
+              lineHeight: 1.6,
+              color: '#a1a1aa',
+              margin: 0,
+              maxWidth: '560px',
+              textAlign: lang === 'ar' ? 'right' : 'left'
+            }}>
+              {t(
+                'Vixcell is a design & technology studio. We build custom platforms, mobile applications, and brand identities with 100% private, local-first on-device AI integrations.',
+                'فيكسل هو استوديو للتصميم والبرمجة. نحن نطور منصات مخصصة، تطبيقات جوال، وهويات تجارية مدعومة بذكاء اصطناعي محلي خاص يعمل بالكامل داخل المتصفح.'
+              )}
+            </p>
+
+            {/* CTA Actions */}
+            <div className="hero-fade-in" style={{
               display: 'flex',
-              flexDirection: 'column',
               gap: '16px',
-              fontFamily: 'monospace',
-              fontSize: '10px',
-              color: '#71717A',
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
-              padding: '16px',
-              borderRadius: '8px'
-            }} className="mockup-sidebar">
-              <div style={{
-                fontWeight: 'bold',
-                color: '#09090B',
-                paddingBottom: '8px',
-                borderBottom: '1px solid #f3f4f6',
-                display: 'flex',
-                justifyContent: 'between',
-                alignItems: 'center'
-              }}>
-                <span>Liquid Glass Agency</span>
-                <span style={{ color: '#22C55E', marginLeft: 'auto' }}>● Active</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div>
-                  <span style={{ color: '#000000', fontWeight: 'bold' }}>1. Visual Identity "Liquid Glass"</span>
-                  <p style={{ marginTop: '4px', lineHeight: 1.4 }}>The core of the design is liquid glass, glassmorphism effect. Every component is custom made, with high-end glass borders.</p>
-                </div>
-                <div>
-                  <span style={{ color: '#000000', fontWeight: 'bold' }}>2. Dark & Light Balance</span>
-                  <p style={{ marginTop: '4px', lineHeight: 1.4 }}>The page uses dynamic light backdrops mixed with deep pure black sections, creating a premium contrast.</p>
-                </div>
-              </div>
-            </div>
+              marginTop: '12px',
+              flexWrap: 'wrap',
+              justifyContent: lang === 'ar' ? 'flex-start' : 'flex-start',
+              direction: lang === 'ar' ? 'rtl' : 'ltr'
+            }}>
+              <button 
+                onClick={onStartProject}
+                style={{
+                  backgroundColor: '#fff',
+                  color: '#09090b',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '12px 28px',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.25s ease',
+                  boxShadow: '0 4px 20px rgba(255,255,255,0.1)'
+                }}
+                className="hover-scale-btn"
+              >
+                <span>{t('Start a Project', 'ابدأ مشروعاً')}</span>
+                <DotPixelIcon name="arrowRightPixel" size={12} color="#09090b" />
+              </button>
 
-            {/* Right preview/mockup browser */}
+              <button 
+                onClick={scrollToGemma}
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  padding: '12px 28px',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.25s ease'
+                }}
+                className="hover-glow-btn"
+              >
+                <span>✨ {t('Try Local AI Generator', 'جرب المولد الذكي')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Right Column: Floating Dashboard Mockup */}
+          <div ref={mockupRef} style={{
+            position: 'relative',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }} className="hero-mockup-container">
+            
+            {/* Glowing Backdrop Aura */}
             <div style={{
-              flex: 1,
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: '300px'
-            }} className="mockup-browser">
-              <div style={{
-                padding: '6px 12px',
-                borderBottom: '1px solid #f3f4f6',
-                backgroundColor: '#f9fafb',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '9px',
-                fontFamily: 'monospace',
-                color: '#A1A1AA'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#d1d5db' }} />
-                  <span>localhost:3000/demo</span>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span>HTML</span>
-                  <span>React</span>
-                </div>
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              background: 'radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%)',
+              zIndex: 1,
+              pointerEvents: 'none'
+            }} />
+
+            {/* Glowing Mockup Card */}
+            <div style={{
+              position: 'relative',
+              zIndex: 2,
+              borderRadius: '16px',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(10, 10, 14, 0.8)',
+              backdropFilter: 'blur(20px)',
+              padding: '8px',
+              boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.8), 0 0 50px rgba(99, 102, 241, 0.05)',
+              transform: 'perspective(1000px) rotateY(-5deg) rotateX(5deg)',
+              transition: 'transform 0.5s ease',
+              width: '100%'
+            }}
+            className="hover-mockup-card"
+            >
+              {/* Window Controls */}
+              <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', marginBottom: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ff5f56' }} />
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ffbd2e' }} />
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#27c93f' }} />
               </div>
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '24px',
-                background: 'linear-gradient(135deg, rgba(34,197,94,0.03) 0%, #ffffff 50%, #f9fafb 100%)'
-              }}>
-                <h3 style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '36px', color: '#09090B', margin: '0 0 8px 0' }}>Qelora</h3>
-                <p style={{ fontSize: '10px', color: '#71717A', maxWidth: '280px', textAlign: 'center', lineHeight: 1.4, margin: 0 }}>Designing places beyond what's expected. Easy living starts here.</p>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                  <button style={{ backgroundColor: '#000000', color: '#ffffff', fontSize: '9px', fontWeight: 'bold', padding: '6px 16px', borderRadius: '9999px', border: 'none', cursor: 'pointer' }}>Start Project</button>
-                  <button style={{ border: '1px solid #e5e7eb', backgroundColor: '#ffffff', color: '#000000', fontSize: '9px', fontWeight: 'bold', padding: '6px 16px', borderRadius: '9999px', cursor: 'pointer' }}>Watch Film</button>
-                </div>
-              </div>
+
+              {/* Product Image */}
+              <img 
+                src="/vixcell_ai_designer_hero.png" 
+                alt="Vixcell AI Designer Mockup" 
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  display: 'block',
+                  border: '1px solid rgba(255,255,255,0.03)'
+                }}
+              />
             </div>
           </div>
 
         </div>
-
       </div>
 
-      {/* Styles for Hover and Responsive Layouts */}
+      {/* Styles for Hover Effects */}
       <style>{`
         .hover-scale-btn:hover {
-          transform: translateY(-1px);
-          background-color: #1f1f1f !important;
-          box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(255,255,255,0.15) !important;
         }
         .hover-glow-btn:hover {
-          border-color: #22C55E !important;
-          background-color: #f9fafb !important;
+          background-color: rgba(255,255,255,0.07) !important;
+          border-color: rgba(99, 102, 241, 0.5) !important;
+          box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
         }
-        @media (max-width: 1200px) {
-          .floating-left-asset, .floating-right-asset {
-            display: none !important;
-          }
+        .hover-mockup-card:hover {
+          transform: perspective(1000px) rotateY(0deg) rotateX(0deg) scale(1.01) !important;
+          border-color: rgba(99, 102, 241, 0.3) !important;
+          box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.9), 0 0 60px rgba(99, 102, 241, 0.1) !important;
         }
-        @media (max-width: 768px) {
-          .mockup-interior {
-            flex-direction: column !important;
+        @media (max-width: 991px) {
+          .hero-split-grid {
+            grid-template-columns: 1fr !important;
+            text-align: center;
+            gap: 50px !important;
           }
-          .mockup-sidebar {
-            width: 100% !important;
+          .hero-split-grid h1, .hero-split-grid p {
+            text-align: center !important;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .hero-split-grid div {
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .hover-mockup-card {
+            transform: none !important;
           }
         }
       `}</style>
