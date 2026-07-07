@@ -1,26 +1,20 @@
 {
-  "buildCommand": "npm install --prefix web && npm run build --prefix web",
-  "outputDirectory": "web/dist",
+  "version": 2,
+  "buildCommand": "npm install --prefix v2 && npm run build --prefix v2",
+  "outputDirectory": "v2/out",
+  "cleanUrls": true,
   "routes": [
-    {
-      "src": "^/(index\\.html|portfolio|dashboard|start|feedback|admin|meeting)?$",
-      "headers": {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
-      },
-      "continue": true
-    },
     { "handle": "filesystem" },
-    { "src": "/__/auth/handler", "dest": "/api/auth/google/callback" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/$1" }
   ],
   "functions": {
-    "api/cron/daily-post-ar.js":     { "maxDuration": 60, "includeFiles": "lib/**" },
-    "api/cron/daily-post-en.js":     { "maxDuration": 60, "includeFiles": "lib/**" },
-    "api/cron/market-analysis.js":   { "maxDuration": 60, "includeFiles": "lib/**" },
-    "api/auth/google/login.js":      { "maxDuration": 10, "includeFiles": "lib/**" },
-    "api/auth/google/callback.js":   { "maxDuration": 10, "includeFiles": "lib/**" },
-    "api/auth/me.js":                { "maxDuration": 10, "includeFiles": "lib/**" },
-    "api/auth/logout.js":            { "maxDuration": 10, "includeFiles": "lib/**" }
+    "api/cron/daily-post-ar.js":     { "maxDuration": 60 },
+    "api/cron/daily-post-en.js":     { "maxDuration": 60 },
+    "api/cron/market-analysis.js":   { "maxDuration": 60 },
+    "api/auth/google/login.js":      { "maxDuration": 10 },
+    "api/auth/google/callback.js":   { "maxDuration": 10 },
+    "api/auth/me.js":                { "maxDuration": 10 },
+    "api/auth/logout.js":            { "maxDuration": 10 }
   }
 }
