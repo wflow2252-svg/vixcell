@@ -36,14 +36,40 @@ export default function Hero({ onStartProject, lang }) {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '128px 24px 64px',
+      padding: '140px 24px 80px',
       overflow: 'hidden',
-      backgroundColor: '#ffffff',
+      backgroundColor: '#08080a', // Dark theme matching the navbar and rest of page
       textAlign: 'center',
-      color: '#000000',
+      color: '#ffffff',
       direction: lang === 'ar' ? 'rtl' : 'ltr'
     }}>
       
+      {/* Ambient Background 3D Logo / Grid */}
+      <div className="logo-3d-wrapper" style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        opacity: 0.2,
+        pointerEvents: 'none',
+        zIndex: 1
+      }}>
+        <ErrorBoundary>
+          <ThreeDLogo />
+        </ErrorBoundary>
+      </div>
+
+      {/* Grid lines background (Subtle dark grid) */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 60%), linear-gradient(rgba(255,255,255,0.01) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px)',
+        backgroundSize: '100% 100%, 40px 40px, 40px 40px',
+        zIndex: 1,
+        pointerEvents: 'none'
+      }} />
+
       {/* ─── FLOATING DESIGN TOOLS (Left & Right Sides PNG Assets) ─── */}
       {/* Left side: Exact user-provided design assets image */}
       <div style={{
@@ -62,8 +88,8 @@ export default function Hero({ onStartProject, lang }) {
           style={{
             width: '100%',
             height: 'auto',
-            opacity: 0.95,
-            filter: 'drop-shadow(0px 4px 10px rgba(0,0,0,0.05))'
+            opacity: 0.85,
+            filter: 'drop-shadow(0px 8px 24px rgba(99,102,241,0.08))'
           }}
         />
       </div>
@@ -84,17 +110,18 @@ export default function Hero({ onStartProject, lang }) {
       }} className="floating-right-asset">
         {/* Golden Ratio card */}
         <div style={{
-          border: '1px solid #e5e7eb',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
           padding: '4px',
           borderRadius: '16px',
-          backgroundColor: '#ffffff',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.02)',
+          backgroundColor: 'rgba(10, 10, 14, 0.6)',
+          backdropFilter: 'blur(12px)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
           overflow: 'hidden'
         }}>
           <svg style={{ width: '192px', height: '128px' }} viewBox="0 0 100 60" fill="none">
-            <rect x="2" y="2" width="96" height="56" rx="4" stroke="#e5e7eb" strokeWidth="0.3" />
-            <path d="M50 2V58M2 30H98" stroke="#e5e7eb" strokeWidth="0.3" />
-            <path d="M50,30 A20,20 0 0,1 70,30 A40,40 0 0,1 30,30 A80,80 0 0,1 98,30" strokeWidth="0.3" stroke="#CCCCCC" />
+            <rect x="2" y="2" width="96" height="56" rx="4" stroke="rgba(255,255,255,0.08)" strokeWidth="0.3" />
+            <path d="M50 2V58M2 30H98" stroke="rgba(255,255,255,0.08)" strokeWidth="0.3" />
+            <path d="M50,30 A20,20 0 0,1 70,30 A40,40 0 0,1 30,30 A80,80 0 0,1 98,30" strokeWidth="0.3" stroke="#555555" />
           </svg>
         </div>
 
@@ -106,20 +133,10 @@ export default function Hero({ onStartProject, lang }) {
           borderRadius: '9999px',
           transform: 'rotate(12deg)',
           opacity: 0.8,
-          boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+          boxShadow: '0 2px 10px rgba(99,102,241,0.2)',
           border: '1px solid rgba(255,255,255,0.2)'
         }} />
       </div>
-
-      {/* Grid lines background (Subtle light grid) */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.03) 0%, transparent 60%), linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px)',
-        backgroundSize: '100% 100%, 40px 40px, 40px 40px',
-        zIndex: 1,
-        pointerEvents: 'none'
-      }} />
 
       <div ref={contentRef} style={{
         position: 'relative',
@@ -144,7 +161,7 @@ export default function Hero({ onStartProject, lang }) {
           {t('OPEN SOURCE DESIGN WORKSPACE', 'بديل وكالات التصميم بنظام ذكاء اصطناعي محلي 100%')}
         </div>
 
-        {/* ─── FIGMA SELECTION BOX TITLE (Original Static Layout) ─── */}
+        {/* ─── FIGMA SELECTION BOX TITLE (Glowing Dark Layout) ─── */}
         <div className="hero-fade-in" style={{
           border: '2px solid #22C55E',
           padding: '48px 32px',
@@ -153,8 +170,10 @@ export default function Hero({ onStartProject, lang }) {
           width: '100%',
           margin: '0 auto',
           borderRadius: '4px',
-          backgroundColor: '#ffffff',
-          userSelect: 'none'
+          backgroundColor: 'rgba(10, 10, 14, 0.4)',
+          backdropFilter: 'blur(12px)',
+          userSelect: 'none',
+          boxShadow: '0 0 40px rgba(34, 197, 94, 0.08)'
         }}>
           {/* Corner nodes (Handles) */}
           <div style={{ position: 'absolute', top: '-6px', left: '-6px', width: '10px', height: '10px', backgroundColor: '#ffffff', border: '2px solid #22C55E', borderRadius: '1px' }} />
@@ -169,9 +188,9 @@ export default function Hero({ onStartProject, lang }) {
             letterSpacing: '-0.02em',
             lineHeight: 1.05,
             margin: 0,
-            color: '#000000'
+            color: '#ffffff'
           }}>
-            <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 'normal', display: 'block', marginBottom: '8px' }}>Vixcell</span>
+            <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 'normal', display: 'block', marginBottom: '8px', color: '#a5b4fc' }}>Vixcell</span>
             <span style={{ fontFamily: 'sans-serif', fontWeight: 900, fontSize: 'clamp(1.8rem, 4vw, 3rem)', display: 'block' }}>
               {t('The Vibe Design Workspace', 'منصة تصميم الواجهات الذكية')}
             </span>
@@ -189,8 +208,8 @@ export default function Hero({ onStartProject, lang }) {
           <button
             onClick={onStartProject}
             style={{
-              backgroundColor: '#000000',
-              color: '#ffffff',
+              backgroundColor: '#ffffff',
+              color: '#000000',
               fontWeight: 700,
               padding: '14px 32px',
               borderRadius: '9999px',
@@ -199,7 +218,7 @@ export default function Hero({ onStartProject, lang }) {
               transition: 'all 0.2s ease',
               border: 'none',
               cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+              boxShadow: '0 4px 15px rgba(255,255,255,0.1)'
             }}
             className="hover-scale-btn"
           >
@@ -209,15 +228,15 @@ export default function Hero({ onStartProject, lang }) {
           <a
             href="mailto:hello@vixcell.com"
             style={{
-              border: '1px solid #e5e7eb',
-              backgroundColor: '#ffffff',
-              color: '#000000',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              color: '#ffffff',
               fontWeight: 700,
               padding: '14px 32px',
               borderRadius: '9999px',
               fontSize: '12px',
               transition: 'all 0.2s ease',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+              boxShadow: '0 2px 10px rgba(0,0,0,0.2)'
             }}
             className="hover-glow-btn"
           >
@@ -228,7 +247,7 @@ export default function Hero({ onStartProject, lang }) {
         {/* Centered Support Text */}
         <p className="hero-fade-in" style={{
           fontSize: 'clamp(11px, 1.5vw, 13px)',
-          color: '#71717A',
+          color: '#a1a1aa',
           maxWidth: '650px',
           lineHeight: 1.6,
           margin: '8px 0 0',
@@ -245,20 +264,21 @@ export default function Hero({ onStartProject, lang }) {
           width: '100%',
           marginTop: '64px',
           position: 'relative',
-          border: '1px solid #e5e7eb',
-          backgroundColor: '#ffffff',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          backgroundColor: 'rgba(10, 10, 14, 0.8)',
+          backdropFilter: 'blur(20px)',
           padding: '8px',
           borderRadius: '16px',
-          boxShadow: '0 15px 50px rgba(0,0,0,0.06)',
+          boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.8), 0 0 50px rgba(99, 102, 241, 0.05)',
           overflow: 'hidden'
         }} className="hero-mockup-window">
           {/* Mockup bar */}
           <div style={{
             display: 'flex',
             padding: '8px 12px',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
             marginBottom: '8px',
-            backgroundColor: '#f9fafb',
+            backgroundColor: 'rgba(15, 15, 20, 0.5)',
             justifyContent: 'between',
             alignItems: 'center'
           }} className="mockup-bar">
@@ -267,16 +287,16 @@ export default function Hero({ onStartProject, lang }) {
               <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
               <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
             </div>
-            <div style={{ fontSize: '9px', color: '#A1A1AA', fontFamily: 'monospace', letterSpacing: '0.1em', margin: '0 auto' }}>VIXCELL WORKSPACE CLIENT</div>
+            <div style={{ fontSize: '9px', color: '#71717A', fontFamily: 'monospace', letterSpacing: '0.1em', margin: '0 auto' }}>VIXCELL WORKSPACE CLIENT</div>
             <div style={{ width: '32px' }} />
           </div>
 
           {/* Interactive workspace interior screenshot */}
           <div style={{
-            backgroundColor: '#FAF9F6',
+            backgroundColor: 'rgba(8, 8, 10, 0.8)',
             padding: '16px',
             borderRadius: '8px',
-            border: '1px solid #e5e7eb',
+            border: '1px solid rgba(255,255,255,0.05)',
             display: 'flex',
             flexDirection: 'row',
             gap: '16px',
@@ -290,17 +310,17 @@ export default function Hero({ onStartProject, lang }) {
               gap: '16px',
               fontFamily: 'monospace',
               fontSize: '10px',
-              color: '#71717A',
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
+              color: '#8e8e93',
+              backgroundColor: 'rgba(17, 17, 21, 0.6)',
+              border: '1px solid rgba(255,255,255,0.04)',
               padding: '16px',
               borderRadius: '8px'
             }} className="mockup-sidebar">
               <div style={{
                 fontWeight: 'bold',
-                color: '#09090B',
+                color: '#ffffff',
                 paddingBottom: '8px',
-                borderBottom: '1px solid #f3f4f6',
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
                 display: 'flex',
                 justifyContent: 'between',
                 alignItems: 'center'
@@ -310,11 +330,11 @@ export default function Hero({ onStartProject, lang }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div>
-                  <span style={{ color: '#000000', fontWeight: 'bold' }}>1. Visual Identity "Liquid Glass"</span>
+                  <span style={{ color: '#ffffff', fontWeight: 'bold' }}>1. Visual Identity "Liquid Glass"</span>
                   <p style={{ marginTop: '4px', lineHeight: 1.4 }}>The core of the design is liquid glass, glassmorphism effect. Every component is custom made, with high-end glass borders.</p>
                 </div>
                 <div>
-                  <span style={{ color: '#000000', fontWeight: 'bold' }}>2. Dark & Light Balance</span>
+                  <span style={{ color: '#ffffff', fontWeight: 'bold' }}>2. Dark & Light Balance</span>
                   <p style={{ marginTop: '4px', lineHeight: 1.4 }}>The page uses dynamic light backdrops mixed with deep pure black sections, creating a premium contrast.</p>
                 </div>
               </div>
@@ -323,28 +343,28 @@ export default function Hero({ onStartProject, lang }) {
             {/* Right preview/mockup browser */}
             <div style={{
               flex: 1,
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
+              backgroundColor: 'rgba(10, 10, 14, 0.4)',
+              border: '1px solid rgba(255,255,255,0.05)',
               borderRadius: '8px',
               overflow: 'hidden',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
               display: 'flex',
               flexDirection: 'column',
               minHeight: '300px'
             }} className="mockup-browser">
               <div style={{
                 padding: '6px 12px',
-                borderBottom: '1px solid #f3f4f6',
-                backgroundColor: '#f9fafb',
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                backgroundColor: 'rgba(15, 15, 20, 0.5)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 fontSize: '9px',
                 fontFamily: 'monospace',
-                color: '#A1A1AA'
+                color: '#71717A'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#d1d5db' }} />
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3a3a3c' }} />
                   <span>localhost:3000/demo</span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -359,13 +379,13 @@ export default function Hero({ onStartProject, lang }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '24px',
-                background: 'linear-gradient(135deg, rgba(34,197,94,0.03) 0%, #ffffff 50%, #f9fafb 100%)'
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.03) 0%, rgba(10,10,14,0.6) 50%, rgba(8,8,10,0.8) 100%)'
               }}>
-                <h3 style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '36px', color: '#09090B', margin: '0 0 8px 0' }}>Qelora</h3>
-                <p style={{ fontSize: '10px', color: '#71717A', maxWidth: '280px', textAlign: 'center', lineHeight: 1.4, margin: 0 }}>Designing places beyond what's expected. Easy living starts here.</p>
+                <h3 style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '36px', color: '#ffffff', margin: '0 0 8px 0' }}>Qelora</h3>
+                <p style={{ fontSize: '10px', color: '#8e8e93', maxWidth: '280px', textAlign: 'center', lineHeight: 1.4, margin: 0 }}>Designing places beyond what's expected. Easy living starts here.</p>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                  <button style={{ backgroundColor: '#000000', color: '#ffffff', fontSize: '9px', fontWeight: 'bold', padding: '6px 16px', borderRadius: '9999px', border: 'none', cursor: 'pointer' }}>Start Project</button>
-                  <button style={{ border: '1px solid #e5e7eb', backgroundColor: '#ffffff', color: '#000000', fontSize: '9px', fontWeight: 'bold', padding: '6px 16px', borderRadius: '9999px', cursor: 'pointer' }}>Watch Film</button>
+                  <button style={{ backgroundColor: '#ffffff', color: '#000000', fontSize: '9px', fontWeight: 'bold', padding: '6px 16px', borderRadius: '9999px', border: 'none', cursor: 'pointer' }}>Start Project</button>
+                  <button style={{ border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'transparent', color: '#ffffff', fontSize: '9px', fontWeight: 'bold', padding: '6px 16px', borderRadius: '9999px', cursor: 'pointer' }}>Watch Film</button>
                 </div>
               </div>
             </div>
@@ -379,12 +399,12 @@ export default function Hero({ onStartProject, lang }) {
       <style>{`
         .hover-scale-btn:hover {
           transform: translateY(-1px);
-          background-color: #1f1f1f !important;
-          box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
+          background-color: #f3f4f6 !important;
+          box-shadow: 0 6px 20px rgba(255,255,255,0.15) !important;
         }
         .hover-glow-btn:hover {
           border-color: #22C55E !important;
-          background-color: #f9fafb !important;
+          background-color: rgba(255,255,255,0.05) !important;
         }
         @media (max-width: 1200px) {
           .floating-left-asset, .floating-right-asset {
