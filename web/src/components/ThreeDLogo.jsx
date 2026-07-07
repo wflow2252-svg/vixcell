@@ -30,7 +30,7 @@ function ThreeDLogoInner() {
           <svg className="logo-fallback-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id="logo-loading-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#ffffff" />
+                <stop offset="0%" stopColor="#FAF6F0" />
                 <stop offset="100%" stopColor="var(--primary, #6366f1)" />
               </linearGradient>
             </defs>
@@ -64,8 +64,15 @@ function ThreeDLogoInner() {
 
     threeModules.fiber.useFrame((state) => {
       if (groupRef.current) {
-        groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, (state.mouse.y * 0.2), 0.08)
-        groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, (state.mouse.x * 0.3), 0.08)
+        // Mouse tracking + slow auto-orbit rotation
+        const targetX = state.mouse.y * 0.3
+        const targetY = state.mouse.x * 0.4
+        const autoOrbit = Math.sin(state.clock.getElapsedTime() * 0.6) * 0.15
+
+        groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetX, 0.08)
+        groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetY + autoOrbit, 0.08)
+        // Subtle Z wobble
+        groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, Math.sin(state.clock.getElapsedTime() * 0.8) * 0.05, 0.05)
       }
     })
 
@@ -85,11 +92,16 @@ function ThreeDLogoInner() {
 
     const isMobile = size.width < 768
     const isTablet = size.width >= 768 && size.width < 1024
-    const scaleValue = isMobile ? 0.55 : (isTablet ? 0.8 : 1.1)
+    const scaleValue = isMobile ? 0.7 : (isTablet ? 0.84 : 1.26)
+    const positionY = isMobile ? -0.1 : 0
 
     return (
       <Float speed={1.5} rotationIntensity={0.15} floatIntensity={0.3}>
-        <group ref={groupRef} scale={[scaleValue, scaleValue, scaleValue]}>
+        <group 
+          ref={groupRef} 
+          scale={[scaleValue, scaleValue, scaleValue]}
+          position={[0, positionY, 0]}
+        >
           <Center>
             <Text3D {...textOptions}>
               V
@@ -137,7 +149,7 @@ export default function ThreeDLogo() {
           <svg className="logo-fallback-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <linearGradient id="logo-nowebgl-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#ffffff" />
+                <stop offset="0%" stopColor="#FAF6F0" />
                 <stop offset="100%" stopColor="var(--primary, #6366f1)" />
               </linearGradient>
               <filter id="nowebgl-glow" x="-30%" y="-30%" width="160%" height="160%">

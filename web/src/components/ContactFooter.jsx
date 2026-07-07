@@ -1,12 +1,17 @@
 import React, { useState } from 'react'
 import { submit } from '../services/submissions'
 
-const SERVICES = [
+const SERVICES_EN = [
   'Brand Strategy', 'Web Development', 'Mobile Apps',
   'Enterprise Systems', 'AI Integrations', 'Cloud Architecture',
 ]
 
-export default function ContactFooter() {
+const SERVICES_AR = [
+  'هوية البراند والتصميم', 'تطوير مواقع الويب', 'تطبيقات الموبايل',
+  'أنظمة الشركات المخصصة', 'تكامل الذكاء الاصطناعي', 'البنية السحابية والاستضافة',
+]
+
+export default function ContactFooter({ lang }) {
   const [name, setName]         = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [email, setEmail]       = useState('')
@@ -17,18 +22,21 @@ export default function ContactFooter() {
   const [success, setSuccess]   = useState(false)
   const [reference, setReference] = useState(null)
 
+  const t = (en, ar) => (lang === 'ar' ? ar : en)
+  const SERVICES = lang === 'ar' ? SERVICES_AR : SERVICES_EN
+
   const toggleService = (svc) => {
     setSelected(prev => prev.includes(svc) ? prev.filter(s => s !== svc) : [...prev, svc])
   }
 
   function validate() {
     const e = {}
-    if (!name.trim()) e.name = 'Name is required'
+    if (!name.trim()) e.name = t('Name is required', 'الاسم مطلوب')
     const cleanWa = whatsapp.replace(/[\s-]/g, '')
-    if (!cleanWa) e.whatsapp = 'WhatsApp number is required'
-    else if (!/^\+?\d{8,15}$/.test(cleanWa)) e.whatsapp = 'Invalid number (8–15 digits, optional + prefix)'
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Invalid email'
-    if (!brief.trim() || brief.trim().length < 10) e.brief = 'Tell us a bit more about your project'
+    if (!cleanWa) e.whatsapp = t('WhatsApp number is required', 'رقم الواتساب مطلوب')
+    else if (!/^\+?\d{8,15}$/.test(cleanWa)) e.whatsapp = t('Invalid number (8–15 digits, optional + prefix)', 'رقم غير صحيح (8-15 رقم، يمكن إضافة رمز الدولة +)')
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = t('Invalid email', 'البريد الإلكتروني غير صحيح')
+    if (!brief.trim() || brief.trim().length < 10) e.brief = t('Tell us a bit more about your project (min 10 chars)', 'يرجى إعطاؤنا تفاصيل أكثر عن مشروعك (10 أحرف على الأقل)')
     return e
   }
 
@@ -50,7 +58,7 @@ export default function ContactFooter() {
       setReference(result.reference)
       setSuccess(true)
     } catch (err) {
-      setErrors({ submit: 'Something went wrong. Please try again.' })
+      setErrors({ submit: t('Something went wrong. Please try again.', 'حدث خطأ ما، يرجى المحاولة مرة أخرى.') })
     } finally {
       setBusy(false)
     }
@@ -74,22 +82,27 @@ export default function ContactFooter() {
           {/* Left: heading + description */}
           <div className="footer-left">
             <h2 className="footer-title">
-              {success ? <>Got it. <span style={{ opacity: 0.5 }}>We'll be in touch.</span></>
-                       : <>Ready to <span style={{ opacity: 0.5 }}>get started?</span></>}
+              {success ? (
+                lang === 'ar' ? <>تم الاستلام. <span style={{ opacity: 0.5 }}>سنتواصل معك قريباً.</span></>
+                              : <>Got it. <span style={{ opacity: 0.5 }}>We'll be in touch.</span></>
+              ) : (
+                lang === 'ar' ? <>جاهز <span style={{ opacity: 0.5 }}>للبدء والعمل معنا؟</span></>
+                              : <>Ready to <span style={{ opacity: 0.5 }}>get started?</span></>
+              )}
             </h2>
             <p className="footer-desc">
               {success
-                ? "Your request reached us. We'll WhatsApp you within 24 hours to talk specifics."
-                : 'Fill the form or write us directly. We reply on WhatsApp within 24 hours.'}
+                ? t("Your request reached us. We'll WhatsApp you within 24 hours to talk specifics.", "وصلنا طلبك بنجاح. سنتواصل معك عبر الواتساب خلال 24 ساعة لمناقشة التفاصيل.")
+                : t('Fill the form or write us directly. We reply on WhatsApp within 24 hours.', 'املأ النموذج أو راسلنا مباشرة. نرد عبر الواتساب خلال 24 ساعة.')}
             </p>
 
             {success && reference && (
               <div style={refBox}>
-                <div style={refLabel}>Your reference</div>
-                <button type="button" onClick={copyRef} style={refValue} title="Click to copy">
+                <div style={refLabel}>{t('Your reference', 'رقم المرجع الخاص بك')}</div>
+                <button type="button" onClick={copyRef} style={refValue} title={t('Click to copy', 'اضغط للنسخ')}>
                   {reference}
                 </button>
-                <div style={refHint}>Save it — quote this when you ask about your project.</div>
+                <div style={refHint}>{t('Save it — quote this when you ask about your project.', 'احفظ الرقم — اذكره لنا عند الاستفسار عن مشروعك.')}</div>
               </div>
             )}
           </div>
@@ -99,14 +112,14 @@ export default function ContactFooter() {
             {success ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start' }}>
                 <button onClick={reset} className="magnetic-btn" style={{ alignSelf: 'flex-start' }}>
-                  Send another request
+                  {t('Send another request', 'إرسال طلب آخر')}
                 </button>
               </div>
             ) : (
               <form className="footer-form" onSubmit={handleSubmit} noValidate>
                 <div>
                   <input
-                    placeholder="Your Name *"
+                    placeholder={t("Your Name *", "الاسم الكريم *")}
                     value={name}
                     onChange={e => setName(e.target.value)}
                     disabled={busy}
@@ -118,7 +131,7 @@ export default function ContactFooter() {
 
                 <div>
                   <input
-                    placeholder="WhatsApp number * (e.g. +201234567890)"
+                    placeholder={t("WhatsApp number * (e.g. +201234567890)", "رقم الواتساب * (مثال: +201234567890)")}
                     value={whatsapp}
                     onChange={e => setWhatsapp(e.target.value)}
                     disabled={busy}
@@ -132,7 +145,7 @@ export default function ContactFooter() {
 
                 <div>
                   <input
-                    placeholder="Email (Optional)"
+                    placeholder={t("Email (Optional)", "البريد الإلكتروني (اختياري)")}
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     disabled={busy}
@@ -146,7 +159,7 @@ export default function ContactFooter() {
 
                 <div>
                   <textarea
-                    placeholder="Tell us about your project *"
+                    placeholder={t("Tell us about your project *", "حدثنا قليلاً عن تفاصيل مشروعك *")}
                     value={brief}
                     onChange={e => setBrief(e.target.value)}
                     disabled={busy}
@@ -157,7 +170,7 @@ export default function ContactFooter() {
                 </div>
 
                 <div>
-                  <h4 className="footer-form-title">Services you are interested in</h4>
+                  <h4 className="footer-form-title">{t("Services you are interested in", "الخدمات التي تهمك")}</h4>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem' }}>
                     {SERVICES.map((svc, idx) => {
                       const active = selected.includes(svc)
@@ -203,13 +216,13 @@ export default function ContactFooter() {
                     alignSelf: 'flex-start',
                     opacity: busy ? 0.7 : 1,
                     cursor: busy ? 'not-allowed' : 'pointer',
-                    background: '#ffffff',
+                    background: '#FAF6F0',
                     color: '#000000',
                     fontWeight: '700',
                     padding: '12px 32px',
                     borderRadius: '30px',
                     border: 'none',
-                    boxShadow: '0 4px 14px rgba(255, 255, 255, 0.15)',
+                    boxShadow: '0 4px 14px rgba(250, 246, 240, 0.15)',
                     zIndex: 10,
                     position: 'relative',
                     display: 'inline-flex',
@@ -217,7 +230,7 @@ export default function ContactFooter() {
                     justifyContent: 'center',
                   }}
                 >
-                  {busy ? 'Sending…' : 'Send Message'}
+                  {busy ? t('Sending…', 'جاري الإرسال…') : t('Send Message', 'إرسال الرسالة')}
                 </button>
               </form>
             )}

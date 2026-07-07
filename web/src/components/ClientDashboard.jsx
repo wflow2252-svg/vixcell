@@ -6,8 +6,8 @@ const T = {
   bg: '#0c0c0e',
   bg2: '#131316',
   bg3: '#1a1a1f',
-  border: 'rgba(255,255,255,0.08)',
-  borderHover: 'rgba(255,255,255,0.16)',
+  border: 'rgba(250, 246, 240,0.08)',
+  borderHover: 'rgba(250, 246, 240,0.16)',
   text: '#e8e8ed',
   text2: '#a8a8b3',
   text3: '#6b6b75',
@@ -733,7 +733,7 @@ function ArtifactPane({ html, tab, onTab, onDownload, onCopy, streaming }) {
             srcDoc={html}
             title="VIXCELL Preview"
             sandbox="allow-scripts allow-same-origin"
-            style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+            style={{ width: '100%', height: '100%', border: 'none', background: '#FAF6F0' }}
           />
         ) : (
           <pre ref={codeRef} style={styles.codeView}>

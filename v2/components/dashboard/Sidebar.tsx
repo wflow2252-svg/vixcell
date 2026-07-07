@@ -8,7 +8,8 @@ import {
   Users, 
   Link2, 
   Sparkles,
-  Volume2
+  Volume2,
+  Server
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -24,6 +25,7 @@ export default function Sidebar({ activeTab, setActiveTab, activeCallId }: Sideb
     { id: 'archive', label: 'أرشيف الجلسات', desc: 'Meetings Library', icon: FolderArchive },
     { id: 'clients', label: 'إدارة العملاء CRM', desc: 'Client Relations', icon: Users },
     { id: 'projects', label: 'المشاريع والروابط', desc: 'Projects & Links', icon: Link2 },
+    { id: 'deployments', label: 'إعدادات النشر والاستضافة', desc: 'Demo Deployment', icon: Server },
     { id: 'site-content', label: 'محتوى الموقع', desc: 'Site Customizer', icon: Sparkles }
   ]
 

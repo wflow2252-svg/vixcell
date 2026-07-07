@@ -3,13 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   :root {
-    color-scheme: dark;
+    color-scheme: light dark;
   }
   html, body {
-    background: #0c0c0e;
-    color: #e8e8ed;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #000000;
+    color: #f4f4f5;
+    font-family: 'Plus Jakarta Sans', 'Cairo', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   ::selection {

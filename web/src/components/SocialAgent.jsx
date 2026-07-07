@@ -3,7 +3,7 @@ import DotPixelIcon from './DotPixelIcon'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
-  border: 'rgba(255,255,255,0.08)', borderH: 'rgba(255,255,255,0.16)',
+  border: 'rgba(250, 246, 240,0.08)', borderH: 'rgba(250, 246, 240,0.16)',
   text: '#e8e8ed', text2: '#a8a8b3', text3: '#6b6b75',
   gold: '#c8a35c', goldH: '#d4b06a', goldDim: 'rgba(200,163,92,0.12)',
   error: '#ef4444', success: '#22c55e',
@@ -430,7 +430,7 @@ const styles = {
   recipeBtn: { background: T.bg3, border: `1px solid ${T.border}`, borderRadius: 10, padding: 16, color: T.text, textAlign: 'center', transition: 'all 0.15s' },
   runningBox: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: T.goldDim, border: `1px solid ${T.gold}`, borderRadius: 8 },
   spinner: { display: 'inline-block', width: 16, height: 16, border: `2px solid ${T.gold}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'vxSpin 0.8s linear infinite' },
-  stopBtn: { background: T.error, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  stopBtn: { background: T.error, color: '#FAF6F0', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   logBox: { background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, maxHeight: 320, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6, direction: 'ltr', textAlign: 'left' },
   logLine: { whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   browserFrame: { background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, overflow: 'hidden', aspectRatio: '16/10', display: 'flex', alignItems: 'center', justifyContent: 'center' },

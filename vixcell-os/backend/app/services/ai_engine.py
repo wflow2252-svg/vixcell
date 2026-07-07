@@ -19,6 +19,8 @@ OLLAMA_BASE = "http://127.0.0.1:11434"
 # NOTE: the bare qwen3:4b tag is the *Thinking* variant which always emits
 # chain-of-thought and is slow for content tasks — prefer the Instruct tag.
 MODEL_CATALOG = [
+    {"name": "gemma2:2b",       "label": "Gemma 2 2B (Google)", "size": "1.6 GB", "languages": "Arabic + English", "good_for": "Fast generation, light on resources"},
+    {"name": "gemma2:9b",       "label": "Gemma 2 9B (Google)", "size": "5.5 GB", "languages": "Arabic + English", "good_for": "High-quality Google model"},
     {"name": "qwen3:4b-instruct-2507-q4_K_M", "label": "Qwen3 4B Instruct", "size": "2.5 GB", "languages": "Arabic + English", "good_for": "Fast content generation (recommended)"},
     {"name": "qwen3:4b",        "label": "Qwen3 4B Thinking", "size": "2.6 GB", "languages": "Arabic + English", "good_for": "Step-by-step reasoning (slower)"},
     {"name": "qwen3:8b",        "label": "Qwen3 8B",        "size": "5.2 GB", "languages": "Arabic + English", "good_for": "Higher quality content"},
@@ -30,7 +32,7 @@ MODEL_CATALOG = [
 ]
 
 # Preferred default for generation when installed (instruct = no think blocks)
-PREFERRED_MODELS = ["qwen3:4b-instruct-2507-q4_K_M", "qwen3:4b"]
+PREFERRED_MODELS = ["gemma2:9b", "gemma2:2b", "qwen3:4b-instruct-2507-q4_K_M", "qwen3:4b"]
 
 # In-memory pull progress keyed by model name
 _pull_status: dict = {}

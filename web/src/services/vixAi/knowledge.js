@@ -735,10 +735,10 @@ git push -u origin feature/login
 **Recipe:**
 \`\`\`css
 .glass {
-  background: rgba(255, 255, 255, 0.08);          /* subtle tint */
+  background: rgba(250, 246, 240, 0.08);          /* subtle tint */
   backdrop-filter: blur(20px);                    /* the magic */
   -webkit-backdrop-filter: blur(20px);            /* Safari */
-  border: 1px solid rgba(255, 255, 255, 0.12);   /* light edge */
+  border: 1px solid rgba(250, 246, 240, 0.12);   /* light edge */
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
@@ -757,10 +757,10 @@ Goes well with: dark themes, gradient backgrounds, abstract shapes/blobs.`,
 **الوصفة:**
 \`\`\`css
 .glass {
-  background: rgba(255, 255, 255, 0.08);          /* تلوين خفيف */
+  background: rgba(250, 246, 240, 0.08);          /* تلوين خفيف */
   backdrop-filter: blur(20px);                    /* السحر */
   -webkit-backdrop-filter: blur(20px);            /* Safari */
-  border: 1px solid rgba(255, 255, 255, 0.12);   /* حافة فاتحة */
+  border: 1px solid rgba(250, 246, 240, 0.12);   /* حافة فاتحة */
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }

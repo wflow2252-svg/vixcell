@@ -114,7 +114,7 @@ const C = {
   bg2:    '#1a1a1e',
   bg3:    '#252529',
   bg4:    '#2f2f34',
-  border: 'rgba(255,255,255,0.07)',
+  border: 'rgba(250, 246, 240,0.07)',
   text:   '#e8eaed',
   text2:  '#9aa0a6',
   text3:  '#5f6368',
@@ -126,7 +126,7 @@ const C = {
   purple: '#a142f4',
 }
 
-const FONT = "'Cairo', 'Outfit', sans-serif"
+const FONT = "'Plus Jakarta Sans', 'Inter', 'IBM Plex Sans Arabic', sans-serif"
 
 /* ─── DB helpers (IndexedDB for recordings) ─────── */
 const DB_NAME = 'vixcell_meetings'
@@ -976,7 +976,7 @@ function TurnSetup() {
   }
 
   return (
-    <div style={{ ...pre.infoCard, background: 'rgba(255,255,255,0.02)' }}>
+    <div style={{ ...pre.infoCard, background: 'rgba(250, 246, 240,0.02)' }}>
       <button onClick={() => setOpen(o => !o)}
         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: C.text2, fontFamily: FONT, fontSize: 12 }}>
         <Icon name="dns" size={16} style={{ color: configured ? C.green : C.yellow }} />
@@ -1054,7 +1054,7 @@ function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: '#FAF6F0',
                 fontSize: 32,
                 fontWeight: 700,
                 boxShadow: '0 8px 24px rgba(26,115,232,0.3)',
@@ -1068,8 +1068,8 @@ function PreMeeting({ meetingId, isAdminMode, adminName, clientName, localStream
                 <span style={{ color: C.text2, fontSize: 12, fontFamily: FONT }}>{micOn ? 'الميكروفون مفعّل' : 'الميكروفون مكتوم'}</span>
               </div>
               <div style={pre.previewCtrls}>
-                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(255,255,255,0.12)' : C.red }}>
-                  <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#fff' }} />
+                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(250, 246, 240,0.12)' : C.red }}>
+                  <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#FAF6F0' }} />
                 </button>
               </div>
             </div>
@@ -2652,7 +2652,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
           )}
           {isListening && (
             <div style={rm.aiBadge}>
-              <Icon name="record_voice_over" size={13} style={{ color: '#fff' }} />
+              <Icon name="record_voice_over" size={13} style={{ color: '#FAF6F0' }} />
               <span>AI مفعّل</span>
             </div>
           )}
@@ -2732,9 +2732,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 <div style={rm.wbDiv} />
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {['#1a73e8','#00bcd4','#34a853','#fbbc04','#ff9800','#ea4335','#e91e63','#a142f4','#795548','#9aa0a6','#000000','#ffffff'].map(col => (
+                  {['#1a73e8','#00bcd4','#34a853','#fbbc04','#ff9800','#ea4335','#e91e63','#a142f4','#795548','#9aa0a6','#000000','#FAF6F0'].map(col => (
                     <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
-                      style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 18, height: 18 }} />
+                      style={{ ...rm.colorBtn, background: col, outline: wbColor===col ? '2px solid #FAF6F0' : 'none', width: 18, height: 18 }} />
                   ))}
                 </div>
 
@@ -2756,8 +2756,8 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                   <Icon name="save" size={18} style={{ color: C.text2 }} />
                 </button>
                 {isAdminMode && (
-                  <button onClick={() => toggleWhiteboard(false)} style={{ ...rm.wbTool, marginRight: 'auto', background: C.red, color: '#fff', borderRadius: 8, padding: '4px 10px', height: 'auto', width: 'auto', display: 'flex', alignItems: 'center', gap: 4 }} title="إغلاق السبورة للجميع">
-                    <Icon name="close" size={16} style={{ color: '#fff' }} />
+                  <button onClick={() => toggleWhiteboard(false)} style={{ ...rm.wbTool, marginRight: 'auto', background: C.red, color: '#FAF6F0', borderRadius: 8, padding: '4px 10px', height: 'auto', width: 'auto', display: 'flex', alignItems: 'center', gap: 4 }} title="إغلاق السبورة للجميع">
+                    <Icon name="close" size={16} style={{ color: '#FAF6F0' }} />
                     <span style={{ fontSize: 11, fontFamily: FONT }}>إغلاق السبورة</span>
                   </button>
                 )}
@@ -2769,13 +2769,13 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                     width: 200, height: 50, borderRadius: 10,
                     background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)',
                     border: `1px solid rgba(26,115,232,0.2)`,
-                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#FAF6F0', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     gap: 10, zIndex: 100, fontSize: 12, fontFamily: FONT, fontWeight: 600,
                     boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
                   }}>
                     <div style={{
                       width: 16, height: 16, borderRadius: '50%',
-                      border: '2px solid rgba(255,255,255,0.1)',
+                      border: '2px solid rgba(250, 246, 240,0.1)',
                       borderTop: `2px solid ${C.blue}`,
                       animation: 'spin 1s linear infinite'
                     }} />
@@ -2825,7 +2825,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 muted
                 style={rm.mainVideo}
               />
-              <div style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(0,0,0,0.7)', padding: '6px 12px', borderRadius: 8, fontSize: 12, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(0,0,0,0.7)', padding: '6px 12px', borderRadius: 8, fontSize: 12, color: '#FAF6F0', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: C.blue }} />
                 <span>أنت تشارك شاشتك حالياً للجميع</span>
               </div>
@@ -2862,7 +2862,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 20,
-                  color: '#fff',
+                  color: '#FAF6F0',
                   fontFamily: FONT,
                   zIndex: 15,
                   borderRadius: 12,
@@ -2874,7 +2874,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                     width: 56,
                     height: 56,
                     borderRadius: '50%',
-                    border: '4px solid rgba(255, 255, 255, 0.1)',
+                    border: '4px solid rgba(250, 246, 240, 0.1)',
                     borderTop: `4px solid ${C.blue || '#1a73e8'}`,
                     animation: 'spin 1s linear infinite'
                   }} />
@@ -2895,7 +2895,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                     position: 'absolute', inset: 0, margin: 'auto',
                     width: 220, height: 50, borderRadius: 25,
                     background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
-                    color: '#fff', border: 'none', cursor: 'pointer',
+                    color: '#FAF6F0', border: 'none', cursor: 'pointer',
                     fontSize: 13, fontWeight: 700, fontFamily: FONT,
                     boxShadow: '0 8px 24px rgba(26,115,232,0.4)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -2910,9 +2910,9 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 onClick={() => setVideoFit(f => f === 'contain' ? 'cover' : 'contain')}
                 style={{
                   position: 'absolute', top: 20, left: 20,
-                  background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(250, 246, 240,0.1)',
                   padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
-                  color: '#fff', cursor: 'pointer', fontFamily: FONT,
+                  color: '#FAF6F0', cursor: 'pointer', fontFamily: FONT,
                   display: 'flex', alignItems: 'center', gap: 6, zIndex: 10,
                   transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
                 }}
@@ -2923,7 +2923,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
               <div style={{
                 position: 'absolute', bottom: 20, left: 20,
                 background: 'rgba(0,0,0,0.6)', padding: '4px 10px',
-                borderRadius: 6, fontSize: 12, color: '#fff',
+                borderRadius: 6, fontSize: 12, color: '#FAF6F0',
                 fontFamily: FONT, zIndex: 5
               }}>
                 {remoteName || 'مشارك خارجي'}
@@ -2939,7 +2939,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                 position: 'relative',
                 animation: (firstPeer && firstPeer.mic) ? 'recPulse 1.5s infinite' : 'none'
               }}>
-                <Icon name="mic" size={56} style={{ color: '#fff' }} />
+                <Icon name="mic" size={56} style={{ color: '#FAF6F0' }} />
                 {firstPeer && !firstPeer.mic && (
                   <div style={{
                     position: 'absolute', bottom: 5, right: 5,
@@ -2947,7 +2947,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     border: '3px solid #0e0e11'
                   }}>
-                    <Icon name="mic_off" size={18} style={{ color: '#fff' }} />
+                    <Icon name="mic_off" size={18} style={{ color: '#FAF6F0' }} />
                   </div>
                 )}
               </div>
@@ -2978,7 +2978,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: micOn ? '0 4px 10px rgba(26,115,232,0.2)' : 'none'
             }}>
-              <Icon name={micOn ? 'mic' : 'mic_off'} size={14} style={{ color: '#fff' }} />
+              <Icon name={micOn ? 'mic' : 'mic_off'} size={14} style={{ color: '#FAF6F0' }} />
             </div>
             <span style={{ color: C.text, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>{displayName}</span>
           </div>
@@ -3018,7 +3018,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                     onKeyDown={e => e.key === 'Enter' && sendMsg()}
                     placeholder="اكتب رسالة..." style={rm.chatInput} />
                   <button onClick={sendMsg} style={rm.sendBtn}>
-                    <Icon name="send" size={18} style={{ color: '#fff' }} />
+                    <Icon name="send" size={18} style={{ color: '#FAF6F0' }} />
                   </button>
                 </div>
               </div>
@@ -3059,7 +3059,7 @@ function Room({ meetingId, displayName, isAdminMode, isTabletMode = false, local
                             padding: '8px 12px',
                             borderRadius: 8,
                             background: C.blue,
-                            color: '#fff',
+                            color: '#FAF6F0',
                             border: 'none',
                             fontSize: 12,
                             fontWeight: 600,
@@ -3231,12 +3231,12 @@ function GmBtn({ onClick, icon, label, red, blue, style: s = {} }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <button onClick={onClick} style={{
         width: 48, height: 48, borderRadius: '50%',
-        background: red ? C.red : blue ? C.blue : 'rgba(255,255,255,0.07)',
+        background: red ? C.red : blue ? C.blue : 'rgba(250, 246, 240,0.07)',
         border: 'none', cursor: onClick ? 'pointer' : 'default',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all .2s', ...s
       }}>
-        <Icon name={icon} size={22} style={{ color: '#fff' }} />
+        <Icon name={icon} size={22} style={{ color: '#FAF6F0' }} />
       </button>
       <span style={{ color: C.text2, fontSize: 10, fontFamily: FONT }}>{label}</span>
     </div>
@@ -3248,7 +3248,7 @@ function PanelBtn({ icon, label, active, onClick, badge }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, position: 'relative' }}>
       <button onClick={onClick} style={{
         width: 48, height: 48, borderRadius: '50%',
-        background: active ? 'rgba(26,115,232,0.15)' : 'rgba(255,255,255,0.07)',
+        background: active ? 'rgba(26,115,232,0.15)' : 'rgba(250, 246, 240,0.07)',
         border: `2px solid ${active ? C.blue : 'transparent'}`,
         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all .2s',
@@ -3258,7 +3258,7 @@ function PanelBtn({ icon, label, active, onClick, badge }) {
       {badge > 0 && (
         <span style={{
           position: 'absolute', top: -2, right: -2, background: C.red,
-          color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 10,
+          color: '#FAF6F0', fontSize: 9, fontWeight: 700, borderRadius: 10,
           padding: '1px 5px', minWidth: 16, textAlign: 'center',
         }}>{badge}</span>
       )}
@@ -3335,7 +3335,7 @@ function WaitingRoom({ meetingId, displayName, logoUrl, onAdmitted, onBack }) {
           <div style={wait.pulse2} />
           <div style={wait.pulse1} />
           <div style={wait.icon}>
-            <Icon name="person" size={32} style={{ color: '#fff' }} />
+            <Icon name="person" size={32} style={{ color: '#FAF6F0' }} />
           </div>
         </div>
 
@@ -3412,7 +3412,7 @@ function ClientLobby({ logoUrl, localStream, camOn, micOn, toggleCam, toggleMic,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: '#FAF6F0',
                 fontSize: 32,
                 fontWeight: 700,
                 boxShadow: '0 8px 24px rgba(26,115,232,0.3)',
@@ -3426,8 +3426,8 @@ function ClientLobby({ logoUrl, localStream, camOn, micOn, toggleCam, toggleMic,
                 <span style={{ color: C.text2, fontSize: 12, fontFamily: FONT }}>{micOn ? 'الميكروفون مفعّل' : 'الميكروفون مكتوم'}</span>
               </div>
               <div style={pre.previewCtrls}>
-                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(255,255,255,0.12)' : C.red }}>
-                  <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#fff' }} />
+                <button onClick={() => toggleMic()} style={{ ...pre.ctrl, background: micOn ? 'rgba(250, 246, 240,0.12)' : C.red }}>
+                  <Icon name={micOn ? 'mic' : 'mic_off'} size={22} style={{ color: '#FAF6F0' }} />
                 </button>
               </div>
             </div>
@@ -3687,7 +3687,7 @@ function TabletWhiteboard({
           
           <button onClick={handleToggleFullscreen} style={{
             display: 'flex', alignItems: 'center', gap: 6,
-            background: 'rgba(255,255,255,0.06)', border: `1px solid ${C.border}`,
+            background: 'rgba(250, 246, 240,0.06)', border: `1px solid ${C.border}`,
             color: C.text, padding: '6px 12px', borderRadius: 8,
             cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: FONT,
             transition: 'all 0.2s'
@@ -3710,13 +3710,13 @@ function TabletWhiteboard({
             width: 220, height: 60, borderRadius: 12,
             background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)',
             border: `1px solid rgba(26,115,232,0.2)`,
-            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#FAF6F0', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: 12, zIndex: 100, fontSize: 13, fontFamily: FONT, fontWeight: 600,
             boxShadow: '0 12px 36px rgba(0,0,0,0.5)'
           }}>
             <div style={{
               width: 20, height: 20, borderRadius: '50%',
-              border: '2px solid rgba(255,255,255,0.1)',
+              border: '2px solid rgba(250, 246, 240,0.1)',
               borderTop: `2px solid ${C.blue}`,
               animation: 'spin 1s linear infinite'
             }} />
@@ -3790,9 +3790,9 @@ function TabletWhiteboard({
         <div style={tabWb.divider} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {['#1a73e8','#00bcd4','#34a853','#fbbc04','#ff9800','#ea4335','#e91e63','#a142f4','#795548','#9aa0a6','#000000','#ffffff'].map(col => (
+          {['#1a73e8','#00bcd4','#34a853','#fbbc04','#ff9800','#ea4335','#e91e63','#a142f4','#795548','#9aa0a6','#000000','#FAF6F0'].map(col => (
             <button key={col} onClick={() => { setWbColor(col); if (wbTool === 'eraser') setWbTool('pen') }}
-              style={{ ...tabWb.colorBtn, background: col, outline: wbColor===col ? '2px solid #fff' : 'none', width: 24, height: 24 }} />
+              style={{ ...tabWb.colorBtn, background: col, outline: wbColor===col ? '2px solid #FAF6F0' : 'none', width: 24, height: 24 }} />
           ))}
         </div>
 
@@ -3886,7 +3886,7 @@ const lob = {
     color: C.text, fontSize: 14, fontWeight: 700, cursor: 'pointer',
     fontFamily: FONT, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all .2s',
   },
-  nameBtnActive: { background: C.blue, borderColor: C.blue, color: '#fff', boxShadow: '0 0 20px rgba(26,115,232,0.3)' },
+  nameBtnActive: { background: C.blue, borderColor: C.blue, color: '#FAF6F0', boxShadow: '0 0 20px rgba(26,115,232,0.3)' },
   label: { display: 'block', color: C.text2, fontSize: 12, fontWeight: 600, marginBottom: 6 },
   input: {
     width: '100%', boxSizing: 'border-box', padding: '12px 14px',
@@ -3908,7 +3908,7 @@ const lob = {
   primaryBtn: {
     width: '100%', padding: '14px', marginTop: 4,
     background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
-    color: '#fff', border: 'none', borderRadius: 14,
+    color: '#FAF6F0', border: 'none', borderRadius: 14,
     fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: FONT,
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     transition: 'all .2s', boxShadow: '0 4px 20px rgba(26,115,232,0.3)',
@@ -3947,7 +3947,7 @@ const pre = {
   },
   previewName: {
     position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)',
-    background: 'rgba(0,0,0,0.7)', color: '#fff', borderRadius: 20,
+    background: 'rgba(0,0,0,0.7)', color: '#FAF6F0', borderRadius: 20,
     padding: '4px 14px', fontSize: 13, fontFamily: FONT, backdropFilter: 'blur(8px)',
   },
   previewCtrls: {
@@ -3987,14 +3987,14 @@ const pre = {
   avatar: {
     width: 40, height: 40, borderRadius: '50%',
     background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
-    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#FAF6F0', display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontWeight: 700, fontSize: 16, flexShrink: 0,
     boxShadow: '0 4px 12px rgba(26,115,232,0.3)',
   },
   joinBtn: {
     width: '100%', padding: '14px',
     background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
-    color: '#fff', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700,
+    color: '#FAF6F0', border: 'none', borderRadius: 14, fontSize: 15, fontWeight: 700,
     cursor: 'pointer', fontFamily: FONT,
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     boxShadow: '0 4px 20px rgba(26,115,232,0.3)', transition: 'all .2s',
@@ -4074,8 +4074,8 @@ const rm = {
   },
   waitingPulse: {
     width: 120, height: 120, borderRadius: '50%',
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.07)',
+    background: 'rgba(250, 246, 240,0.03)',
+    border: '1px solid rgba(250, 246, 240,0.07)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   waitingCopyBtn: {
@@ -4097,7 +4097,7 @@ const rm = {
     justifyContent: 'center', background: C.bg3,
   },
   pipLabel: {
-    background: 'rgba(0,0,0,0.7)', color: '#fff',
+    background: 'rgba(0,0,0,0.7)', color: '#FAF6F0',
     fontSize: 10, padding: '3px 10px', textAlign: 'center', fontFamily: FONT,
   },
   side: {
@@ -4165,7 +4165,7 @@ const rm = {
     width: 36, height: 36, borderRadius: '50%',
     background: 'linear-gradient(135deg, #1a73e8, #4a90e2)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0,
+    color: '#FAF6F0', fontWeight: 700, fontSize: 16, flexShrink: 0,
   },
   inviteBox: {
     background: 'rgba(26,115,232,0.05)',
@@ -4252,7 +4252,7 @@ const tabWb = {
   leaveBtn: {
     display: 'flex', alignItems: 'center', gap: 8,
     background: 'linear-gradient(135deg, #ea4335, #c62828)',
-    color: '#fff', border: 'none', padding: '8px 16px',
+    color: '#FAF6F0', border: 'none', padding: '8px 16px',
     borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
   },
   canvasContainer: { flex: 1, position: 'relative', background: C.bg },
@@ -4345,7 +4345,7 @@ if (typeof document !== 'undefined' && !document.getElementById('vx-meet-kf')) {
     @keyframes recPulse { 0%,100%{opacity:1} 50%{opacity:0.15} }
     @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
     @keyframes waitPulse { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(1.8);opacity:0} }
-    * { font-family: 'Cairo', 'Outfit', sans-serif !important; }
+    * { font-family: 'Plus Jakarta Sans', 'Inter', 'IBM Plex Sans Arabic', sans-serif !important; }
     .material-symbols-rounded { font-family: 'Material Symbols Rounded' !important; }
     button:hover { filter: brightness(1.1); }
     input:focus { border-color: rgba(26,115,232,0.5) !important; box-shadow: 0 0 0 3px rgba(26,115,232,0.1) !important; }
@@ -4472,7 +4472,7 @@ function BoardElement({ img, onUpdate, onDelete, disabled, containerRef }) {
           style={{
             color: img.color || C.text,
             fontSize: `${fontSize}px`,
-            fontFamily: 'Cairo, sans-serif',
+            fontFamily: 'IBM Plex Sans Arabic, sans-serif',
             fontWeight: 600,
             whiteSpace: 'normal',
             wordBreak: 'break-word',
@@ -4600,8 +4600,8 @@ function BoardElement({ img, onUpdate, onDelete, disabled, containerRef }) {
               height: 24,
               borderRadius: '50%',
               background: '#ea4335',
-              border: '1px solid #fff',
-              color: '#fff',
+              border: '1px solid #FAF6F0',
+              color: '#FAF6F0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -4626,7 +4626,7 @@ function BoardElement({ img, onUpdate, onDelete, disabled, containerRef }) {
               width: 14,
               height: 14,
               background: '#1a73e8',
-              border: '2px solid #fff',
+              border: '2px solid #FAF6F0',
               borderRadius: '50%',
               cursor: 'nesw-resize',
               boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
@@ -4645,7 +4645,7 @@ function BoardElement({ img, onUpdate, onDelete, disabled, containerRef }) {
               width: 14,
               height: 14,
               background: '#1a73e8',
-              border: '2px solid #fff',
+              border: '2px solid #FAF6F0',
               borderRadius: '50%',
               cursor: 'nwse-resize',
               boxShadow: '0 2px 6px rgba(0,0,0,0.3)',

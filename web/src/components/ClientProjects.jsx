@@ -2,46 +2,46 @@ import React from 'react'
 
 const projects = [
   {
-    title: "Alex Lab Coworking",
+    title_en: "Alex Lab Coworking",
+    title_ar: "مساحة عمل اليكس لاب",
     url: "https://alex-lab-coworking.vercel.app",
-    description: "مساحة عمل مشتركة مبتكرة في الإسكندرية تدعم ريادة الأعمال والعمل المشترك.",
-    industry: "Coworking Space",
+    desc_en: "An innovative coworking space in Alexandria supporting entrepreneurship and shared workspaces.",
+    desc_ar: "مساحة عمل مشتركة مبتكرة في الإسكندرية تدعم ريادة الأعمال والعمل المشترك.",
+    ind_en: "Coworking Space",
+    ind_ar: "مساحة عمل مشتركة",
     tags: ["Next.js", "Tailwind CSS", "Booking Systems"],
     image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80"
   },
   {
-    title: "Morsal",
+    title_en: "Morsal",
+    title_ar: "مرسال",
     url: "https://morsall.com",
-    description: "منصة اتصالات رقمية متكاملة لربط الخدمات والشركات وحلول الإرسال الإلكتروني.",
-    industry: "Communications",
+    desc_en: "An integrated digital communications platform connecting services, businesses, and messaging solutions.",
+    desc_ar: "منصة اتصالات رقمية متكاملة لربط الخدمات والشركات وحلول الإرسال الإلكتروني.",
+    ind_en: "Communications",
+    ind_ar: "الاتصالات",
     tags: ["React", "API integration", "SaaS Platform"],
     image: "https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=800&q=80"
   },
   {
-    title: "Oman Project",
+    title_en: "Oman Project",
+    title_ar: "مشروع عمان",
     url: "https://oman-xi.vercel.app",
-    description: "موقع مؤسسي فاخر ومطوّر لتقديم وعرض الهوية والمشاريع الكبرى في سلطنة عُمان.",
-    industry: "Corporate",
+    desc_en: "A luxury corporate website presenting the identity and major projects in the Sultanate of Oman.",
+    desc_ar: "موقع مؤسسي فاخر ومطوّر لتقديم وعرض الهوية والمشاريع الكبرى في سلطنة عُمان.",
+    ind_en: "Corporate",
+    ind_ar: "شركات والمؤسسات",
     tags: ["React", "Motion", "Premium UI"],
     image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80"
   }
 ]
 
-export default function ClientProjects() {
+export default function ClientProjects({ lang }) {
+  const t = (en, ar) => (lang === 'ar' ? ar : en)
+
   return (
     <section className="client-projects-section" id="client-projects" style={{ padding: '6rem 0', background: '#0c0c0e' }}>
       <div className="container">
-        <div style={{ marginBottom: '3.5rem', textAlign: 'center' }}>
-          <span style={{ fontSize: '0.8rem', color: '#c8a35c', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '0.8rem' }}>
-            SELECTED WORK
-          </span>
-          <h2 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#ffffff', marginBottom: '1rem', fontFamily: 'Cairo, sans-serif' }}>
-            أعمالنا ومشاريعنا
-          </h2>
-          <p style={{ maxWidth: '600px', margin: '0 auto', color: '#a8a8b3', fontSize: '1.05rem', lineHeight: 1.6 }}>
-            استعرض نماذج حية ومباشرة من المنصات الرقمية ومواقع الشركات التي قمنا بتطويرها لشركائنا بأعلى المعايير.
-          </p>
-        </div>
 
         <div className="client-projects-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
           {projects.map((proj, idx) => (
@@ -53,7 +53,7 @@ export default function ClientProjects() {
               className="client-project-card"
               style={{
                 background: '#131316',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(250, 246, 240, 0.08)',
                 borderRadius: '16px',
                 overflow: 'hidden',
                 textDecoration: 'none',
@@ -66,7 +66,7 @@ export default function ClientProjects() {
               <div style={{ position: 'relative', overflow: 'hidden', height: '200px' }}>
                 <img
                   src={proj.image}
-                  alt={proj.title}
+                  alt={t(proj.title_en, proj.title_ar)}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }}
                   className="project-card-img"
                 />
@@ -88,7 +88,7 @@ export default function ClientProjects() {
                     borderRadius: '30px',
                     fontSize: '0.85rem'
                   }}>
-                    زيارة الموقع المباشر ↗
+                    {t('Visit Live Site ↗', 'زيارة الموقع المباشر ↗')}
                   </span>
                 </div>
               </div>
@@ -96,22 +96,22 @@ export default function ClientProjects() {
               <div style={{ padding: '1.8rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
                   <span style={{ fontSize: '0.75rem', color: '#c8a35c', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {proj.industry}
+                    {t(proj.ind_en, proj.ind_ar)}
                   </span>
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    {proj.tags.slice(0, 2).map((t, i) => (
-                      <span key={i} style={{ background: 'rgba(255,255,255,0.05)', color: '#a8a8b3', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.7rem' }}>
-                        {t}
+                    {proj.tags.slice(0, 2).map((tag, i) => (
+                      <span key={i} style={{ background: 'rgba(250, 246, 240,0.05)', color: '#a8a8b3', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.7rem' }}>
+                        {tag}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#ffffff', marginBottom: '0.6rem', fontFamily: 'Cairo, sans-serif' }}>
-                  {proj.title}
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#FAF6F0', marginBottom: '0.6rem', fontFamily: "Manrope, Lora, Amiri, serif" }}>
+                  {t(proj.title_en, proj.title_ar)}
                 </h3>
                 <p style={{ color: '#a8a8b3', fontSize: '0.95rem', lineHeight: 1.6, margin: 0, flex: 1 }}>
-                  {proj.description}
+                  {t(proj.desc_en, proj.desc_ar)}
                 </p>
               </div>
             </a>

@@ -56,12 +56,14 @@ function extractHTML(response) {
 
 exports.chat = async (sessionId, message, logoDataUrl = null) => {
   const session = getSession(sessionId);
+  const customEndpoint = process.env.VIXCELL_MODEL_ENDPOINT || '';
+  const customModel = process.env.VIXCELL_MODEL_NAME || 'vixcell-gemma-2-9b';
+  const customAuth = process.env.VIXCELL_MODEL_AUTH_TOKEN || '';
   const apiKey = process.env.GEMINI_API_KEY || '';
 
   // 1. Prepare user parts
   let userParts = [{ text: message || 'مرحباً' }];
 
-  // Securely handle uploaded logo image multimodally
   if (logoDataUrl) {
     const match = logoDataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (match) {
@@ -73,19 +75,87 @@ exports.chat = async (sessionId, message, logoDataUrl = null) => {
           data: base64Data
         }
       });
-      // Append tag so system prompt triggers logo behavior
       userParts[0].text += '\n[LOGO_UPLOADED]';
     }
   }
 
-  // 2. Fallback to mock response if no API key is configured
+  // Route request to Vixcell Model server (Gemma vLLM compatible API) if configured
+  if (customEndpoint) {
+    try {
+      session.history.push({ role: 'user', parts: userParts });
+
+      const formattedMessages = [
+        { role: 'system', content: SYSTEM_PROMPT }
+      ];
+      for (const turn of session.history) {
+        const textContent = turn.parts.map(p => p.text || (p.inlineData ? `[Uploaded Image data]` : '')).join('\n');
+        formattedMessages.push({
+          role: turn.role === 'model' ? 'assistant' : 'user',
+          content: textContent
+        });
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (customAuth) {
+        headers['Authorization'] = `Bearer ${customAuth}`;
+      }
+
+      const response = await fetch(`${customEndpoint.replace(/\/+$/, '')}/v1/chat/completions`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          model: customModel,
+          messages: formattedMessages,
+          max_tokens: 8192,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Vixcell AI Engine returned status ${response.status}: ${errText}`);
+      }
+
+      const resData = await response.json();
+      if (!resData.choices || resData.choices.length === 0) {
+        throw new Error('Vixcell AI Engine did not return any valid choices.');
+      }
+
+      const aiResponseText = resData.choices[0].message.content;
+
+      session.history.push({ role: 'model', parts: [{ text: aiResponseText }] });
+
+      if (session.history.length > MAX_HISTORY) {
+        session.history.splice(0, session.history.length - MAX_HISTORY);
+      }
+
+      const html = extractHTML(aiResponseText);
+      const cleanText = aiResponseText.replace(/===HTML_START===[\s\S]*?===HTML_END===/g, '').trim();
+
+      return {
+        text: cleanText || 'تم البناء بنجاح! يمكنك معاينته في لوحة المعاينة.',
+        html: html
+      };
+    } catch (err) {
+      console.error('[VIXCELL AI ENGINE ERROR]:', err.message);
+      session.history.pop();
+      const mockRes = getMockResponse(message, logoDataUrl);
+      const html = extractHTML(mockRes);
+      const cleanText = mockRes.replace(/===HTML_START===[\s\S]*?===HTML_END===/g, '').trim();
+      return {
+        text: `(تنبيه: حدث خطأ أثناء الاتصال بمحرك الذكاء الاصطناعي، تم استخدام الاستجابة التلقائية المدمجة)\n\n${cleanText}`,
+        html: html
+      };
+    }
+  }
+
+  // 2. Fallback to mock response if no API key or endpoint is configured
   if (!apiKey) {
-    console.warn('[VIXCELL AI] No backend GEMINI_API_KEY found. Falling back to mock.');
+    console.warn('[VIXCELL AI] No backend model endpoint or GEMINI_API_KEY found. Falling back to mock.');
     const mockRes = getMockResponse(message, logoDataUrl);
     const html = extractHTML(mockRes);
     const cleanText = mockRes.replace(/===HTML_START===[\s\S]*?===HTML_END===/g, '').trim();
     
-    // Add to local history for completeness
     session.history.push({ role: 'user', parts: [{ text: message }] });
     session.history.push({ role: 'model', parts: [{ text: mockRes }] });
     
@@ -96,16 +166,13 @@ exports.chat = async (sessionId, message, logoDataUrl = null) => {
   }
 
   try {
-    // Add user turn to session history
     session.history.push({ role: 'user', parts: userParts });
 
-    // Format history for Gemini API
     const contents = session.history.map(item => ({
       role: item.role,
       parts: item.parts
     }));
 
-    // Call official Gemini REST API (no npm dependencies needed)
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -123,20 +190,18 @@ exports.chat = async (sessionId, message, logoDataUrl = null) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Gemini API returned status ${response.status}: ${errorText}`);
+      throw new Error(`Vixcell AI Engine returned status ${response.status}`);
     }
 
     const resData = await response.json();
     if (!resData.candidates || resData.candidates.length === 0) {
-      throw new Error('Gemini API did not return any candidates.');
+      throw new Error('Vixcell AI Engine did not return any candidates.');
     }
 
     const aiResponseText = resData.candidates[0].content.parts[0].text;
 
-    // Save model response to history
     session.history.push({ role: 'model', parts: [{ text: aiResponseText }] });
 
-    // Enforce history size limit
     if (session.history.length > MAX_HISTORY) {
       session.history.splice(0, session.history.length - MAX_HISTORY);
     }
@@ -150,16 +215,14 @@ exports.chat = async (sessionId, message, logoDataUrl = null) => {
     };
 
   } catch (err) {
-    console.error('[VIXCELL AI] Error in backend Gemini Chat:', err);
-    // Remove failed user turn
+    console.error('[VIXCELL AI] Error in backend Vixcell chat:', err.message);
     session.history.pop();
     
-    // Graceful fallback
     const mockRes = getMockResponse(message, logoDataUrl);
     const html = extractHTML(mockRes);
     const cleanText = mockRes.replace(/===HTML_START===[\s\S]*?===HTML_END===/g, '').trim();
     return {
-      text: `(تنبيه: حدث خطأ أثناء الاتصال بالذكاء الاصطناعي، تم استخدام الاستجابة التلقائية المدمجة)\n\n${cleanText}`,
+      text: `(تنبيه: حدث خطأ أثناء الاتصال بمحرك الذكاء الاصطناعي، تم استخدام الاستجابة التلقائية المدمجة)\n\n${cleanText}`,
       html: html
     };
   }

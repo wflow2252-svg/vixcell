@@ -3,7 +3,7 @@
   background: #0A0A0A; /* Matches premium dark hero and page flow */
   position: relative;
   overflow: hidden;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(250, 246, 240, 0.06);
 }
 
 /* Background glowing orbs for extra premium vibe */
@@ -59,7 +59,7 @@
   font-family: 'Outfit', sans-serif;
   font-size: clamp(2.5rem, 5vw, 4rem);
   font-weight: 800;
-  color: #ffffff;
+  color: #FAF6F0;
   margin-bottom: 1.5rem;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -68,7 +68,7 @@
 .media-gallery-subtitle {
   font-family: 'Inter', sans-serif;
   font-size: clamp(1rem, 1.5vw, 1.15rem);
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(250, 246, 240, 0.6);
   max-width: 600px;
   line-height: 1.6;
   text-align: center;
@@ -101,8 +101,8 @@
   position: relative;
   border-radius: 20px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(250, 246, 240, 0.03);
+  border: 1px solid rgba(250, 246, 240, 0.08);
   aspect-ratio: 1 / 1; /* Keep them square like the original images */
   cursor: pointer;
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
@@ -163,7 +163,7 @@
   font-family: 'Outfit', sans-serif;
   font-weight: 700;
   font-size: 1.2rem;
-  color: #ffffff;
+  color: #FAF6F0;
   margin-bottom: 0.5rem;
   text-align: right;
   direction: rtl;
@@ -172,7 +172,7 @@
 .media-card-desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(250, 246, 240, 0.7);
   line-height: 1.4;
   text-align: right;
   direction: rtl;
@@ -183,7 +183,7 @@
   top: 1.2rem;
   right: 1.2rem;
   background: rgba(255, 107, 0, 0.9);
-  color: #ffffff;
+  color: #FAF6F0;
   padding: 0.35rem 0.8rem;
   border-radius: 30px;
   font-size: 0.75rem;
@@ -193,12 +193,12 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(250, 246, 240, 0.2);
   transition: all 0.3s ease;
 }
 
 .media-card:hover .media-card-badge {
-  background: #ffffff;
+  background: #FAF6F0;
   color: #FF6B00;
 }
 
@@ -243,7 +243,7 @@
   object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(250, 246, 240, 0.1);
   transform: scale(0.95);
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -256,7 +256,7 @@
 .lightbox-caption {
   margin-top: 1.5rem;
   text-align: center;
-  color: #ffffff;
+  color: #FAF6F0;
   direction: rtl;
   max-width: 600px;
 }
@@ -272,7 +272,7 @@
 .lightbox-desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(250, 246, 240, 0.8);
   line-height: 1.5;
 }
 
@@ -281,9 +281,9 @@
   position: absolute;
   top: -3.5rem;
   right: 0;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: rgba(250, 246, 240, 0.08);
+  border: 1px solid rgba(250, 246, 240, 0.15);
+  color: #FAF6F0;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -297,7 +297,7 @@
 }
 
 .lightbox-close-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(250, 246, 240, 0.2);
   transform: scale(1.05);
 }
 
@@ -305,9 +305,9 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: rgba(250, 246, 240, 0.08);
+  border: 1px solid rgba(250, 246, 240, 0.15);
+  color: #FAF6F0;
   width: 50px;
   height: 50px;
   border-radius: 50%;
@@ -322,7 +322,7 @@
 }
 
 .lightbox-arrow:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(250, 246, 240, 0.2);
   transform: translateY(-50%) scale(1.05);
 }
 

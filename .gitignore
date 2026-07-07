@@ -36,3 +36,23 @@ agy.exe
 
 # Vixcell AI OS runtime storage (database, AI models, uploads)
 VixcellAI/
+
+# Large Model Weights & Shards
+**/models/
+**/*.onnx
+**/*.bin
+**/*.pt
+**/*.safetensors
+**/*.gguf
+
+# Extension Node Modules
+vixcell-extension/node_modules/
+vixcell-extension/out/
+
+# Python virtualenvs & models
+vixcell-os/backend/gemma/
+vixcell-core-os/
+**/node_modules/
+**/dist/
+.next/
+out/

@@ -7,13 +7,14 @@ import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import Services from './components/Services'
 import Portfolio from './components/Portfolio'
-import ClientProjects from './components/ClientProjects'
 import ContactFooter from './components/ContactFooter'
 import StartProjectForm from './components/StartProjectForm'
 import FeedbackForm from './components/FeedbackForm'
 import AdminDashboard from './components/AdminDashboard'
 import PortfolioPage from './pages/PortfolioPage'
 import MeetingRoom from './components/MeetingRoom'
+import AIDesignerPage from './pages/AIDesignerPage'
+import GemmaLandingSection from './components/GemmaLandingSection'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -26,6 +27,7 @@ const PATH_TO_VIEW = {
   '/feedback':  'feedback',
   '/admin':     'admin',
   '/meeting':   'meeting',
+  '/designer':  'designer',
 }
 const VIEW_TO_PATH = {
   landing:   '/',
@@ -34,12 +36,21 @@ const VIEW_TO_PATH = {
   feedback:  '/feedback',
   admin:     '/admin',
   meeting:   '/meeting',
+  designer:  '/designer',
 }
 
 function App() {
+  const [lang, setLang] = useState(() => {
+    try {
+      return localStorage.getItem('vix_lang') || 'ar';
+    } catch {
+      return 'ar';
+    }
+  })
   const [view, setView] = useState(() => {
     try {
       const path = window.location.pathname
+      if (path.startsWith('/meeting/')) return 'meeting'
       if (PATH_TO_VIEW[path]) return PATH_TO_VIEW[path]
       const saved = localStorage.getItem('vix_view')
       if (saved && VIEW_TO_PATH[saved]) return saved
@@ -49,9 +60,43 @@ function App() {
     return 'landing'
   })
 
+  // Detect IP address country to set default language if not already saved
+  useEffect(() => {
+    async function detectLanguage() {
+      try {
+        if (localStorage.getItem('vix_lang')) return;
+        const res = await fetch('https://ipapi.co/json/')
+        const data = await res.json()
+        const arabCountries = ['EG', 'SA', 'AE', 'QA', 'BH', 'OM', 'KW', 'JO', 'LB', 'SY', 'IQ', 'YE', 'MA', 'DZ', 'TN', 'LY', 'SD', 'PS']
+        if (arabCountries.includes(data.country_code)) {
+          setLang('ar')
+        } else {
+          // If browser is english, use english, else default to arabic
+          const browserLang = navigator.language || navigator.userLanguage || ''
+          if (browserLang.startsWith('en')) {
+            setLang('en')
+          } else {
+            setLang('ar')
+          }
+        }
+      } catch (e) {
+        console.warn('[Vixcell] IP language detection failed, defaulting to ar:', e)
+      }
+    }
+    detectLanguage()
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.lang = lang
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'
+  }, [lang])
+
   useEffect(() => {
     try { localStorage.setItem('vix_view', view) } catch {}
-    const path = VIEW_TO_PATH[view] || '/'
+    let path = VIEW_TO_PATH[view] || '/'
+    if (view === 'meeting' && window.location.pathname.startsWith('/meeting/')) {
+      path = window.location.pathname
+    }
     if (window.location.pathname !== path) {
       window.history.pushState({}, '', path)
     }
@@ -60,7 +105,8 @@ function App() {
   // Handle browser back/forward
   useEffect(() => {
     const onPop = () => {
-      const newView = PATH_TO_VIEW[window.location.pathname] || 'landing'
+      const path = window.location.pathname
+      const newView = path.startsWith('/meeting/') ? 'meeting' : (PATH_TO_VIEW[path] || 'landing')
       setView(newView)
     }
     window.addEventListener('popstate', onPop)
@@ -113,25 +159,29 @@ function App() {
   if (view === 'start')     return <StartProjectForm onViewChange={setView} />
   if (view === 'feedback')  return <FeedbackForm    onViewChange={setView} />
   if (view === 'admin')     return <AdminDashboard  onViewChange={setView} />
+  if (view === 'designer')  return <AIDesignerPage  onViewChange={setView} />
   if (view === 'meeting') {
+    const path = window.location.pathname
+    const pathCode = path.startsWith('/meeting/') ? path.substring(9) : ''
     const queryParams = new URLSearchParams(window.location.search)
     const isAdminRole = queryParams.get('role')?.toLowerCase() === 'admin'
-    return <MeetingRoom isAdmin={isAdminRole} onViewChange={setView} />
+    const code = pathCode || queryParams.get('code') || queryParams.get('id') || ''
+    return <MeetingRoom isAdmin={isAdminRole} onViewChange={setView} joinMeetingId={code} />
   }
 
   // Landing
   return (
     <div className="app-wrapper">
-      <Navbar currentView={view} onViewChange={setView} onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} />
+      <Navbar currentView={view} onViewChange={setView} onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} lang={lang} setLang={setLang} />
 
       <main style={{ minHeight: '100vh' }}>
-        <Hero onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} />
-        <Services />
-        <Portfolio onViewChange={setView} />
-        <ClientProjects />
+        <Hero onStartProject={() => { setView('landing'); setTimeout(() => scrollToContact(), 100) }} lang={lang} />
+        <Services lang={lang} />
+        <GemmaLandingSection lang={lang} />
+        <Portfolio onViewChange={setView} lang={lang} />
       </main>
 
-      <ContactFooter />
+      <ContactFooter lang={lang} />
     </div>
   )
 }

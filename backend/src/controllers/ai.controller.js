@@ -1,5 +1,6 @@
 const DemoRequest = require('../models/DemoRequest');
 const aiTemplateService = require('../services/aiTemplate.service');
+const codingAssistantService = require('../services/codingAssistant.service');
 const fcmService = require('../services/fcm.service');
 const { getIo } = require('../socket');
 
@@ -77,13 +78,15 @@ exports.ollamaAnalyze = async (req, res, next) => {
     const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
     
     // Dynamically find available local models
-    let modelName = 'llama3.2'; // default fallback
+    let modelName = 'gemma2:2b'; // default fallback for Gemma
     try {
       const tagsResponse = await fetch(`${ollamaUrl}/api/tags`);
       if (tagsResponse.ok) {
         const tagsData = await tagsResponse.json();
         if (tagsData.models && tagsData.models.length > 0) {
-          modelName = tagsData.models[0].name;
+          // Prioritize gemma models if available, otherwise use first available model
+          const gemmaModel = tagsData.models.find(m => m.name.toLowerCase().includes('gemma'));
+          modelName = gemmaModel ? gemmaModel.name : tagsData.models[0].name;
           console.log(`[Ollama Proxy] Dynamically selected model: ${modelName}`);
         }
       }
@@ -185,12 +188,12 @@ Guidelines:
 
     if (!response.ok) {
       const errorText = await response.text();
-      return res.status(response.status).json({ success: false, message: `Gemini API error: ${errorText}` });
+      return res.status(response.status).json({ success: false, message: `Vixcell OCR Engine error: Failed to process handwriting.` });
     }
 
     const resData = await response.json();
     if (!resData.candidates || resData.candidates.length === 0) {
-      throw new Error('Gemini API did not return any candidates.');
+      throw new Error('Vixcell OCR Engine did not return any candidates.');
     }
 
     const correctedText = resData.candidates[0].content.parts[0].text.trim().replace(/^"|"$/g, '');
@@ -203,5 +206,23 @@ Guidelines:
     });
   } catch (error) {
     next(error);
+  }
+};
+
+exports.codingAssistant = async (req, res, next) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ success: false, message: 'Prompt is required' });
+    }
+
+    const blueprint = await codingAssistantService.generateCodingBlueprint(prompt);
+    res.json({
+      success: true,
+      data: blueprint
+    });
+  } catch (error) {
+    console.error('[ai.controller.js] Error in codingAssistant:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate coding blueprint.' });
   }
 };

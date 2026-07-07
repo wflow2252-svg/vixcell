@@ -15,5 +15,6 @@ router.get('/demos', protect, aiController.getDemos);
 router.get('/demos/:id', aiController.getDemoHtml);
 router.post('/ollama-analyze', aiController.ollamaAnalyze);
 router.post('/correct-handwriting', aiController.correctHandwriting);
+router.post('/coding-assistant', aiController.codingAssistant);
 
 module.exports = router;

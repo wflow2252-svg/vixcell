@@ -4,7 +4,7 @@ import DotPixelIcon from './DotPixelIcon'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
-  border: 'rgba(255,255,255,0.08)', borderH: 'rgba(255,255,255,0.16)',
+  border: 'rgba(250, 246, 240,0.08)', borderH: 'rgba(250, 246, 240,0.16)',
   text: '#e8e8ed', text2: '#a8a8b3', text3: '#6b6b75',
   gold: '#c8a35c', goldH: '#d4b06a', goldDim: 'rgba(200,163,92,0.12)',
   error: '#ef4444', success: '#22c55e',
@@ -267,6 +267,65 @@ export default function BrandSettings() {
               </div>
               <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoChange} style={{ ...styles.input, padding: 8 }} />
             </div>
+          </Field>
+
+          <h4 style={{ ...styles.h3, marginTop: 24, borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>صور الخدمات (Our Services)</h4>
+          
+          <Field label="صورة تطبيقات الموبايل (Mobile App Image URL)">
+            <input 
+              value={brand.brand_colors?.services_images?.mobile || ''} 
+              onChange={(e) => setBrand({ 
+                ...brand, 
+                brand_colors: { 
+                  ...(brand.brand_colors || {}), 
+                  services_images: { 
+                    ...(brand.brand_colors?.services_images || {}), 
+                    mobile: e.target.value 
+                  } 
+                } 
+              })} 
+              style={styles.input} 
+              placeholder="رابط صورة تطبيقات الموبايل" 
+              dir="ltr"
+            />
+          </Field>
+
+          <Field label="صورة مواقع الويب (Website Image URL)">
+            <input 
+              value={brand.brand_colors?.services_images?.web || ''} 
+              onChange={(e) => setBrand({ 
+                ...brand, 
+                brand_colors: { 
+                  ...(brand.brand_colors || {}), 
+                  services_images: { 
+                    ...(brand.brand_colors?.services_images || {}), 
+                    web: e.target.value 
+                  } 
+                } 
+              })} 
+              style={styles.input} 
+              placeholder="رابط صورة مواقع الويب" 
+              dir="ltr"
+            />
+          </Field>
+
+          <Field label="صورة المتاجر الإلكترونية (E-commerce Image URL)">
+            <input 
+              value={brand.brand_colors?.services_images?.ecommerce || ''} 
+              onChange={(e) => setBrand({ 
+                ...brand, 
+                brand_colors: { 
+                  ...(brand.brand_colors || {}), 
+                  services_images: { 
+                    ...(brand.brand_colors?.services_images || {}), 
+                    ecommerce: e.target.value 
+                  } 
+                } 
+              })} 
+              style={styles.input} 
+              placeholder="رابط صورة المتاجر الإلكترونية" 
+              dir="ltr"
+            />
           </Field>
 
           <button type="submit" disabled={saving} style={{ ...styles.primaryBtn, marginTop: 16, width: '100%' }}>

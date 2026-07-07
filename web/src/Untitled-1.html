@@ -1,0 +1,483 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مكتبة الخطوط الويب</title>
+  <meta name="description" content="مكتبة خطوط عربية للمواقع مع تصنيفات واستخدامات عملية ومعاينة مباشرة." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Tajawal:wght@200;300;400;500;700;800;900&family=El+Messiri:wght@400..700&family=Changa:wght@200..800&family=Alexandria:wght@100..900&family=Amiri:wght@400;700&family=Reem+Kufi:wght@400..700&family=Noto+Kufi+Arabic:wght@100..900&display=swap" rel="stylesheet">
+  <style>
+    :root, [data-theme="light"] {
+      --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+      --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+      --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+      --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+      --text-2xl: clamp(2rem, 1.2rem + 2.5vw, 3.5rem);
+      --text-3xl: clamp(2.5rem, 1rem + 4vw, 5rem);
+      --color-bg: #f7f6f2;
+      --color-surface: #f9f8f5;
+      --color-surface-2: #fbfbf9;
+      --color-surface-offset: #f1eeea;
+      --color-border: #d6d2cb;
+      --color-text: #211f1a;
+      --color-text-muted: #686761;
+      --color-text-faint: #a7a59e;
+      --color-primary: #01696f;
+      --color-primary-hover: #0c4e54;
+      --color-primary-soft: #d6e7e5;
+      --color-accent: #a35c2c;
+      --shadow-sm: 0 8px 24px rgba(34, 32, 27, 0.06);
+      --shadow-md: 0 20px 50px rgba(34, 32, 27, 0.1);
+      --radius-sm: .5rem;
+      --radius-md: 1rem;
+      --radius-lg: 1.5rem;
+      --radius-xl: 2rem;
+      --space-2: .5rem;
+      --space-3: .75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+      --space-16: 4rem;
+      --space-20: 5rem;
+      --content: 1180px;
+      --font-body: 'Alexandria', 'Tajawal', sans-serif;
+      --font-display: 'El Messiri', 'Cairo', sans-serif;
+    }
+    [data-theme="dark"] {
+      --color-bg: #171614;
+      --color-surface: #1d1b19;
+      --color-surface-2: #24211f;
+      --color-surface-offset: #2b2825;
+      --color-border: #3d3935;
+      --color-text: #f0ede7;
+      --color-text-muted: #c2bdb5;
+      --color-text-faint: #8e877e;
+      --color-primary: #59a8ab;
+      --color-primary-hover: #7ab7b8;
+      --color-primary-soft: #243836;
+      --color-accent: #d49f73;
+      --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.25);
+      --shadow-md: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:var(--font-body);
+      font-size:var(--text-base);
+      line-height:1.75;
+      background:
+        radial-gradient(circle at top right, rgba(1,105,111,.08), transparent 28%),
+        radial-gradient(circle at bottom left, rgba(163,92,44,.07), transparent 30%),
+        var(--color-bg);
+      color:var(--color-text);
+    }
+    a{color:inherit;text-decoration:none}
+    button,input,select{font:inherit}
+    img,svg{display:block;max-width:100%}
+    .container{width:min(var(--content), calc(100% - 2rem));margin-inline:auto}
+    .skip-link{position:absolute;left:-9999px;top:auto}
+    .skip-link:focus{left:1rem;top:1rem;background:var(--color-primary);color:#fff;padding:.75rem 1rem;border-radius:999px;z-index:999}
+    .site-header{position:sticky;top:0;z-index:50;background:color-mix(in srgb, var(--color-bg) 84%, transparent);backdrop-filter:blur(12px);border-bottom:1px solid color-mix(in srgb, var(--color-text) 10%, transparent)}
+    .header-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 0}
+    .brand{display:flex;align-items:center;gap:.9rem}
+    .brand-mark{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,var(--color-primary),color-mix(in srgb, var(--color-primary) 40%, var(--color-accent)));color:#fff;box-shadow:var(--shadow-sm)}
+    .brand-mark svg{width:28px;height:28px}
+    .brand-title{font-family:var(--font-display);font-size:var(--text-lg);line-height:1.1}
+    .brand-sub{font-size:var(--text-xs);color:var(--color-text-muted)}
+    .header-actions{display:flex;align-items:center;gap:.75rem}
+    .nav-links{display:none;gap:1rem;font-size:var(--text-sm);color:var(--color-text-muted)}
+    .theme-toggle,.ghost-btn,.primary-btn{
+      border:none;border-radius:999px;padding:.85rem 1.2rem;display:inline-flex;align-items:center;justify-content:center;gap:.55rem;cursor:pointer;transition:.2s ease;background:none;color:inherit
+    }
+    .theme-toggle,.ghost-btn{background:var(--color-surface);border:1px solid color-mix(in srgb, var(--color-text) 10%, transparent)}
+    .primary-btn{background:var(--color-primary);color:#fff;box-shadow:var(--shadow-sm)}
+    .primary-btn:hover{background:var(--color-primary-hover)}
+    .ghost-btn:hover,.theme-toggle:hover{background:var(--color-surface-offset)}
+    .hero{padding:clamp(3rem,8vw,7rem) 0 2rem}
+    .hero-grid{display:grid;gap:1.5rem;align-items:end}
+    .hero-copy,.hero-panel{background:color-mix(in srgb, var(--color-surface) 88%, transparent);border:1px solid color-mix(in srgb, var(--color-text) 10%, transparent);border-radius:var(--radius-xl);box-shadow:var(--shadow-md)}
+    .hero-copy{padding:clamp(1.5rem,4vw,3rem)}
+    .eyebrow{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .9rem;border-radius:999px;background:var(--color-primary-soft);color:var(--color-primary);font-size:var(--text-xs);margin-bottom:1rem}
+    h1,h2,h3{margin:0;line-height:1.15}
+    h1{font-family:var(--font-display);font-size:var(--text-3xl);max-width:12ch;margin-bottom:1rem}
+    .hero-copy p{max-width:62ch;color:var(--color-text-muted);margin:0 0 1.35rem}
+    .hero-actions{display:flex;flex-wrap:wrap;gap:.75rem}
+    .hero-panel{padding:1.2rem;display:grid;gap:1rem}
+    .mini-card{background:var(--color-surface-2);border-radius:1.25rem;padding:1rem;border:1px solid color-mix(in srgb, var(--color-text) 8%, transparent)}
+    .mini-label{font-size:var(--text-xs);color:var(--color-text-muted);margin-bottom:.35rem}
+    .mini-sample{font-size:clamp(1.4rem,2vw,2rem)}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+    .stat{padding:1rem;border-radius:1.25rem;background:var(--color-surface-2);text-align:center}
+    .stat strong{display:block;font-size:var(--text-lg);font-family:var(--font-display)}
+    .section{padding:1.5rem 0 3rem}
+    .section-head{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:1rem;margin-bottom:1.25rem}
+    .section-head p{margin:0;color:var(--color-text-muted);max-width:55ch}
+    .toolbar{display:grid;gap:1rem;background:var(--color-surface);border:1px solid color-mix(in srgb, var(--color-text) 10%, transparent);border-radius:1.5rem;padding:1rem;margin-bottom:1.25rem}
+    .toolbar-grid{display:grid;gap:1rem}
+    .search-box,.select-box{display:flex;align-items:center;gap:.75rem;background:var(--color-surface-2);border:1px solid color-mix(in srgb, var(--color-text) 10%, transparent);padding:.95rem 1rem;border-radius:1rem}
+    .search-box input,.select-box select{width:100%;border:none;outline:none;background:transparent;color:var(--color-text)}
+    .chip-row{display:flex;flex-wrap:wrap;gap:.6rem}
+    .chip{border:none;background:var(--color-surface-2);padding:.65rem 1rem;border-radius:999px;color:var(--color-text-muted);cursor:pointer;border:1px solid transparent}
+    .chip.active{background:var(--color-primary-soft);color:var(--color-primary);border-color:color-mix(in srgb, var(--color-primary) 20%, transparent)}
+    .grid{display:grid;gap:1rem}
+    .font-card{background:var(--color-surface);border:1px solid color-mix(in srgb, var(--color-text) 10%, transparent);border-radius:1.6rem;padding:1.2rem;box-shadow:var(--shadow-sm);display:grid;gap:1rem;content-visibility:auto}
+    .font-card:hover{transform:translateY(-2px)}
+    .card-top{display:flex;justify-content:space-between;align-items:start;gap:1rem}
+    .font-family-name{font-family:var(--font-display);font-size:var(--text-lg)}
+    .badge{display:inline-flex;align-items:center;justify-content:center;padding:.4rem .75rem;border-radius:999px;background:var(--color-primary-soft);color:var(--color-primary);font-size:var(--text-xs)}
+    .font-meta{display:flex;flex-wrap:wrap;gap:.5rem;color:var(--color-text-muted);font-size:var(--text-xs)}
+    .sample-box{padding:1rem;border-radius:1.25rem;background:var(--color-surface-2);border:1px dashed color-mix(in srgb, var(--color-text) 13%, transparent)}
+    .sample-ar{font-size:clamp(1.35rem,2.4vw,2rem);margin-bottom:.7rem}
+    .sample-en{font-size:var(--text-sm);color:var(--color-text-muted)}
+    .usage{color:var(--color-text-muted);font-size:var(--text-sm)}
+    .use-list{display:flex;flex-wrap:wrap;gap:.5rem}
+    .use-pill{font-size:var(--text-xs);padding:.45rem .7rem;border-radius:999px;background:color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-2));color:var(--color-accent)}
+    .pairing{padding:1rem;border-radius:1.4rem;background:linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)), var(--color-surface-2));border:1px solid color-mix(in srgb, var(--color-text) 9%, transparent)}
+    .pairing-grid{display:grid;gap:1rem}
+    .pair-card{padding:1.1rem;border-radius:1.25rem;background:var(--color-surface);border:1px solid color-mix(in srgb, var(--color-text) 10%, transparent)}
+    .pair-title{font-family:var(--font-display);margin-bottom:.4rem}
+    .guide{margin-top:1.25rem;padding:1.2rem;border-radius:1.5rem;background:var(--color-surface-offset);border:1px solid color-mix(in srgb, var(--color-text) 10%, transparent)}
+    .site-footer{padding:2rem 0 3rem;color:var(--color-text-muted)}
+    .footer-box{padding:1.2rem;border-top:1px solid color-mix(in srgb, var(--color-text) 10%, transparent);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+    .empty-state{padding:2rem;border-radius:1.5rem;background:var(--color-surface);text-align:center;color:var(--color-text-muted);border:1px dashed color-mix(in srgb, var(--color-text) 15%, transparent)}
+    @media (min-width: 760px){
+      .nav-links{display:flex}
+      .toolbar-grid{grid-template-columns:1.3fr .8fr}
+      .hero-grid{grid-template-columns:1.2fr .85fr}
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .pairing-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    }
+    @media (min-width: 1080px){
+      .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    }
+    @media (max-width: 640px){
+      .header-actions .ghost-btn{display:none}
+      .stats{grid-template-columns:1fr}
+      .card-top{flex-direction:column}
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">اذهب للمحتوى</a>
+  <header class="site-header">
+    <div class="container header-row">
+      <div class="brand" aria-label="شعار مكتبة الخطوط">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M5 18V6h4.5c2.8 0 4.5 1.5 4.5 3.8S12.3 14 9.5 14H5"/>
+            <path d="M14.5 18V6H19"/>
+            <path d="M14.5 12H18"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title">مكتبة الخطوط الويب</div>
+          <div class="brand-sub">اختيارات عربية جاهزة للمواقع وصفحات الهبوط ولوحات التحكم</div>
+        </div>
+      </div>
+      <nav class="nav-links" aria-label="التنقل الرئيسي">
+        <a href="#library">الخطوط</a>
+        <a href="#pairings">التنسيقات</a>
+        <a href="#guide">الدليل</a>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle" data-theme-toggle aria-label="تبديل الوضع">◐</button>
+        <a class="ghost-btn" href="#guide">اقرأ الاستخدامات</a>
+        <a class="primary-btn" href="#library">ابدأ المعاينة</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow">مكتبة موجهة للمصممين والمطورين</span>
+          <h1>اختَر الخط العربي المناسب قبل ما تبدأ تصميم الموقع</h1>
+          <p>
+            هذه المكتبة تجمع خطوط عربية مناسبة للويب مع وصف واضح لاستخدام كل خط، سواء كنت تبني صفحة هبوط، متجر، مدونة، لوحة تحكم، أو هوية رقمية أنيقة.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-btn" href="#library">شاهد كل الخطوط</a>
+            <a class="ghost-btn" href="#pairings">شاهد التنسيقات المقترحة</a>
+          </div>
+        </div>
+        <aside class="hero-panel" aria-label="معاينة سريعة للخطوط">
+          <div class="mini-card">
+            <div class="mini-label">عنوان فاخر</div>
+            <div class="mini-sample" style="font-family:'El Messiri', sans-serif;">هوية بصرية أنيقة</div>
+          </div>
+          <div class="mini-card">
+            <div class="mini-label">واجهة حديثة</div>
+            <div class="mini-sample" style="font-family:'Alexandria', sans-serif;">لوحة تحكم واضحة</div>
+          </div>
+          <div class="stats">
+            <div class="stat"><strong>8</strong><span>خطوط مختارة</span></div>
+            <div class="stat"><strong>3</strong><span>تنسيقات جاهزة</span></div>
+            <div class="stat"><strong>1</strong><span>دليل عربي</span></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" id="library">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h2>مكتبة الخطوط</h2>
+            <p>ابحث بالاسم أو فلتر حسب نوع الاستخدام، ثم شاهد معاينة مباشرة تساعدك تختار بسرعة.</p>
+          </div>
+        </div>
+
+        <div class="toolbar" aria-label="أدوات التصفية">
+          <div class="toolbar-grid">
+            <label class="search-box">
+              <span>⌕</span>
+              <input id="searchInput" type="search" placeholder="ابحث عن خط مثل Cairo أو Amiri" aria-label="ابحث عن خط" />
+            </label>
+            <label class="select-box">
+              <span>التصنيف</span>
+              <select id="categorySelect" aria-label="اختر التصنيف">
+                <option value="all">كل التصنيفات</option>
+                <option value="ui">واجهات المستخدم</option>
+                <option value="editorial">محتوى ومقالات</option>
+                <option value="branding">عناوين وهوية</option>
+                <option value="friendly">أسلوب ودود</option>
+              </select>
+            </label>
+          </div>
+          <div class="chip-row" id="chips">
+            <button class="chip active" data-filter="all">الكل</button>
+            <button class="chip" data-filter="ui">UI</button>
+            <button class="chip" data-filter="editorial">محتوى</button>
+            <button class="chip" data-filter="branding">عناوين</button>
+            <button class="chip" data-filter="friendly">ودود</button>
+          </div>
+        </div>
+
+        <div class="grid" id="fontGrid"></div>
+        <div id="emptyState" class="empty-state" hidden>لا يوجد خط مطابق للبحث الحالي، جرّب تصنيف أو كلمة أخرى.</div>
+      </div>
+    </section>
+
+    <section class="section" id="pairings">
+      <div class="container pairing">
+        <div class="section-head">
+          <div>
+            <h2>تنسيقات جاهزة</h2>
+            <p>لو مستعجل، ابدأ بأحد هذه الاقتراحات المبنية على نوع المشروع بدل ما تختبر كل شيء من الصفر.</p>
+          </div>
+        </div>
+        <div class="pairing-grid">
+          <article class="pair-card">
+            <div class="pair-title">صفحة هبوط حديثة</div>
+            <p><strong>العناوين:</strong> El Messiri — <strong>النصوص:</strong> Alexandria</p>
+            <p>مناسب للمنتجات الرقمية والصفحات التسويقية لأنه يجمع بين شخصية واضحة وقراءة سهلة.</p>
+          </article>
+          <article class="pair-card">
+            <div class="pair-title">مدونة أو مجلة</div>
+            <p><strong>العناوين:</strong> Reem Kufi — <strong>المحتوى:</strong> Amiri</p>
+            <p>اختيار ممتاز للمقالات الطويلة والمحتوى الثقافي أو الأدبي بسبب النبرة الهادئة والكلاسيكية.</p>
+          </article>
+          <article class="pair-card">
+            <div class="pair-title">لوحة تحكم أو SaaS</div>
+            <p><strong>العناوين:</strong> Cairo — <strong>العناصر والنصوص:</strong> Tajawal</p>
+            <p>عملي جدًا للواجهات المليانة بيانات وأزرار ونماذج لأن وضوحه ثابت في الأحجام الصغيرة.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="guide">
+      <div class="container">
+        <div class="guide">
+          <h2>طريقة الاختيار السريعة</h2>
+          <p>لو المشروع عملي ومليان أزرار وفلاتر وجداول، اختَر من فئة واجهات المستخدم. ولو المشروع يعتمد على القراءة، ركز على فئة المحتوى. أما لو الهدف إبراز شخصية البراند أو عمل Hero قوي، فابدأ من فئة العناوين والهوية.</p>
+          <p>لا تستخدم أكثر من خطين في نفس الموقع غالبًا: خط للعناوين وخط للنصوص. حافظ أيضًا على تدرج واضح في الأحجام والأوزان حتى يظهر الخط بشكل احترافي بدل ما يكون الاستخدام عشوائي.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-box">
+      <span>مصممة لتكون نقطة بداية قوية لمكتبة خطوط عربية خاصة بمشاريع الويب.</span>
+      <span>الوضع الفاتح والداكن + بحث + تصفية + معاينة مباشرة.</span>
+    </div>
+  </footer>
+
+  <script>
+    const fonts = [
+      {
+        name: 'Cairo',
+        family: "'Cairo', sans-serif",
+        category: 'ui',
+        categoryLabel: 'واجهات المستخدم',
+        weight: 'متوازن وواضح',
+        sampleAr: 'منصة ذكية لإدارة الطلبات اليومية',
+        sampleEn: 'Smart dashboard for modern web products',
+        usage: 'اختيار آمن جدًا للداشبورد، المتاجر، النماذج، وأي مشروع يحتاج وضوح عالي في الأحجام الصغيرة والمتوسطة.',
+        tags: ['Dashboard', 'SaaS', 'Forms']
+      },
+      {
+        name: 'Tajawal',
+        family: "'Tajawal', sans-serif",
+        category: 'ui',
+        categoryLabel: 'واجهات المستخدم',
+        weight: 'خفيف ومرن',
+        sampleAr: 'واجهة نظيفة وسريعة وسهلة التصفح',
+        sampleEn: 'Fast interface with clean microcopy',
+        usage: 'ممتاز للنصوص الثانوية، أزرار الواجهة، البطاقات، وصفحات التسجيل لأنه هادئ ولا يزاحم التصميم.',
+        tags: ['Buttons', 'Cards', 'Auth']
+      },
+      {
+        name: 'Alexandria',
+        family: "'Alexandria', sans-serif",
+        category: 'ui',
+        categoryLabel: 'واجهات المستخدم',
+        weight: 'احترافي وحديث',
+        sampleAr: 'حلول رقمية مصممة لتكبر مع مشروعك',
+        sampleEn: 'Scalable product copy for digital brands',
+        usage: 'خط ممتاز للشركات الناشئة وصفحات الهبوط الحديثة لأنه أنيق وواضح ويعطي إحساس تقني راقٍ.',
+        tags: ['Landing', 'Startup', 'Modern']
+      },
+      {
+        name: 'El Messiri',
+        family: "'El Messiri', sans-serif",
+        category: 'branding',
+        categoryLabel: 'عناوين وهوية',
+        weight: 'شخصية قوية',
+        sampleAr: 'تجربة رقمية تترك انطباعًا أول قويًا',
+        sampleEn: 'Bold hero headlines with personality',
+        usage: 'يفضل استخدامه في العناوين الرئيسية والـ Hero والبراندينج لأنه ملفت ويعطي حضور بصري واضح.',
+        tags: ['Hero', 'Brand', 'Headlines']
+      },
+      {
+        name: 'Changa',
+        family: "'Changa', sans-serif",
+        category: 'friendly',
+        categoryLabel: 'أسلوب ودود',
+        weight: 'مرح وحيوي',
+        sampleAr: 'تعلّم بسهولة وبأسلوب ممتع للأطفال',
+        sampleEn: 'Friendly learning experience for younger audiences',
+        usage: 'مناسب للمشاريع التعليمية، التطبيقات الشبابية، والمنصات التي تحتاج طاقة وبساطة ودفء.',
+        tags: ['Education', 'Kids', 'Friendly']
+      },
+      {
+        name: 'Amiri',
+        family: "'Amiri', serif",
+        category: 'editorial',
+        categoryLabel: 'محتوى ومقالات',
+        weight: 'كلاسيكي وأصيل',
+        sampleAr: 'نص عربي مريح للقراءة في المقالات الطويلة',
+        sampleEn: 'Editorial tone for long-form Arabic reading',
+        usage: 'أفضل خيار للمقالات، التدوين، النصوص الطويلة، والمشاريع الثقافية لأنه قريب من روح النشر العربي الكلاسيكي.',
+        tags: ['Blog', 'Editorial', 'Reading']
+      },
+      {
+        name: 'Reem Kufi',
+        family: "'Reem Kufi', sans-serif",
+        category: 'branding',
+        categoryLabel: 'عناوين وهوية',
+        weight: 'فني ومميز',
+        sampleAr: 'هوية مرنة تجمع البساطة والخصوصية',
+        sampleEn: 'Art-directed headings with a softer rhythm',
+        usage: 'مناسب للعناوين الإبداعية، المشاريع الثقافية، وصفحات البراند التي تريد طابعًا مختلفًا بدون مبالغة.',
+        tags: ['Creative', 'Culture', 'Display']
+      },
+      {
+        name: 'Noto Kufi Arabic',
+        family: "'Noto Kufi Arabic', sans-serif",
+        category: 'editorial',
+        categoryLabel: 'محتوى ومقالات',
+        weight: 'منظم ورصين',
+        sampleAr: 'محتوى موثوق ومنسق للمواقع الرسمية',
+        sampleEn: 'Structured typography for institutional content',
+        usage: 'ممتاز للمواقع التعليمية والرسمية والصفحات التي تحتاج شكل منظم وثابت وواضح على مختلف الأجهزة.',
+        tags: ['Official', 'Docs', 'Knowledge']
+      }
+    ];
+
+    const grid = document.getElementById('fontGrid');
+    const searchInput = document.getElementById('searchInput');
+    const categorySelect = document.getElementById('categorySelect');
+    const chips = [...document.querySelectorAll('.chip')];
+    const emptyState = document.getElementById('emptyState');
+    let currentFilter = 'all';
+
+    function renderFonts() {
+      const term = searchInput.value.trim().toLowerCase();
+      const selectValue = categorySelect.value;
+      const filterValue = selectValue !== 'all' ? selectValue : currentFilter;
+      const filtered = fonts.filter(font => {
+        const matchesFilter = filterValue === 'all' || font.category === filterValue;
+        const haystack = [font.name, font.categoryLabel, font.usage, ...font.tags].join(' ').toLowerCase();
+        const matchesTerm = !term || haystack.includes(term);
+        return matchesFilter && matchesTerm;
+      });
+
+      grid.innerHTML = filtered.map(font => `
+        <article class="font-card" data-category="${font.category}">
+          <div class="card-top">
+            <div>
+              <div class="font-family-name">${font.name}</div>
+              <div class="font-meta">
+                <span>${font.categoryLabel}</span>
+                <span>•</span>
+                <span>${font.weight}</span>
+              </div>
+            </div>
+            <span class="badge">${font.categoryLabel}</span>
+          </div>
+          <div class="sample-box" style="font-family:${font.family}">
+            <div class="sample-ar">${font.sampleAr}</div>
+            <div class="sample-en">${font.sampleEn}</div>
+          </div>
+          <div class="usage">${font.usage}</div>
+          <div class="use-list">
+            ${font.tags.map(tag => `<span class="use-pill">${tag}</span>`).join('')}
+          </div>
+        </article>
+      `).join('');
+
+      emptyState.hidden = filtered.length !== 0;
+      grid.hidden = filtered.length === 0;
+    }
+
+    chips.forEach(chip => chip.addEventListener('click', () => {
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentFilter = chip.dataset.filter;
+      categorySelect.value = 'all';
+      renderFonts();
+    }));
+
+    searchInput.addEventListener('input', renderFonts);
+    categorySelect.addEventListener('change', () => {
+      chips.forEach(c => c.classList.remove('active'));
+      const active = chips.find(c => c.dataset.filter === categorySelect.value) || chips.find(c => c.dataset.filter === 'all');
+      active.classList.add('active');
+      currentFilter = categorySelect.value;
+      renderFonts();
+    });
+
+    const themeToggle = document.querySelector('[data-theme-toggle]');
+    let currentTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    themeToggle.addEventListener('click', () => {
+      currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', currentTheme);
+    });
+
+    renderFonts();
+  </script>
+</body>
+</html>

@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
-  border: 'rgba(255,255,255,0.08)', borderH: 'rgba(255,255,255,0.16)',
+  border: 'rgba(250, 246, 240,0.08)', borderH: 'rgba(250, 246, 240,0.16)',
   text: '#e8e8ed', text2: '#a8a8b3', text3: '#6b6b75',
   gold: '#c8a35c', error: '#ef4444', success: '#22c55e',
 }

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ||
   '5348700581-6bq9f3lmvnru013qf4ipljedt7u839bm.apps.googleusercontent.com'
 
-export default function GoogleSignInModal({ onSuccess, onClose }) {
+export default function GoogleSignInModal({ onSuccess, onClose, title, subtitle, features }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [scriptLoaded, setScriptLoaded] = useState(false)
@@ -92,26 +92,37 @@ export default function GoogleSignInModal({ onSuccess, onClose }) {
         </div>
 
         {/* Heading */}
-        <h2 className="gsignin-title">ابدأ مشروعك مع Vixcell</h2>
+        <h2 className="gsignin-title">{title || "ابدأ مشروعك مع Vixcell"}</h2>
         <p className="gsignin-subtitle">
-          سجّل دخولك بـ Google وهـ AI يبني موقعك في دقائق ✨
+          {subtitle || "سجّل دخولك بـ Google وهـ AI يبني موقعك في دقائق ✨"}
         </p>
 
         {/* Features */}
-        <div className="gsignin-features">
-          <div className="gsignin-feature">
-            <span className="gsignin-feature-icon">🤖</span>
-            <span>AI يسألك عن مشروعك</span>
+        {features ? (
+          <div className="gsignin-features">
+            {features.map((f, i) => (
+              <div key={i} className="gsignin-feature">
+                <span className="gsignin-feature-icon">{f.icon}</span>
+                <span>{f.text}</span>
+              </div>
+            ))}
           </div>
-          <div className="gsignin-feature">
-            <span className="gsignin-feature-icon">🎨</span>
-            <span>يبني موقع حقيقي مخصص ليك</span>
+        ) : (
+          <div className="gsignin-features">
+            <div className="gsignin-feature">
+              <span className="gsignin-feature-icon">🤖</span>
+              <span>AI يسألك عن مشروعك</span>
+            </div>
+            <div className="gsignin-feature">
+              <span className="gsignin-feature-icon">🎨</span>
+              <span>يبني موقع حقيقي مخصص ليك</span>
+            </div>
+            <div className="gsignin-feature">
+              <span className="gsignin-feature-icon">⚡</span>
+              <span>في أقل من 5 دقائق</span>
+            </div>
           </div>
-          <div className="gsignin-feature">
-            <span className="gsignin-feature-icon">⚡</span>
-            <span>في أقل من 5 دقائق</span>
-          </div>
-        </div>
+        )}
 
         {/* Error */}
         {error && (

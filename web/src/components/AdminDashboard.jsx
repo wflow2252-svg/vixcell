@@ -6,10 +6,11 @@ import SocialAgent from './SocialAgent'
 import BrandSettings from './BrandSettings'
 import CampaignEditor from './CampaignEditor'
 import MeetingRoom from './MeetingRoom'
+import AICodingAssistant from './AICodingAssistant'
 
 const T = {
   bg: '#0c0c0e', bg2: '#131316', bg3: '#1a1a1f',
-  border: 'rgba(255,255,255,0.08)', borderH: 'rgba(255,255,255,0.16)',
+  border: 'rgba(250, 246, 240,0.08)', borderH: 'rgba(250, 246, 240,0.16)',
   text: '#e8e8ed', text2: '#a8a8b3', text3: '#6b6b75',
   gold: '#c8a35c', goldH: '#d4b06a', goldDim: 'rgba(200,163,92,0.12)',
   error: '#ef4444', success: '#22c55e',
@@ -153,9 +154,9 @@ function SignInGate({ onBack, onPasswordLogin, logoUrl }) {
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0' }}>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+          <div style={{ flex: 1, height: 1, background: 'rgba(250, 246, 240,0.08)' }} />
           <span style={{ color: T.text3, fontSize: 12 }}>أو</span>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+          <div style={{ flex: 1, height: 1, background: 'rgba(250, 246, 240,0.08)' }} />
         </div>
 
         <button
@@ -283,6 +284,12 @@ function AdminView({ user, onBack, logoUrl }) {
         >
           🎯 Campaign
         </button>
+        <button
+          onClick={() => setActiveTab('coding')}
+          style={{ ...styles.tab, ...(activeTab === 'coding' ? styles.tabActive : {}) }}
+        >
+          💻 AI Coding
+        </button>
       </div>
 
       {activeTab === 'meetings' ? (
@@ -293,6 +300,8 @@ function AdminView({ user, onBack, logoUrl }) {
         <BrandSettings />
       ) : activeTab === 'campaign' ? (
         <CampaignEditor />
+      ) : activeTab === 'coding' ? (
+        <AICodingAssistant />
       ) : (
       <div style={styles.adminWrap}>
         <div style={styles.adminHeader}>
@@ -582,7 +591,7 @@ const styles = {
   },
   googleBtn: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-    background: '#fff', color: '#1f1f1f',
+    background: '#FAF6F0', color: '#1f1f1f',
     border: 'none', borderRadius: 12,
     padding: '12px 22px',
     fontSize: 14, fontWeight: 600,
@@ -693,7 +702,7 @@ const styles = {
 
   spinner: {
     display: 'inline-block', width: 24, height: 24,
-    border: '2px solid rgba(255,255,255,0.1)', borderTopColor: T.gold,
+    border: '2px solid rgba(250, 246, 240,0.1)', borderTopColor: T.gold,
     borderRadius: '50%', animation: 'vxSpin 0.8s linear infinite',
   },
 }
@@ -703,7 +712,7 @@ if (typeof document !== 'undefined' && !document.getElementById('vx-admin-keyfra
   style.id = 'vx-admin-keyframes'
   style.textContent = `
 @keyframes vxSpin { to { transform: rotate(360deg) } }
-.vx-sub-card:hover { border-color: rgba(255,255,255,0.16) !important; }
+.vx-sub-card:hover { border-color: rgba(250, 246, 240,0.16) !important; }
 @media (max-width: 900px) {
   .vx-admin-split { grid-template-columns: 1fr !important; }
 }

@@ -340,7 +340,7 @@ const COLOR_MAP = {
   '#eab308': /\b(yellow|gold|golden|mustard)\b|(أصفر|اصفر|ذهبي)/i,
   '#14b8a6': /\b(teal|turquoise|cyan)\b|(تركواز|سماوي\s*غامق)/i,
   '#0f172a': /\b(black|dark|midnight)\b|(أسود|اسود|داكن)/i,
-  '#ffffff': /\b(white|ivory|cream)\b|(أبيض|ابيض)/i,
+  '#FAF6F0': /\b(white|ivory|cream)\b|(أبيض|ابيض)/i,
   '#64748b': /\b(gray|grey|slate)\b|(رمادي|سيلفر)/i,
 }
 

@@ -154,7 +154,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
-    background: '#ffffff',
+    background: '#FAF6F0',
   },
   msgBubble: {
     padding: '0.6rem 1rem',
@@ -176,7 +176,7 @@ const styles = {
     borderRadius: '20px',
     border: '1px solid var(--border-color)',
     outline: 'none',
-    background: '#ffffff',
+    background: '#FAF6F0',
     color: 'var(--text-color)',
     fontFamily: 'Inter',
     fontSize: '0.9rem',

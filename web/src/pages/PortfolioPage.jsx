@@ -94,7 +94,7 @@ export default function PortfolioPage({ onViewChange }) {
                   opacity: 0, transition: 'opacity .3s',
                 }}>
                   <span style={{
-                    background: '#1a73e8', color: '#fff', borderRadius: 20,
+                    background: '#1a73e8', color: '#FAF6F0', borderRadius: 20,
                     padding: '8px 20px', fontSize: 13, fontWeight: 700,
                   }}>فتح الموقع ↗</span>
                 </div>

@@ -13,7 +13,7 @@ const megaMenuData = [
   { title: "Digital Marketing", count: "05", link: "#services", icon: "marketing", image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=600&q=80" }
 ]
 
-export default function Navbar({ currentView, onViewChange, onStartProject }) {
+export default function Navbar({ currentView, onViewChange, onStartProject, lang, setLang }) {
   const [scrolled, setScrolled] = useState(false)
   const [megaMenuOpen, setMegaMenuOpen] = useState(false)
   const [hoveredCard, setHoveredCard] = useState(null)
@@ -21,6 +21,9 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
   const [logoUrl, setLogoUrl] = useState('/logo.png')
 
   const closeTimeoutRef = useRef(null)
+  const openTimeoutRef = useRef(null)
+
+  const t = (en, ar) => (lang === 'ar' ? ar : en)
 
   useEffect(() => {
     let active = true
@@ -58,10 +61,18 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current)
     }
-    setMegaMenuOpen(true)
+    if (!openTimeoutRef.current) {
+      openTimeoutRef.current = setTimeout(() => {
+        setMegaMenuOpen(true)
+      }, 180)
+    }
   }
 
   const handleMouseLeaveMenu = () => {
+    if (openTimeoutRef.current) {
+      clearTimeout(openTimeoutRef.current)
+      openTimeoutRef.current = null
+    }
     closeTimeoutRef.current = setTimeout(() => {
       setMegaMenuOpen(false)
       setHoveredCard(null)
@@ -70,9 +81,8 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
 
   useEffect(() => {
     return () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current)
-      }
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+      if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current)
     }
   }, [])
 
@@ -103,7 +113,11 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
           {/* Left: Logo Column */}
           <div className="header-logo">
             <a href="#" onClick={(e) => handleLinkClick(e, '#')}>
-              <img src={logoUrl} alt="Vixcell Logo" style={{ height: '22px', width: 'auto', objectFit: 'contain' }} />
+              <img 
+                src={logoUrl} 
+                alt="Vixcell Logo" 
+                className="nav-logo-img" 
+              />
             </a>
           </div>
           
@@ -124,14 +138,25 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
                   }}
                   onMouseEnter={handleMouseEnterMenu}
                 >
-                  Services
+                  {t('Services', 'خدماتنا')}
                 </a>
                 <a 
                   href="#portfolio" 
                   onMouseEnter={handleMouseLeaveMenu}
                   onClick={(e) => handleLinkClick(e, '#portfolio')}
                 >
-                  Portfolio
+                  {t('Portfolio', 'أعمالنا')}
+                </a>
+                <a 
+                  href="/designer"
+                  onMouseEnter={handleMouseLeaveMenu}
+                  className={currentView === 'designer' ? 'active' : ''}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onViewChange('designer');
+                  }}
+                >
+                  {t('AI Designer', 'المصمم الذكي')}
                 </a>
                 <a 
                   href="/meeting"
@@ -142,14 +167,14 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
                     onViewChange('meeting');
                   }}
                 >
-                  Meeting
+                  {t('VIXCELL MEET', 'لقاءات فيكسل')}
                 </a>
                 <a 
                   href="#ai" 
                   onMouseEnter={handleMouseLeaveMenu}
                   onClick={(e) => handleLinkClick(e, '#ai')}
                 >
-                  About
+                  {t('About', 'من نحن')}
                 </a>
 
                 <a
@@ -157,8 +182,19 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
                   onMouseEnter={handleMouseLeaveMenu}
                   onClick={(e) => { e.preventDefault(); setIsContactOpen(true); }}
                 >
-                  Contact
+                  {t('Contact', 'اتصل بنا')}
                 </a>
+
+                <button 
+                  onClick={() => {
+                    const nextLang = lang === 'ar' ? 'en' : 'ar';
+                    setLang(nextLang);
+                    try { localStorage.setItem('vix_lang', nextLang); } catch(e) {}
+                  }}
+                  className="btn-nav-lang-toggle"
+                >
+                  {lang === 'ar' ? 'EN' : 'عربي'}
+                </button>
               </div>
             </div>
 
@@ -218,7 +254,7 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
               onClick={() => setIsContactOpen(true)}
               aria-label="Open Contact"
             >
-              <DotPixelIcon name="dotGrid" size={20} color="rgba(255,255,255,0.85)" />
+              <DotPixelIcon name="dotGrid" size={20} color="rgba(250, 246, 240,0.85)" />
             </button>
           </div>
         </div>
@@ -230,41 +266,50 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
           <button 
             className="contact-modal-close" 
             onClick={() => setIsContactOpen(false)}
-            aria-label="Close modal"
+            aria-label={t("Close modal", "إغلاق النافذة")}
           >
             <DotPixelIcon name="close" size={24} color="var(--text-color)" />
           </button>
           
           <div className="contact-modal-content">
             <h2 className="contact-modal-title">
-              Ready to <span className="text-muted-gray">get started?</span>
+              {lang === 'ar' ? (
+                <>جاهز <span className="text-muted-gray">للبدء والعمل معنا؟</span></>
+              ) : (
+                <>Ready to <span className="text-muted-gray">get started?</span></>
+              )}
             </h2>
             
             <form className="contact-form" onSubmit={(e) => e.preventDefault()}>
               <div className="form-grid">
                 <div className="form-group half">
-                  <input type="text" placeholder="Your Name *" required />
+                  <input type="text" placeholder={t("Your Name *", "الاسم الكريم *")} required />
                 </div>
                 <div className="form-group half">
-                  <input type="email" placeholder="Email *" required />
+                  <input type="email" placeholder={t("Email *", "البريد الإلكتروني *")} required />
                 </div>
                 <div className="form-group full">
-                  <input type="tel" placeholder="Phone (Optional)" />
+                  <input type="tel" placeholder={t("Phone (Optional)", "رقم الهاتف (اختياري)")} />
                 </div>
                 <div className="form-group full">
-                  <textarea placeholder="Tell us about your project *" required rows={4}></textarea>
+                  <textarea placeholder={t("Tell us about your project *", "حدثنا قليلاً عن تفاصيل مشروعك *")} required rows={4}></textarea>
                 </div>
               </div>
 
               <div className="services-interest-section">
-                <span className="services-interest-title">SERVICES ARE INTERESTED IN</span>
+                <span className="services-interest-title">{t("SERVICES YOU ARE INTERESTED IN", "الخدمات التي تهمك")}</span>
                 <div className="services-interest-grid">
-                  {[
+                  {(lang === 'ar' ? [
+                    "استراتيجية العلامة التجارية", "تطوير مواقع الويب",
+                    "الهوية البصرية", "المتاجر الإلكترونية",
+                    "تصميم تجربة المستخدم", "تطبيقات الويب والجوال",
+                    "المحتوى المرئي", "الأنظمة المدمجة والأجهزة"
+                  ] : [
                     "Brand Strategy", "Web Development",
                     "Brand Identity", "eCommerce",
                     "User Experience Design", "Web & Mobile Applications",
                     "Visual Content", "Embedded & Hardware"
-                  ].map((service, index) => (
+                  ]).map((service, index) => (
                     <label key={index} className="service-interest-label">
                       <input type="checkbox" name="services" value={service} />
                       <span className="checkbox-custom"></span>
@@ -275,7 +320,7 @@ export default function Navbar({ currentView, onViewChange, onStartProject }) {
               </div>
 
               <button type="submit" className="contact-submit-btn">
-                <span>Send Message</span>
+                <span>{t("Send Message", "إرسال الرسالة")}</span>
                 <DotPixelIcon name="send" size={16} color="black" className="submit-arrow" />
               </button>
             </form>

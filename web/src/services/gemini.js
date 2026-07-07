@@ -144,17 +144,17 @@ function getMockResponse(message) {
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Cairo', sans-serif; background: #0a0a0a; color: #fff; }
+body { font-family: 'Cairo', sans-serif; background: #0a0a0a; color: #FAF6F0; }
 nav { position: fixed; top: 0; width: 100%; padding: 1.2rem 4rem; display: flex; justify-content: space-between; align-items: center; background: rgba(10,10,10,0.92); backdrop-filter: blur(20px); z-index: 100; border-bottom: 1px solid rgba(255,107,53,0.2); }
 .logo img { height: 45px; object-fit: contain; }
-.nav-links a { color: rgba(255,255,255,0.75); text-decoration: none; margin-right: 2rem; font-size: 0.95rem; transition: color 0.3s; }
+.nav-links a { color: rgba(250, 246, 240,0.75); text-decoration: none; margin-right: 2rem; font-size: 0.95rem; transition: color 0.3s; }
 .nav-links a:hover { color: #ff6b35; }
 .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at top, #1a0a00 0%, #0a0a0a 60%); position: relative; overflow: hidden; padding: 6rem 2rem 4rem; }
 .hero::before { content: ''; position: absolute; width: 800px; height: 800px; background: radial-gradient(circle, rgba(255,107,53,0.12) 0%, transparent 65%); border-radius: 50%; top: -200px; left: 50%; transform: translateX(-50%); animation: pulse 4s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{transform:translateX(-50%) scale(1);} 50%{transform:translateX(-50%) scale(1.1);} }
 .hero-logo { width: 90px; height: 90px; object-fit: contain; margin-bottom: 2rem; border-radius: 16px; box-shadow: 0 0 40px rgba(255,107,53,0.3); animation: float 3s ease-in-out infinite; }
 @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);} }
-h1 { font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 900; margin-bottom: 1.2rem; background: linear-gradient(135deg, #fff 40%, #ff6b35); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+h1 { font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 900; margin-bottom: 1.2rem; background: linear-gradient(135deg, #FAF6F0 40%, #ff6b35); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .hero p { font-size: 1.2rem; opacity: 0.7; margin-bottom: 2.5rem; max-width: 500px; margin-right: auto; margin-left: auto; line-height: 1.8; }
 .btn { background: linear-gradient(135deg, #ff6b35, #ff4500); color: white; padding: 1rem 2.5rem; border-radius: 50px; text-decoration: none; font-weight: 700; display: inline-block; transition: all 0.3s; box-shadow: 0 8px 30px rgba(255,107,53,0.35); }
 .btn:hover { transform: translateY(-4px); box-shadow: 0 15px 40px rgba(255,107,53,0.5); }
@@ -162,7 +162,7 @@ h1 { font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 900; margin-bottom: 1.2re
 .section-title { text-align: center; font-size: 2.5rem; font-weight: 800; margin-bottom: 0.7rem; }
 .section-sub { text-align: center; opacity: 0.5; margin-bottom: 4rem; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; max-width: 1100px; margin: 0 auto; }
-.card { background: #161616; padding: 2.2rem; border-radius: 20px; border: 1px solid rgba(255,255,255,0.07); transition: all 0.35s; }
+.card { background: #161616; padding: 2.2rem; border-radius: 20px; border: 1px solid rgba(250, 246, 240,0.07); transition: all 0.35s; }
 .card:hover { transform: translateY(-8px); border-color: rgba(255,107,53,0.4); box-shadow: 0 20px 50px rgba(255,107,53,0.12); }
 .card-icon { font-size: 2.5rem; margin-bottom: 1.2rem; }
 .card h3 { font-size: 1.2rem; margin-bottom: 0.6rem; }
@@ -170,7 +170,7 @@ h1 { font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 900; margin-bottom: 1.2re
 .contact { padding: 7rem 4rem; background: #0a0a0a; text-align: center; }
 .contact-btn { display: inline-flex; align-items: center; gap: 0.7rem; background: #25D366; color: white; padding: 1rem 2.5rem; border-radius: 50px; text-decoration: none; font-weight: 700; margin: 0.5rem; transition: all 0.3s; }
 .contact-btn:hover { transform: translateY(-3px); opacity: 0.9; }
-footer { background: #060606; padding: 2.5rem; text-align: center; border-top: 1px solid rgba(255,255,255,0.06); }
+footer { background: #060606; padding: 2.5rem; text-align: center; border-top: 1px solid rgba(250, 246, 240,0.06); }
 footer p { opacity: 0.4; font-size: 0.88rem; }
 </style>
 </head>

@@ -19,10 +19,10 @@ const JITSI_DOMAIN = 'meet.ffmuc.net'
 const ROOM_PREFIX = 'VixcellMeet'
 
 const C = {
-  bg: '#0f0f11', bg2: '#1a1a1e', border: 'rgba(255,255,255,0.08)',
+  bg: '#0f0f11', bg2: '#1a1a1e', border: 'rgba(250, 246, 240,0.08)',
   text: '#e8eaed', text2: '#9aa0a6', blue: '#1a73e8', green: '#34a853',
 }
-const FONT = "'Cairo','Outfit',sans-serif"
+const FONT = "'Plus Jakarta Sans', 'Inter', 'IBM Plex Sans Arabic', sans-serif"
 
 function genCode() {
   const a = 'abcdefghjkmnpqrstuvwxyz23456789'
@@ -233,9 +233,9 @@ function JitsiStage({ code, displayName, onLeave, onError, error }) {
       </div>
 
       {error && (
-        <div style={{ background: '#7f1d1d', color: '#fff', padding: 12, textAlign: 'center', fontFamily: FONT, fontSize: 14 }}>
+        <div style={{ background: '#7f1d1d', color: '#FAF6F0', padding: 12, textAlign: 'center', fontFamily: FONT, fontSize: 14 }}>
           {error}
-          <button onClick={onLeave} style={{ marginInlineStart: 12, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>خروج</button>
+          <button onClick={onLeave} style={{ marginInlineStart: 12, background: 'rgba(250, 246, 240,0.2)', border: 'none', color: '#FAF6F0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>خروج</button>
         </div>
       )}
 
@@ -267,11 +267,11 @@ function Card({ children }) {
 
 const st = {
   h2: { color: C.text, fontFamily: FONT, fontSize: 22, fontWeight: 800, margin: '6px 0' },
-  logo: { width: 56, height: 56, borderRadius: 14, margin: '0 auto 10px', background: 'linear-gradient(135deg,#1a73e8,#4a90e2)', color: '#fff', fontWeight: 900, fontSize: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 56, height: 56, borderRadius: 14, margin: '0 auto 10px', background: 'linear-gradient(135deg,#1a73e8,#4a90e2)', color: '#FAF6F0', fontWeight: 900, fontSize: 26, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   inviteCard: { background: 'rgba(26,115,232,0.06)', border: '1px solid rgba(26,115,232,0.18)', borderRadius: 12, padding: 14, marginBottom: 18 },
   inviteUrl: { color: C.text, fontSize: 12, wordBreak: 'break-all', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 8, marginBottom: 8, direction: 'ltr', textAlign: 'left' },
   copyBtn: { width: '100%', background: 'rgba(26,115,232,0.12)', border: '1px solid rgba(26,115,232,0.25)', borderRadius: 8, padding: '8px', cursor: 'pointer', fontFamily: FONT, fontWeight: 700, fontSize: 13 },
   label: { display: 'block', color: C.text2, fontSize: 12, fontFamily: FONT, marginBottom: 6 },
   input: { width: '100%', background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 12px', fontSize: 15, fontFamily: FONT, marginBottom: 16, boxSizing: 'border-box' },
-  joinBtn: { width: '100%', background: 'linear-gradient(135deg,#1a73e8,#4a90e2)', color: '#fff', border: 'none', borderRadius: 10, padding: '13px', fontSize: 15, fontWeight: 800, fontFamily: FONT, cursor: 'pointer' },
+  joinBtn: { width: '100%', background: 'linear-gradient(135deg,#1a73e8,#4a90e2)', color: '#FAF6F0', border: 'none', borderRadius: 10, padding: '13px', fontSize: 15, fontWeight: 800, fontFamily: FONT, cursor: 'pointer' },
 }

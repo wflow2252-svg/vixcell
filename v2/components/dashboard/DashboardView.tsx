@@ -9,6 +9,7 @@ import Archive from './Archive'
 import CRM from './CRM'
 import ProjectsManager from './ProjectsManager'
 import SiteContentManager from './SiteContentManager'
+import DeploymentsManager from './DeploymentsManager'
 
 export default function DashboardView() {
   const [activeTab, setActiveTab] = useState('live-panel')
@@ -106,6 +107,10 @@ export default function DashboardView() {
 
           {activeTab === 'site-content' && (
             <SiteContentManager />
+          )}
+
+          {activeTab === 'deployments' && (
+            <DeploymentsManager />
           )}
         </main>
       </div>
